@@ -431,7 +431,7 @@ export default function Home() {
         />
 
         {/* Dynamic Inner Panel Layout */}
-        <div className="flex-1 overflow-y-auto flex flex-col">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {isChatting ? (
             <ChatView
               messages={messages}
