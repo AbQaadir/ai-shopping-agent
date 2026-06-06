@@ -108,7 +108,7 @@ export default function ChatTimeline({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 pt-6 pb-4 space-y-6 flex flex-col items-center w-full">
+    <div className="flex-1 overflow-y-auto px-4 pt-6 pb-1 space-y-6 flex flex-col items-center w-full">
       <div className="w-full max-w-3xl space-y-6 flex flex-col">
         {messages.map((msg) => {
           const isUser = msg.sender === "user";

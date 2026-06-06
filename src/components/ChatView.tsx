@@ -182,7 +182,7 @@ export default function ChatView({
       </div>
 
       {/* 3. Pinned Input Bar — always anchored to the bottom of the viewport, never scrolls */}
-      <div className="shrink-0 bg-white border-t border-slate-100 px-4 py-3 select-none">
+      <div className="shrink-0 bg-white px-4 py-3 select-none">
         <div className="max-w-3xl mx-auto w-full">
         <div className="w-full bg-white rounded-2xl border border-slate-200 p-3 flex flex-col gap-2 relative shadow-sm hover:shadow-md transition-shadow duration-300">
           
