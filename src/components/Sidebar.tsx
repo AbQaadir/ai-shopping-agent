@@ -36,12 +36,10 @@ export default function Sidebar({
       }`}
     >
       {/* Top Section - Toggle Button Only */}
-      <div className="h-16 flex items-center justify-end px-4">
+      <div className={`h-16 flex items-center ${isCollapsed ? "justify-center px-0" : "justify-end px-4"}`}>
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className={`p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors ${
-            isCollapsed ? "mx-auto" : ""
-          }`}
+          className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}
@@ -53,20 +51,27 @@ export default function Sidebar({
         {/* Home Option */}
         <button 
           onClick={onReset}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer ${
-            activeHistoryId === undefined 
-              ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold" 
-              : "text-slate-700 hover:bg-slate-100/60 font-semibold"
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer relative ${
+            isCollapsed
+              ? activeHistoryId === undefined 
+                ? "text-[#402970] font-bold" 
+                : "text-slate-500 hover:bg-slate-100/60 font-semibold"
+              : activeHistoryId === undefined 
+                ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold" 
+                : "text-slate-700 hover:bg-slate-100/60 font-semibold"
           } ${isCollapsed ? "justify-center" : ""}`}
           title="Home"
         >
-          {/* Custom clock-refresh icon representing Home search reset */}
+          {/* Custom search-sparkle icon representing Home search reset */}
           <svg className={`w-5 h-5 shrink-0 ${activeHistoryId === undefined ? "text-[#402970]" : "text-slate-500"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-            <path d="M3 3v5h5" />
-            <path d="M12 7v5l4 2" />
+            <circle cx="10" cy="14" r="5" />
+            <path d="m14 18 4 4" />
+            <path d="M18 3c-.1 1.5-1.5 2.9-3 3 1.5 .1 2.9 1.5 3 3 .1-1.5 1.5-2.9 3-3-1.5-.1-2.9-1.5-3-3z" />
           </svg>
           {!isCollapsed && <span>Home</span>}
+          {isCollapsed && activeHistoryId === undefined && (
+            <span className="absolute -right-3 top-1/2 -translate-y-1/2 w-[4px] h-8 bg-[#402970] rounded-l-full" />
+          )}
         </button>
 
         {/* History Option */}
@@ -78,10 +83,14 @@ export default function Sidebar({
               }
               setShowHistoryList(!showHistoryList);
             }}
-            className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer ${
-              activeHistoryId !== undefined 
-                ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold" 
-                : "text-slate-700 hover:bg-slate-100/60 font-semibold"
+            className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer relative ${
+              isCollapsed
+                ? activeHistoryId !== undefined 
+                  ? "text-[#402970] font-bold" 
+                  : "text-slate-500 hover:bg-slate-100/60 font-semibold"
+                : activeHistoryId !== undefined 
+                  ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold" 
+                  : "text-slate-700 hover:bg-slate-100/60 font-semibold"
             } ${isCollapsed ? "justify-center" : ""}`}
             title="History"
           >
@@ -91,6 +100,9 @@ export default function Sidebar({
             </div>
             {!isCollapsed && history.length > 0 && (
               showHistoryList ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />
+            )}
+            {isCollapsed && activeHistoryId !== undefined && (
+              <span className="absolute -right-3 top-1/2 -translate-y-1/2 w-[4px] h-8 bg-[#402970] rounded-l-full" />
             )}
           </button>
 
@@ -124,7 +136,7 @@ export default function Sidebar({
       <div className="p-3 border-t border-slate-100/50">
         <button 
           onClick={() => alert("Contact support at support@kapuruka.com")}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-700 hover:bg-slate-100/60 text-sm font-semibold transition-all duration-200 cursor-pointer ${
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-700 hover:bg-slate-100/60 hover:text-slate-700 text-sm font-semibold transition-all duration-200 cursor-pointer ${
             isCollapsed ? "justify-center" : ""
           }`}
           title="Contact us"
