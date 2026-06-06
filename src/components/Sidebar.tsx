@@ -135,7 +135,7 @@ export default function Sidebar({
           {!isCollapsed && <span>Help & Support</span>}
         </button>
 
-        <div className="mt-2 border-t border-slate-50 pt-2 flex items-center gap-3 px-3 py-1.5">
+        <div className={`mt-2 border-t border-slate-50 pt-2 flex items-center gap-3 px-3 py-1.5 ${isCollapsed ? "justify-center px-0" : ""}`}>
           <div className="w-8 h-8 rounded-full bg-[#ff6600]/10 text-[#ff6600] flex items-center justify-center font-bold text-sm shrink-0">
             QA
           </div>
