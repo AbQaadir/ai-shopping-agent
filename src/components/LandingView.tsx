@@ -70,7 +70,7 @@ export default function LandingView({ onSend, onSuggestionClick }: LandingViewPr
       
       {/* 1. Central Hero Sourcing Box */}
       <div className="flex flex-col items-center mt-6 text-center max-w-4xl mx-auto w-full">
-        <h1 className="text-[32px] sm:text-4xl lg:text-[40px] font-extrabold text-slate-800 tracking-tight mb-8 leading-tight">
+        <h1 className="text-[32px] sm:text-4xl lg:text-[40px] font-extrabold text-[#402970] tracking-tight mb-8 leading-tight">
           All tasks in one ask, smart sourcing with AI
         </h1>
         
