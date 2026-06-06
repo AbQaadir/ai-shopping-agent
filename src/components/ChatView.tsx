@@ -283,44 +283,6 @@ export default function ChatView({
 
             </div>
 
-            {/* Horizontal Scrollable Suggestions matching Screenshot 2 */}
-            <div className="relative mt-3 flex items-center w-full group">
-              <div className="flex-1 overflow-x-auto scrollbar-none flex gap-2.5 pb-1">
-                {[
-                  { text: "Verified manufacturer search", icon: "🔥" },
-                  { text: "Design with AI", icon: "🎨" },
-                  { text: "Product search", icon: "📦" },
-                  { text: "Analyze bestsellers", icon: "📊" },
-                  { text: "Evaluate suppliers", icon: "🔍" },
-                ].map((sug, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setInputText(sug.text)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 border border-slate-100 rounded-full text-xs font-semibold whitespace-nowrap shadow-[0_2px_6px_rgba(0,0,0,0.01)] hover:border-slate-200 active:scale-98 transition-all duration-200 shrink-0 cursor-pointer"
-                  >
-                    <span>{sug.icon}</span>
-                    <span>{sug.text}</span>
-                  </button>
-                ))}
-              </div>
-              
-              {/* Fade Overlay & Chevron Button */}
-              <div className="absolute right-0 top-0 bottom-1 w-20 bg-gradient-to-l from-white via-white/80 to-transparent pointer-events-none flex items-center justify-end">
-                <button 
-                  className="pointer-events-auto w-7 h-7 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-full flex items-center justify-center text-slate-500 shadow-sm transition-all cursor-pointer mr-0.5" 
-                  title="Next suggestion"
-                  onClick={() => {
-                    const container = document.querySelector('.scrollbar-none');
-                    if (container) {
-                      container.scrollBy({ left: 150, behavior: 'smooth' });
-                    }
-                  }}
-                >
-                  <ChevronRight size={14} strokeWidth={2.5} />
-                </button>
-              </div>
-            </div>
-
           </div>
         </div>
         {/* ── end pinned input ── */}
