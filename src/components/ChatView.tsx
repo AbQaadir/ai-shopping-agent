@@ -5,6 +5,7 @@ import {
   Paperclip, 
   ArrowUp, 
   ChevronLeft, 
+  ChevronRight,
   X, 
   Share2, 
   Loader2, 
@@ -129,26 +130,26 @@ export default function ChatView({
                 <div className="px-6 pb-4 flex justify-start max-w-3xl mx-auto w-full">
                   <div className="px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-4 w-full animate-fadeIn">
                     <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
-                      <Loader2 size={15} className="text-[#ff6600] animate-spin" />
+                      <Loader2 size={15} className="text-[#402970] animate-spin" />
                       <span>Working on your task</span>
                     </div>
                     <div className="pl-5 space-y-3">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#ff6600] animate-ping" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#402970] animate-ping" />
                           Getting everything ready
                         </div>
                         <p className="text-slate-500 text-xs font-medium pl-3">
                           Searching for &ldquo;{activeQueryText || 'foldable camping chairs under $15'}&rdquo; on B2B platforms…
                         </p>
                         <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold pl-3 pt-1 border-t border-slate-50">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#ff6600]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
                           Preparing the response
                         </div>
                       </div>
                       <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2 text-xs font-bold text-slate-600 truncate">
-                          <Box size={13} className="text-[#ff6600]" />
+                          <Box size={13} className="text-[#402970]" />
                           <span>Product search</span>
                           <span className="text-slate-300 font-light">|</span>
                           <span className="text-slate-500 font-medium truncate">
@@ -220,7 +221,7 @@ export default function ChatView({
                     </button>
                     <button
                       onClick={() => setShowDetails(true)}
-                      className="px-2.5 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#ff6600] rounded transition-all cursor-pointer shadow-sm"
+                      className="px-2.5 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#402970] rounded transition-all cursor-pointer shadow-sm"
                     >
                       Get quotes →
                     </button>
@@ -281,6 +282,45 @@ export default function ChatView({
               </div>
 
             </div>
+
+            {/* Horizontal Scrollable Suggestions matching Screenshot 2 */}
+            <div className="relative mt-3 flex items-center w-full group">
+              <div className="flex-1 overflow-x-auto scrollbar-none flex gap-2.5 pb-1">
+                {[
+                  { text: "Verified manufacturer search", icon: "🔥" },
+                  { text: "Design with AI", icon: "🎨" },
+                  { text: "Product search", icon: "📦" },
+                  { text: "Analyze bestsellers", icon: "📊" },
+                  { text: "Evaluate suppliers", icon: "🔍" },
+                ].map((sug, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setInputText(sug.text)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 border border-slate-100 rounded-full text-xs font-semibold whitespace-nowrap shadow-[0_2px_6px_rgba(0,0,0,0.01)] hover:border-slate-200 active:scale-98 transition-all duration-200 shrink-0 cursor-pointer"
+                  >
+                    <span>{sug.icon}</span>
+                    <span>{sug.text}</span>
+                  </button>
+                ))}
+              </div>
+              
+              {/* Fade Overlay & Chevron Button */}
+              <div className="absolute right-0 top-0 bottom-1 w-20 bg-gradient-to-l from-white via-white/80 to-transparent pointer-events-none flex items-center justify-end">
+                <button 
+                  className="pointer-events-auto w-7 h-7 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-full flex items-center justify-center text-slate-500 shadow-sm transition-all cursor-pointer mr-0.5" 
+                  title="Next suggestion"
+                  onClick={() => {
+                    const container = document.querySelector('.scrollbar-none');
+                    if (container) {
+                      container.scrollBy({ left: 150, behavior: 'smooth' });
+                    }
+                  }}
+                >
+                  <ChevronRight size={14} strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
         {/* ── end pinned input ── */}

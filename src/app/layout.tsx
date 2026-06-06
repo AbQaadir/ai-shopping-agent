@@ -9,8 +9,8 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Alibaba.com AI Mode - Intelligent Sourcing Agent",
-  description: "All tasks in one ask, smart sourcing with AI. Go beyond search — let Accio Work handle your entire sourcing workflow.",
+  title: "Kapuruka.com AI Mode - Intelligent Sourcing Agent",
+  description: "All tasks in one ask, smart sourcing with AI. Go beyond search — let Kapuruka Work handle your entire sourcing workflow.",
 };
 
 export default function RootLayout({

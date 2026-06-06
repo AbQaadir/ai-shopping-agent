@@ -37,7 +37,7 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [activePage, setActivePage] = useState(1);
 
-  // Mocked products matching Alibaba AI search output for camping chairs under $15
+  // Mocked products matching Kapuruka AI search output for camping chairs under $15
   const products: ProductDetail[] = [
     {
       id: "dp1",
@@ -171,7 +171,7 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
       reviews: 110,
       verified: true,
       image: "🛌",
-      bgColor: "bg-orange-100",
+      bgColor: "bg-[#402970]/10",
       requirements: ["camping chair", "foldable", "price < 15 USD"]
     },
     {
@@ -227,7 +227,7 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
       {/* Header Panel */}
       <div className="h-14 bg-white border-b border-slate-100 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center text-[#ff6600]">
+          <div className="w-7 h-7 rounded-lg bg-[#402970]/5 border border-[#402970]/15 flex items-center justify-center text-[#402970]">
             <Box size={16} />
           </div>
           <span className="font-bold text-slate-800 text-sm">Product search</span>
@@ -300,7 +300,7 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
                   {/* Removed Requirements Status Pill */}
 
                   {/* Product Title */}
-                  <h4 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2 hover:text-[#ff6600] cursor-pointer mb-2">
+                  <h4 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2 hover:text-[#402970] cursor-pointer mb-2">
                     {prod.title}
                   </h4>
 
@@ -361,10 +361,10 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
                       
                       {/* Removed Requirements Badge */}
 
-                      <span className="text-xs font-extrabold text-[#ff6600] whitespace-nowrap">{prod.price}</span>
+                      <span className="text-xs font-extrabold text-[#402970] whitespace-nowrap">{prod.price}</span>
                     </div>
 
-                    <h4 className="text-xs font-bold text-slate-800 leading-snug truncate hover:text-[#ff6600] cursor-pointer">
+                    <h4 className="text-xs font-bold text-slate-800 leading-snug truncate hover:text-[#402970] cursor-pointer">
                       {prod.title}
                     </h4>
 

@@ -168,7 +168,7 @@ export default function ChatTimeline({
                             <details className="group border border-slate-100 rounded-xl bg-slate-50/40 overflow-hidden">
                               <summary className="font-bold text-slate-500 cursor-pointer flex items-center justify-between px-3 py-2 select-none hover:bg-slate-100/50 transition-colors">
                                 <div className="flex items-center gap-2">
-                                  <Sparkles size={12} className="text-[#ff6600]" />
+                                  <Sparkles size={12} className="text-[#402970]" />
                                   <span>Thought Process</span>
                                 </div>
                                 <span className="text-[10px] text-slate-400 group-open:hidden">Show details</span>
@@ -193,7 +193,7 @@ export default function ChatTimeline({
                                 {/* Sourcing status card */}
                                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4 max-w-xl">
                                   <div className="flex items-center gap-2 text-xs font-bold text-slate-600 truncate">
-                                    <Box size={14} className="text-[#ff6600]" />
+                                    <Box size={14} className="text-[#402970]" />
                                     <span>Product search</span>
                                     <span className="text-slate-300 font-light">|</span>
                                     <span className="text-slate-500 font-medium truncate">
@@ -259,7 +259,7 @@ export default function ChatTimeline({
                                           onClick={() => onToggleSelectProduct?.(prod)}
                                           className={`px-3 py-1.5 rounded-full text-[10px] font-bold shadow-md cursor-pointer transition-all duration-200 flex items-center gap-0.5 ${
                                             selectedProductIds.includes(prod.id)
-                                              ? "bg-[#ff6600] text-white border border-[#ff6600]"
+                                              ? "bg-[#402970] text-white border border-[#402970]"
                                               : "bg-white text-slate-800 hover:bg-slate-50 border border-slate-200"
                                           }`}
                                         >
@@ -344,8 +344,8 @@ export default function ChatTimeline({
                   <span>{formatTime(msg.timestamp)}</span>
                   {isUser && (
                     <span>
-                      {msg.status === "sending" && <Clock size={10} className="animate-spin text-[#ff6600]" />}
-                      {msg.status === "analyzing" && <Sparkles size={10} className="animate-pulse text-[#ff6600]" />}
+                      {msg.status === "sending" && <Clock size={10} className="animate-spin text-[#402970]" />}
+                      {msg.status === "analyzing" && <Sparkles size={10} className="animate-pulse text-[#402970]" />}
                       {msg.status === "sent" && <Check size={10} className="text-emerald-500 stroke-[3]" />}
                     </span>
                   )}

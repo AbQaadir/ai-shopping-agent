@@ -408,51 +408,52 @@ export default function Home() {
     
     setMessages([initialPrompt]);
   };
-
   return (
-    <div className="flex-1 flex overflow-hidden h-screen bg-white">
-      {/* 1. Expandable Left Sidebar */}
-      <Sidebar
-        isCollapsed={isSidebarCollapsed}
-        setIsCollapsed={setIsSidebarCollapsed}
-        onReset={handleReset}
-        history={history}
-        onSelectHistory={handleSelectHistory}
-        activeHistoryId={activeHistoryId}
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-white">
+      {/* 1. Header (Top Area - spans full width) */}
+      <Header 
+        onNewSourcing={handleReset} 
+        isCompact={isChatting} 
       />
 
-      {/* 2. Main Area (Header + Sourcing Workspace) */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        
-        {/* Floating Header */}
-        <Header 
-          onNewSourcing={handleReset} 
-          isCompact={isChatting} 
+      {/* 2. Content Area (Sidebar + Sourcing Workspace below the header) */}
+      <div className="flex-1 flex min-w-0 overflow-hidden relative">
+        {/* Left Sidebar */}
+        <Sidebar
+          isCollapsed={isSidebarCollapsed}
+          setIsCollapsed={setIsSidebarCollapsed}
+          onReset={handleReset}
+          history={history}
+          onSelectHistory={handleSelectHistory}
+          activeHistoryId={activeHistoryId}
         />
 
-        {/* Dynamic Inner Panel Layout */}
+        {/* Sourcing Workspace */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {isChatting ? (
-            <ChatView
-              messages={messages}
-              isGenerating={isGenerating}
-              onSend={handleSendMessage}
-              onBackToLanding={handleReset}
-              activeQueryText={activeQueryText}
-              onStopGeneration={handleStopGeneration}
-            />
-          ) : (
-            <LandingView
-              onSend={handleSendMessage}
-              onSuggestionClick={handleSuggestionClick}
-            />
-          )}
+          {/* Dynamic Inner Panel Layout */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {isChatting ? (
+              <ChatView
+                messages={messages}
+                isGenerating={isGenerating}
+                onSend={handleSendMessage}
+                onBackToLanding={handleReset}
+                activeQueryText={activeQueryText}
+                onStopGeneration={handleStopGeneration}
+              />
+            ) : (
+              <LandingView
+                onSend={handleSendMessage}
+                onSuggestionClick={handleSuggestionClick}
+              />
+            )}
+          </div>
         </div>
 
         {/* Floating Message Drawer Bubble (bottom right on landing) */}
         {!isChatting && (
           <button className="fixed bottom-6 right-6 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-full px-5 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-30 font-semibold text-xs active:scale-95">
-            <MessageSquare size={16} className="text-[#ff6600]" />
+            <MessageSquare size={16} className="text-[#402970]" />
             Messages
           </button>
         )}
