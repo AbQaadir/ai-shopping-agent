@@ -1,26 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import LandingView from "@/components/LandingView";
 import ChatView from "@/components/ChatView";
 import { MessageSquare } from "lucide-react";
-
-interface FileAttachment {
-  name: string;
-  size: number;
-  type: string;
-}
-
-interface Message {
-  id: string;
-  sender: "user" | "ai";
-  text: string;
-  timestamp: Date;
-  attachments?: FileAttachment[];
-  status?: "sending" | "sent" | "analyzing";
-}
+import { InlineProduct, Message } from "@/components/ChatTimeline";
 
 interface HistoryItem {
   id: string;
@@ -31,15 +17,165 @@ interface HistoryItem {
 }
 
 export default function Home() {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isChatting, setIsChatting] = useState(false);
   const [activeHistoryId, setActiveHistoryId] = useState<string | undefined>(undefined);
-  const [currentQueryType, setCurrentQueryType] = useState<"design" | "manufacturer" | "bestseller" | "product" | "general">("general");
   const [activeQueryText, setActiveQueryText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   
+  // Ref to hold the streaming interval
+  const streamIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   // Active message thread
   const [messages, setMessages] = useState<Message[]>([]);
+
+  // Mock Products for timeline search (Image 2 cards)
+  const inlineProductsMock: InlineProduct[] = [
+    {
+      id: "ip1",
+      title: "Folding Moon Chair Portable Breathable Mesh Backrest Seat for Outdoor Camping",
+      price: "$3.40 - $3.60",
+      moq: "12 bags",
+      supplier: "Beijing Liyi Technology Co., Ltd.",
+      location: "CN",
+      years: 1,
+      verified: false,
+      image: "🏕️",
+      bgColor: "bg-amber-100"
+    },
+    {
+      id: "ip2",
+      title: "360° Swivel Folding Camping Chair 3-Legged Portable Stool for Hiking Fishing",
+      price: "$5.50",
+      moq: "20 pieces",
+      supplier: "Henan Haiku Outdoor Products Co., Ltd.",
+      location: "CN",
+      years: 1,
+      verified: false,
+      image: "🔄",
+      bgColor: "bg-emerald-100"
+    },
+    {
+      id: "ip3",
+      title: "Lightweight Outdoor Beach Oxford Chair for Picnic & Travel",
+      price: "$2.29 - $2.86",
+      moq: "6 pieces",
+      supplier: "YIWU FULLYUAN DAILY SUPPLIES CO.",
+      location: "CN",
+      years: 1,
+      verified: false,
+      image: "🏖️",
+      bgColor: "bg-sky-100"
+    },
+    {
+      id: "ip4",
+      title: "Outdoor Folding High-Back Camping Chair Portable Armchair with Cup Holder",
+      price: "$3.20",
+      moq: "50 pieces",
+      supplier: "Langfang Jinzhao Stationery Co., Ltd.",
+      location: "CN",
+      years: 5,
+      verified: false,
+      image: "🥤",
+      bgColor: "bg-blue-100"
+    },
+    {
+      id: "ip5",
+      title: "Wholesale Lightweight Portable Outdoor Hiking Picnic Chair",
+      price: "$3.20 - $4.00",
+      moq: "50 pieces",
+      supplier: "CIXI RUNFENG COMMODITY CO.",
+      location: "CN",
+      years: 10,
+      verified: true,
+      image: "🎒",
+      bgColor: "bg-indigo-100"
+    },
+    {
+      id: "ip6",
+      title: "Outdoor Folding Arc Moon Chair Portable Lightweight Oxford Cloth Bench",
+      price: "$1.81 - $2.94",
+      moq: "1 piece",
+      supplier: "Wuhan Pioneersky Cultural Co., Ltd.",
+      location: "CN",
+      years: 1,
+      verified: false,
+      image: "🌙",
+      bgColor: "bg-violet-100"
+    },
+    {
+      id: "ip7",
+      title: "Portable Folding Tripod Chair Ultralight Stool with Carry Bag",
+      price: "$1.50 - $2.10",
+      moq: "100 pieces",
+      supplier: "Ningbo Outdo Hiking Gear Co., Ltd.",
+      location: "CN",
+      years: 2,
+      verified: true,
+      image: "🏕️",
+      bgColor: "bg-green-100"
+    },
+    {
+      id: "ip8",
+      title: "Heavy Duty Camping Quad Chair with Cool Bag & Side Table",
+      price: "$8.50 - $9.90",
+      moq: "10 pieces",
+      supplier: "Hangzhou Joy Outdoor Co., Ltd.",
+      location: "CN",
+      years: 4,
+      verified: false,
+      image: "🧊",
+      bgColor: "bg-teal-100"
+    },
+    {
+      id: "ip9",
+      title: "Reclining Outdoor Camp Chair with Adjustable Footrest & Headrest",
+      price: "$12.40 - $14.50",
+      moq: "5 pieces",
+      supplier: "Shaoxing Leisure Products Factory",
+      location: "CN",
+      years: 3,
+      verified: true,
+      image: "🛌",
+      bgColor: "bg-orange-100"
+    },
+    {
+      id: "ip10",
+      title: "Compact Backpacking Chair High Back Foldable Camping Stool",
+      price: "$6.80 - $7.50",
+      moq: "30 pieces",
+      supplier: "Tianjin Sports Gear Co., Ltd.",
+      location: "CN",
+      years: 1,
+      verified: false,
+      image: "🎒",
+      bgColor: "bg-slate-200"
+    },
+    {
+      id: "ip11",
+      title: "Kids Miniature Folding Camp Chair with Safety Lock Mechanisms",
+      price: "$2.99 - $3.50",
+      moq: "50 pieces",
+      supplier: "Yiwu Children Goods Import & Export",
+      location: "CN",
+      years: 8,
+      verified: true,
+      image: "🧒",
+      bgColor: "bg-pink-100"
+    },
+    {
+      id: "ip12",
+      title: "Directors Folding Chair with Side Table & Accessory Pockets",
+      price: "$11.20 - $13.80",
+      moq: "10 pieces",
+      supplier: "Foshan Goldway Furniture Co., Ltd.",
+      location: "CN",
+      years: 6,
+      verified: false,
+      image: "🎬",
+      bgColor: "bg-rose-100"
+    }
+  ];
 
   // Pre-populate some history items for demonstration
   const [history, setHistory] = useState<HistoryItem[]>([
@@ -89,11 +225,16 @@ export default function Home() {
 
   // Handle New Session / Reset
   const handleReset = () => {
+    // Clear any active streaming intervals
+    if (streamIntervalRef.current) {
+      clearInterval(streamIntervalRef.current);
+      streamIntervalRef.current = null;
+    }
     setIsChatting(false);
     setMessages([]);
     setActiveHistoryId(undefined);
-    setCurrentQueryType("general");
     setActiveQueryText("");
+    setIsGenerating(false);
   };
 
   // Select history item
@@ -101,27 +242,30 @@ export default function Home() {
     const item = history.find((h) => h.id === id);
     if (item) {
       setMessages(item.messages);
-      setCurrentQueryType(item.queryType);
       setActiveQueryText(item.query);
       setActiveHistoryId(item.id);
       setIsChatting(true);
     }
   };
 
-  // Determine query classification
-  const classifyQuery = (text: string): "design" | "manufacturer" | "bestseller" | "product" | "general" => {
-    const t = text.toLowerCase();
-    if (t.includes("design") || t.includes("blueprint") || t.includes("sketch") || t.includes("draw")) return "design";
-    if (t.includes("manufacturer") || t.includes("supplier") || t.includes("factory") || t.includes("verified")) return "manufacturer";
-    if (t.includes("bestseller") || t.includes("market") || t.includes("trend") || t.includes("analytics")) return "bestseller";
-    if (t.includes("product") || t.includes("mesh chair") || t.includes("price") || t.includes("chair")) return "product";
-    return "general";
+  // Stop Generation Handler
+  const handleStopGeneration = () => {
+    if (streamIntervalRef.current) {
+      clearInterval(streamIntervalRef.current);
+      streamIntervalRef.current = null;
+    }
+    setIsGenerating(false);
   };
 
-  // Send query action
+  // Send query action with custom SSE streaming simulation
   const handleSendMessage = (text: string, files: File[]) => {
+    // Clear existing intervals first
+    if (streamIntervalRef.current) {
+      clearInterval(streamIntervalRef.current);
+    }
+
     const timestamp = new Date();
-    const messageId = `msg-${Date.now()}`;
+    const userMessageId = `msg-${Date.now()}`;
     
     // Convert File objects to serializable attachment format
     const attachments = files.map(f => ({
@@ -131,7 +275,7 @@ export default function Home() {
     }));
 
     const newUserMessage: Message = {
-      id: messageId,
+      id: userMessageId,
       sender: "user",
       text: text || `Attached ${files.length} document(s) for review`,
       timestamp,
@@ -143,73 +287,130 @@ export default function Home() {
     setMessages(updatedMessages);
     setIsChatting(true);
     setIsGenerating(true);
+    setActiveQueryText(text || "Uploaded design request");
 
-    const detectedType = classifyQuery(text || (files.length > 0 ? files[0].name : ""));
-    setCurrentQueryType(detectedType);
-    if (!activeQueryText) {
-      setActiveQueryText(text || "Uploaded design request");
-    }
-
-    // AI Sourcing logic simulator
+    // SOURCING FLOW STAGE 1: Thinking Phase (1.8 seconds)
     setTimeout(() => {
       // Mark user message as sent
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, status: "sent" } : m));
+      setMessages(prev => prev.map(m => m.id === userMessageId ? { ...m, status: "sent" } : m));
 
-      let aiResponseText = "";
-      switch (detectedType) {
-        case "design":
-          aiResponseText = "I have successfully analyzed the uploaded files and custom specs. Based on your design blueprint, I have drafted 3D drawings and aligned them with injection-molding workshops in Guangdong on the right. You can download the complete mechanical spec document to verify the measurements.";
-          break;
-        case "manufacturer":
-          aiResponseText = "Here are the top-rated verified suppliers matching your requirements. I have highlighted factories carrying ISO 9001 and CE certifications. You can review their monthly production metrics, download audits, or initiate a direct inquiry via the RFQ tab.";
-          break;
-        case "bestseller":
-          aiResponseText = "I've aggregated pricing indexes and distribution ratios. Average sourcing costs have decreased by 4.2% this quarter. The right side panel features geographical maps and production heatmaps for your analysis. Would you like to target a specific factory region?";
-          break;
-        case "product":
-          aiResponseText = "I found 3 matching office chairs. Unit price lists, minimum order quantities (MOQ), and shipping ranges are shown on the right. Simply click 'Source Product' or broadcast an RFQ to request direct custom freight pricing.";
-          break;
-        default:
-          aiResponseText = `I've initialized a custom sourcing flow for your request: "${text}". The matches, suppliers, and analytics tables are populated on the right side panel. Let me know if you need to enforce specific standards like BIFMA, custom logos, or target price points!`;
-      }
+      // Define target content based on user query keywords
+      const fullResponseText = 
+        "I have found **200 foldable camping chairs** priced under **$15**, with some options as low as **$3.40/piece**.\n\nThe results include a variety of styles, such as *lightweight moon chairs*, *360° swivel stools*, and *heavy-duty portable chairs*. MOQs for these items typically range from **10 to 50 pieces**, making them suitable for both small-scale retail and bulk wholesale. Detailed specifications, pricing tiers, and supplier information are available in the file below.";
 
+      const aiMessageId = `msg-ai-${Date.now()}`;
+      
+      // Initialize an empty AI message inside timeline
       const newAiMessage: Message = {
-        id: `msg-${Date.now() + 1}`,
+        id: aiMessageId,
         sender: "ai",
-        text: aiResponseText,
+        text: "",
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, newAiMessage]);
-      setIsGenerating(false);
+      setIsGenerating(false); // Hide the "Working on your task" loader as text starts streaming
 
-      // Save to sidebar history list if new session
-      if (!activeHistoryId) {
-        const newHistoryId = `h-${Date.now()}`;
-        const newHistoryItem: HistoryItem = {
-          id: newHistoryId,
-          query: text || "Uploaded custom sourcing query",
-          date: new Date().toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
-          queryType: detectedType,
-          messages: [...updatedMessages, newAiMessage]
-        };
-        setHistory(prev => [newHistoryItem, ...prev]);
-        setActiveHistoryId(newHistoryId);
-      } else {
-        // Update existing history item
-        setHistory(prev => prev.map(h => h.id === activeHistoryId ? { ...h, messages: [...updatedMessages, newAiMessage] } : h));
-      }
+      let currentLength = 0;
+      const step = 8; // characters typed per interval step
 
-    }, 2000);
+      // SOURCING FLOW STAGE 2: progressive text SSE stream typing
+      streamIntervalRef.current = setInterval(() => {
+        currentLength += step;
+        
+        if (currentLength >= fullResponseText.length) {
+          // Streaming text completed - clear interval
+          if (streamIntervalRef.current) {
+            clearInterval(streamIntervalRef.current);
+            streamIntervalRef.current = null;
+          }
+
+          // SOURCING FLOW STAGE 3: Append the custom components (Showcase cards, View products buttons, follow-ups)
+          setMessages(prev => prev.map(m => {
+            if (m.id === aiMessageId) {
+              return {
+                ...m,
+                text: fullResponseText,
+                inlineProductsHeader: "Foldable Camping Chair Price < 15 Usd",
+                inlineProducts: inlineProductsMock,
+                showViewProductsButton: true,
+                followUpText: "Based on these camping chairs, you can continue with:",
+                followUpSamples: [
+                  "Filter by lower MOQ (e.g., < 10 pieces)",
+                  "Find specific styles like moon chairs or heavy-duty options",
+                  "Request customized logo printing for these models"
+                ]
+              };
+            }
+            return m;
+          }));
+
+          // Save completed session to history
+          const updatedHistoryItem: HistoryItem = {
+            id: `h-${Date.now()}`,
+            query: text || "Sourced foldable camping chairs",
+            date: new Date().toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
+            queryType: "product",
+            messages: [...updatedMessages, {
+              id: aiMessageId,
+              sender: "ai",
+              text: fullResponseText,
+              timestamp: new Date(),
+              inlineProductsHeader: "Foldable Camping Chair Price < 15 Usd",
+              inlineProducts: inlineProductsMock,
+              showViewProductsButton: true,
+              followUpText: "Based on these camping chairs, you can continue with:",
+              followUpSamples: [
+                "Filter by lower MOQ (e.g., < 10 pieces)",
+                "Find specific styles like moon chairs or heavy-duty options",
+                "Request customized logo printing for these models"
+              ]
+            }]
+          };
+
+          setHistory(prev => [updatedHistoryItem, ...prev]);
+          setActiveHistoryId(updatedHistoryItem.id);
+
+        } else {
+          // Keep typing
+          setMessages(prev => prev.map(m => {
+            if (m.id === aiMessageId) {
+              return {
+                ...m,
+                text: fullResponseText.substring(0, currentLength)
+              };
+            }
+            return m;
+          }));
+        }
+      }, 30);
+
+    }, 1800);
   };
 
-  // Suggestion pill click triggers immediate send simulation
-  const handleSuggestionClick = (suggestionText: string) => {
-    handleSendMessage(suggestionText, []);
+  // Suggestion pill click transitions to chat with the initial prompt
+  const handleSuggestionClick = () => {
+    setIsChatting(true);
+    setActiveQueryText(""); // clear active query text until they send a query
+    
+    const initialPrompt: Message = {
+      id: "initial-prompt",
+      sender: "ai",
+      text: "",
+      timestamp: new Date(),
+      isInitialPrompt: true,
+      samples: [
+        "Find foldable camping chairs under $15.",
+        "Minimalist desk lamp with fast shipping.",
+        "Eco-friendly gifts for new hires, customizable with logo."
+      ]
+    };
+    
+    setMessages([initialPrompt]);
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden h-screen bg-[#faf9f6]">
+    <div className="flex-1 flex overflow-hidden h-screen bg-white">
       {/* 1. Expandable Left Sidebar */}
       <Sidebar
         isCollapsed={isSidebarCollapsed}
@@ -237,8 +438,8 @@ export default function Home() {
               isGenerating={isGenerating}
               onSend={handleSendMessage}
               onBackToLanding={handleReset}
-              queryType={currentQueryType}
               activeQueryText={activeQueryText}
+              onStopGeneration={handleStopGeneration}
             />
           ) : (
             <LandingView
