@@ -15,9 +15,10 @@ import {
 
 interface ProductDetailsPanelProps {
   onClose: () => void;
+  products?: ProductDetail[];
 }
 
-interface ProductDetail {
+export interface ProductDetail {
   id: string;
   title: string;
   price: string;
@@ -30,15 +31,15 @@ interface ProductDetail {
   verified: boolean;
   image: string; // Emoji representing the chair or placeholder
   bgColor: string; // Background color for mock image
-  requirements: string[];
+  requirements?: string[];
 }
 
-export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProps) {
+export default function ProductDetailsPanel({ onClose, products: propProducts }: ProductDetailsPanelProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [activePage, setActivePage] = useState(1);
 
   // Mocked products matching Kapuruka AI search output for camping chairs under $15
-  const products: ProductDetail[] = [
+  const staticProducts: ProductDetail[] = [
     {
       id: "dp1",
       title: "Folding Moon Chair Portable Breathable Mesh Backrest Seat for Outdoor Camping",
@@ -152,7 +153,7 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
       supplier: "Hangzhou Joy Outdoor Co., Ltd.",
       location: "CN",
       years: 4,
-      rating: 4.7,
+      rating: 4.6,
       reviews: 88,
       verified: false,
       image: "🧊",
@@ -167,7 +168,7 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
       supplier: "Shaoxing Leisure Products Factory",
       location: "CN",
       years: 3,
-      rating: 4.6,
+      rating: 4.9,
       reviews: 110,
       verified: true,
       image: "🛌",
@@ -182,7 +183,7 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
       supplier: "Tianjin Sports Gear Co., Ltd.",
       location: "CN",
       years: 1,
-      rating: 4.5,
+      rating: 4.4,
       reviews: 62,
       verified: false,
       image: "🎒",
@@ -220,6 +221,8 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
       requirements: ["camping chair", "foldable", "price < 15 USD"]
     }
   ];
+
+  const products = propProducts && propProducts.length > 0 ? propProducts : staticProducts;
 
   return (
     <div className="w-full h-full bg-white flex flex-col overflow-hidden animate-fadeIn relative">
