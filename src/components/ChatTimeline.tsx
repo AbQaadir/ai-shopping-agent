@@ -9,7 +9,8 @@ import {
   ThumbsDown, 
   Flag,
   ChevronRight,
-  Box
+  Box,
+  Loader2
 } from "lucide-react";
 
 interface FileAttachment {
@@ -43,6 +44,18 @@ export interface Message {
   isInitialPrompt?: boolean;
   samples?: string[];
   
+  // Dynamic Stream items from Alibaba AI mode
+  thinkingSteps?: {
+    step: string;
+    status: "running" | "completed";
+    content: string;
+    durationMs?: number;
+  }[];
+  activeToolCall?: {
+    name: string;
+    args: any;
+  } | null;
+
   // Showcase features
   inlineProductsHeader?: string;
   inlineProducts?: InlineProduct[];
@@ -55,7 +68,7 @@ interface ChatTimelineProps {
   messages: Message[];
   isGenerating: boolean;
   onSampleClick?: (sampleText: string) => void;
-  onViewDetailsClick?: () => void;
+  onViewDetailsClick?: (products?: InlineProduct[]) => void;
   selectedProductIds?: string[];
   onToggleSelectProduct?: (product: InlineProduct) => void;
 }
@@ -163,9 +176,9 @@ export default function ChatTimeline({
                       /* Standard Sourced AI SSE Message */
                       <div className="space-y-4">
                         {/* Collapsible Thought Process */}
-                        {msg.text && (
-                          <div className="text-xs">
-                            <details className="group border border-slate-100 rounded-xl bg-slate-50/40 overflow-hidden">
+                        {((msg.thinkingSteps && msg.thinkingSteps.length > 0) || msg.activeToolCall || msg.text) && (
+                          <div className="text-xs w-full max-w-2xl">
+                            <details className="group border border-slate-100 rounded-xl bg-slate-50/40 overflow-hidden" open={isGenerating || !msg.text}>
                               <summary className="font-bold text-slate-500 cursor-pointer flex items-center justify-between px-3 py-2 select-none hover:bg-slate-100/50 transition-colors">
                                 <div className="flex items-center gap-2">
                                   <Sparkles size={12} className="text-[#402970]" />
@@ -175,45 +188,93 @@ export default function ChatTimeline({
                                 <span className="text-[10px] text-slate-400 hidden group-open:inline">Hide details</span>
                               </summary>
                               
-                              <div className="p-4 border-t border-slate-100 bg-white space-y-3.5">
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Getting everything ready
+                              <div className="p-4 border-t border-slate-100 bg-white space-y-4">
+                                {/* Dynamic Thinking Steps */}
+                                {msg.thinkingSteps && msg.thinkingSteps.length > 0 ? (
+                                  <div className="space-y-3">
+                                    {msg.thinkingSteps.map((step, idx) => {
+                                      const isRunning = step.status === "running";
+                                      const label = step.step === "parsing_specs" ? "Extracting Requirements" :
+                                                    step.step === "searching_suppliers" ? "Product Search" :
+                                                    step.step === "verification_checks" ? "Supplier Verification" : "Agent Reasoning";
+                                      
+                                      return (
+                                        <div key={idx} className="space-y-1 pl-1">
+                                          <div className="flex items-center gap-2 text-xs text-slate-700 font-extrabold">
+                                            {isRunning ? (
+                                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                            ) : (
+                                              <span className="w-2 h-2 rounded-full bg-emerald-500 flex items-center justify-center text-[6px] text-white">✓</span>
+                                            )}
+                                            <span>{label}</span>
+                                            {step.durationMs && (
+                                              <span className="text-[10px] text-slate-400 font-normal">
+                                                ({(step.durationMs / 1000).toFixed(1)}s)
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-slate-500 text-xs font-medium pl-4 leading-relaxed">
+                                            {step.content}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
-                                  <p className="text-slate-500 text-xs font-medium pl-3 leading-relaxed">
-                                    I am searching for &ldquo;{findUserQueryForMessage(msg.id)}&rdquo; on B2B platforms to find the best wholesale options for you.
-                                  </p>
-                                  <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold pl-3 pt-1 border-t border-slate-50">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    Preparing the response
+                                ) : (
+                                  /* Fallback static initial thinking steps if not populated */
+                                  <div className="space-y-1.5 pl-1">
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                      Getting everything ready
+                                    </div>
+                                    <p className="text-slate-500 text-xs font-medium pl-3 leading-relaxed">
+                                      I am searching for &ldquo;{findUserQueryForMessage(msg.id)}&rdquo; on B2B platforms to find the best wholesale options for you.
+                                    </p>
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold pl-3 pt-1 border-t border-slate-50">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                      Preparing the response
+                                    </div>
                                   </div>
-                                </div>
+                                )}
 
-                                {/* Sourcing status card */}
-                                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4 max-w-xl">
-                                  <div className="flex items-center gap-2 text-xs font-bold text-slate-600 truncate">
-                                    <Box size={14} className="text-[#402970]" />
-                                    <span>Product search</span>
-                                    <span className="text-slate-300 font-light">|</span>
-                                    <span className="text-slate-500 font-medium truncate">
-                                      {findUserQueryForMessage(msg.id)}
+                                {/* Active Tool Call Status Badge */}
+                                {msg.activeToolCall && (
+                                  <div className="p-3 bg-amber-50/50 border border-amber-100/50 rounded-xl flex items-center gap-2 max-w-xl animate-pulse">
+                                    <Loader2 size={12} className="text-amber-600 animate-spin shrink-0" />
+                                    <span className="text-xs font-bold text-amber-700">
+                                      Running tool: <code className="bg-amber-100/60 px-1 rounded">{msg.activeToolCall.name}</code>
                                     </span>
                                   </div>
-                                  <button 
-                                    onClick={onViewDetailsClick}
-                                    className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition-all whitespace-nowrap cursor-pointer"
-                                  >
-                                    View details
-                                  </button>
-                                </div>
+                                )}
 
-                                {/* pulsing loaders */}
-                                <div className="space-y-2 max-w-xl">
-                                  <div className="h-1.5 bg-slate-100 rounded-full w-full"></div>
-                                  <div className="h-1.5 bg-slate-100 rounded-full w-5/6"></div>
-                                  <div className="h-1.5 bg-slate-100 rounded-full w-2/3"></div>
-                                </div>
+                                {/* Sourcing tool results view card */}
+                                {msg.inlineProducts && msg.inlineProducts.length > 0 && (
+                                  <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4 max-w-xl">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-600 truncate">
+                                      <Box size={14} className="text-[#402970]" />
+                                      <span>Product Search Succeeded</span>
+                                      <span className="text-slate-300 font-light">|</span>
+                                      <span className="text-slate-500 font-medium truncate">
+                                        Matched {msg.inlineProducts.length} items
+                                      </span>
+                                    </div>
+                                    <button 
+                                      onClick={() => onViewDetailsClick?.(msg.inlineProducts)}
+                                      className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition-all whitespace-nowrap cursor-pointer hover:border-slate-300"
+                                    >
+                                      View details
+                                    </button>
+                                  </div>
+                                )}
+
+                                {/* pulsing loader indicator shown when generating and no results yet */}
+                                {isGenerating && (!msg.inlineProducts || msg.inlineProducts.length === 0) && (
+                                  <div className="space-y-2 max-w-xl pt-2">
+                                    <div className="h-1.5 bg-slate-100 rounded-full w-full animate-pulse"></div>
+                                    <div className="h-1.5 bg-slate-100 rounded-full w-5/6 animate-pulse [animation-delay:0.2s]"></div>
+                                    <div className="h-1.5 bg-slate-100 rounded-full w-2/3 animate-pulse [animation-delay:0.4s]"></div>
+                                  </div>
+                                )}
                               </div>
                             </details>
                           </div>
@@ -290,7 +351,7 @@ export default function ChatTimeline({
                         {msg.showViewProductsButton && (
                           <div className="flex justify-center pt-2">
                             <button
-                              onClick={onViewDetailsClick}
+                              onClick={() => onViewDetailsClick?.(msg.inlineProducts)}
                               className="px-5 py-2.5 bg-slate-900 hover:bg-slate-850 active:scale-95 text-white font-bold text-xs rounded-full shadow-md transition-all flex items-center gap-1 cursor-pointer"
                             >
                               <span>View more products</span>
@@ -303,7 +364,7 @@ export default function ChatTimeline({
                         {msg.followUpSamples && msg.followUpSamples.length > 0 && (
                           <div className="space-y-2.5 pt-3 border-t border-slate-50">
                             <p className="text-xs font-bold text-slate-500">
-                              {msg.followUpText || "Based on these camping chairs, you can continue with:"}
+                              {msg.followUpText || "Based on this session, you can continue with:"}
                             </p>
                             <div className="space-y-1.5 pl-1">
                               {msg.followUpSamples.map((sample, idx) => (

@@ -10,7 +10,8 @@ import {
   Share2, 
   Loader2, 
   Square, 
-  Box 
+  Box,
+  Check 
 } from "lucide-react";
 import ChatTimeline, { InlineProduct, Message } from "./ChatTimeline";
 import ProductDetailsPanel from "./ProductDetailsPanel";
@@ -36,7 +37,38 @@ export default function ChatView({
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
+  const [detailProducts, setDetailProducts] = useState<InlineProduct[]>([]);
+  const [isCopied, setIsCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleViewDetails = (products?: InlineProduct[]) => {
+    if (products && products.length > 0) {
+      setDetailProducts(products);
+    } else {
+      setDetailProducts([]);
+    }
+    setShowDetails(true);
+  };
+
+  const handleShareClick = () => {
+    const copyToClipboard = () => {
+      navigator.clipboard.writeText(window.location.href);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    };
+
+    if (navigator.share) {
+      navigator.share({
+        title: `Kapuruka Sourcing: ${activeQueryText || 'AI Sourcing Task'}`,
+        text: `Review this AI matched supplier list and conversation history on Kapuruka.`,
+        url: window.location.href
+      }).catch(() => {
+        copyToClipboard();
+      });
+    } else {
+      copyToClipboard();
+    }
+  };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
@@ -100,84 +132,97 @@ export default function ChatView({
           <ChevronLeft size={14} />
           Product search
         </button>
-        <button className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
-          <Share2 size={13} />
-          Share
+        <button 
+          onClick={handleShareClick}
+          className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+            isCopied 
+              ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-extrabold shadow-sm scale-95" 
+              : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300"
+          }`}
+        >
+          {isCopied ? <Check size={13} className="stroke-[3]" /> : <Share2 size={13} />}
+          {isCopied ? "Copied!" : "Share"}
         </button>
       </div>
 
-      {/* ── 2. Body: scrollable messages + pinned input (both inside one relative container) ── */}
-      <div className="flex-1 min-h-0 relative flex flex-col">
+      {/* ── 2. Body: split-screen chat + products details panel ── */}
+      <div className="flex-1 min-h-0 relative flex flex-row">
 
-        {/* Scrollable message area — takes all remaining space */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {showDetails ? (
-            <ProductDetailsPanel onClose={() => setShowDetails(false)} />
-          ) : (
-            <>
-              {/* Messages */}
-              <ChatTimeline
-                messages={messages}
-                isGenerating={isGenerating}
-                onSampleClick={handleSampleClick}
-                onViewDetailsClick={() => setShowDetails(true)}
-                selectedProductIds={selectedProducts.map(p => p.id)}
-                onToggleSelectProduct={handleToggleSelectProduct}
-              />
+        {/* Left Chat Pane */}
+        <div className={`flex-1 overflow-y-auto min-h-0 flex flex-col relative ${
+          showDetails ? "w-1/2 border-r border-slate-100" : "w-full"
+        }`}>
+          {/* Messages */}
+          <ChatTimeline
+            messages={messages}
+            isGenerating={isGenerating}
+            onSampleClick={handleSampleClick}
+            onViewDetailsClick={handleViewDetails}
+            selectedProductIds={selectedProducts.map(p => p.id)}
+            onToggleSelectProduct={handleToggleSelectProduct}
+          />
 
-              {/* "Working on it" loader shown while generating */}
-              {isGenerating && (
-                <div className="px-6 pb-4 flex justify-start max-w-3xl mx-auto w-full">
-                  <div className="px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-4 w-full animate-fadeIn">
-                    <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
-                      <Loader2 size={15} className="text-[#402970] animate-spin" />
-                      <span>Working on your task</span>
+          {/* "Working on it" loader shown while generating */}
+          {isGenerating && (
+            <div className="px-6 pb-4 flex justify-start max-w-3xl mx-auto w-full">
+              <div className="px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-4 w-full animate-fadeIn">
+                <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
+                  <Loader2 size={15} className="text-[#402970] animate-spin" />
+                  <span>Working on your task</span>
+                </div>
+                <div className="pl-5 space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970] animate-ping" />
+                      Getting everything ready
                     </div>
-                    <div className="pl-5 space-y-3">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#402970] animate-ping" />
-                          Getting everything ready
-                        </div>
-                        <p className="text-slate-500 text-xs font-medium pl-3">
-                          Searching for &ldquo;{activeQueryText || 'foldable camping chairs under $15'}&rdquo; on B2B platforms…
-                        </p>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold pl-3 pt-1 border-t border-slate-50">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
-                          Preparing the response
-                        </div>
-                      </div>
-                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-600 truncate">
-                          <Box size={13} className="text-[#402970]" />
-                          <span>Product search</span>
-                          <span className="text-slate-300 font-light">|</span>
-                          <span className="text-slate-500 font-medium truncate">
-                            {activeQueryText || "foldable camping chair price < 15 USD"}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => setShowDetails(true)}
-                          className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition-all whitespace-nowrap cursor-pointer"
-                        >
-                          View details
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="h-1.5 bg-slate-100 rounded-full w-full animate-pulse" />
-                        <div className="h-1.5 bg-slate-100 rounded-full w-5/6 animate-pulse [animation-delay:0.2s]" />
-                        <div className="h-1.5 bg-slate-100 rounded-full w-2/3 animate-pulse [animation-delay:0.4s]" />
-                      </div>
+                    <p className="text-slate-500 text-xs font-medium pl-3">
+                      Searching for &ldquo;{activeQueryText || 'foldable camping chairs under $15'}&rdquo; on B2B platforms…
+                    </p>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold pl-3 pt-1 border-t border-slate-50">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
+                      Preparing the response
                     </div>
                   </div>
+                  <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-600 truncate">
+                      <Box size={13} className="text-[#402970]" />
+                      <span>Product search</span>
+                      <span className="text-slate-300 font-light">|</span>
+                      <span className="text-slate-500 font-medium truncate">
+                        {activeQueryText || "foldable camping chair price < 15 USD"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleViewDetails()}
+                      className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition-all whitespace-nowrap cursor-pointer hover:border-slate-300"
+                    >
+                      View details
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-1.5 bg-slate-100 rounded-full w-full animate-pulse" />
+                    <div className="h-1.5 bg-slate-100 rounded-full w-5/6 animate-pulse [animation-delay:0.2s]" />
+                    <div className="h-1.5 bg-slate-100 rounded-full w-2/3 animate-pulse [animation-delay:0.4s]" />
+                  </div>
                 </div>
-              )}
-
-              {/* Bottom spacer so last message clears the gradient + input */}
-              <div className="h-36" />
-            </>
+              </div>
+            </div>
           )}
+
+          {/* Bottom spacer so last message clears the gradient + input */}
+          <div className="h-36 shrink-0" />
         </div>
+
+        {/* Right Split Panel Details Drawer */}
+        {showDetails && (
+          <div className="w-1/2 h-full overflow-hidden select-none bg-white">
+            <ProductDetailsPanel 
+              onClose={() => setShowDetails(false)} 
+              products={detailProducts as any}
+            />
+          </div>
+        )}
 
         {/* ── Gradient fade — messages dissolve upward into white ── */}
         <div
