@@ -46,14 +46,14 @@ export async function POST(req: NextRequest) {
     });
 
     const searchWords = message.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
-    const matched = allProducts.filter((p) => {
+    const matched = allProducts.filter((p: any) => {
       const text = (p.title + " " + p.supplier.name).toLowerCase();
       return searchWords.some((w: string) => text.includes(w));
     });
 
     const finalProducts = matched.length > 0 ? matched.slice(0, 4) : allProducts.slice(0, 4);
 
-    const inlineProducts = finalProducts.map((p) => ({
+    const inlineProducts = finalProducts.map((p: any) => ({
       id: p.id,
       title: p.title,
       price: p.priceRange,
