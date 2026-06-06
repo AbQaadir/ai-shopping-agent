@@ -105,9 +105,9 @@ export default function ChatView({
         </button>
       </div>
 
-      {/* 2. Main Centered Workspace Area */}
-      <div className="flex-1 overflow-hidden flex flex-col items-center relative py-4 bg-white">
-        <div className="w-full max-w-4xl flex-1 flex flex-col overflow-hidden px-4 md:px-6">
+      {/* 2. Scrollable Message Area */}
+      <div className="flex-1 overflow-hidden flex flex-col items-center bg-white min-h-0">
+        <div className="w-full max-w-4xl flex-1 flex flex-col overflow-hidden px-4 md:px-6 min-h-0">
           
           {showDetails ? (
             /* Inline Product details card list */
@@ -116,7 +116,7 @@ export default function ChatView({
             />
           ) : (
             /* Timeline flow */
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
               <ChatTimeline 
                 messages={messages} 
                 isGenerating={isGenerating} 
@@ -178,124 +178,122 @@ export default function ChatView({
               )}
             </div>
           )}
-
-          {/* Floating Message Input Area (Always fixed centered on bottom viewport overlay) */}
-          <div className="absolute bottom-4 left-4 right-4 select-none z-20">
-            <div className="max-w-3xl mx-auto w-full">
-              <div className="w-full bg-slate-50/95 backdrop-blur rounded-2xl border border-slate-200 p-3 flex flex-col gap-2 relative shadow-lg hover:shadow-xl transition-shadow duration-300">
-                
-                {/* Selected products listing row */}
-                {selectedProducts.length > 0 && (
-                  <div className="flex flex-col gap-2 pb-2 border-b border-slate-200/50 animate-fadeIn">
-                    <div className="flex flex-wrap gap-2">
-                      {selectedProducts.map((prod) => (
-                        <div 
-                          key={prod.id} 
-                          className="flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 shadow-sm"
-                        >
-                          <span className="text-sm select-none">{prod.image}</span>
-                          <span className="truncate max-w-[180px] font-medium leading-none">
-                            {prod.title.length > 30 ? `${prod.title.substring(0, 30)}...` : prod.title}
-                          </span>
-                          <button 
-                            onClick={() => handleToggleSelectProduct(prod)}
-                            className="p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                          >
-                            <X size={10} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Compare / Get Quotes action pills */}
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 pl-0.5">
-                      <button 
-                        onClick={() => alert(`Side-by-side comparison matrix loaded for ${selectedProducts.length} items.`)}
-                        className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-650 hover:text-slate-800 rounded transition-all cursor-pointer flex items-center gap-0.5 shadow-sm"
-                      >
-                        Compare &rarr;
-                      </button>
-                      <button 
-                        onClick={() => setShowDetails(true)}
-                        className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-[#ff6600] hover:text-[#e05900] rounded transition-all cursor-pointer flex items-center gap-0.5 shadow-sm"
-                      >
-                        Get quotes &rarr;
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Text Area */}
-                <textarea
-                  value={inputText}
-                  onChange={handleTextChange}
-                  onKeyDown={handleKeyPress}
-                  placeholder="ask follow-up..."
-                  rows={2}
-                  className="w-full resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm px-1 leading-relaxed min-h-[48px]"
-                />
-
-                {/* Attached files preview */}
-                {attachedFiles.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-200/40">
-                    {attachedFiles.map((file, idx) => (
-                      <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-full text-xs font-medium text-slate-600 animate-fadeIn">
-                        <span className="truncate max-w-[120px]">{file.name}</span>
-                        <button 
-                          onClick={() => removeFile(idx)}
-                          className="p-0.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Input Controls */}
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200/40">
-                  <button
-                    onClick={handlePaperclipClick}
-                    className="p-2 hover:bg-slate-200 rounded-full text-slate-500 hover:text-slate-700 transition-all"
-                    title="Attach blueprints/spec sheets"
-                  >
-                    <Paperclip size={16} />
-                  </button>
-                  
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    multiple
-                  />
-
-                  <button
-                    onClick={isGenerating ? onStopGeneration : handleSubmit}
-                    disabled={!isGenerating && !inputText.trim() && attachedFiles.length === 0}
-                    className={`p-2 rounded-full flex items-center justify-center transition-all ${
-                      isGenerating
-                        ? "bg-slate-200 hover:bg-slate-300 text-slate-800 shadow-sm cursor-pointer"
-                        : inputText.trim() || attachedFiles.length > 0
-                          ? "bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer"
-                          : "bg-slate-100 text-slate-300 cursor-not-allowed"
-                    }`}
-                  >
-                    {isGenerating ? (
-                      <Square size={13} fill="currentColor" strokeWidth={0} className="text-slate-800" />
-                    ) : (
-                      <ArrowUp size={16} strokeWidth={2.5} />
-                    )}
-                  </button>
-                </div>
-
-              </div>
-            </div>
-          </div>
-
         </div>
       </div>
 
+      {/* 3. Pinned Input Bar — always anchored to the bottom of the viewport, never scrolls */}
+      <div className="shrink-0 bg-white border-t border-slate-100 px-4 py-3 select-none">
+        <div className="max-w-3xl mx-auto w-full">
+        <div className="w-full bg-white rounded-2xl border border-slate-200 p-3 flex flex-col gap-2 relative shadow-sm hover:shadow-md transition-shadow duration-300">
+          
+          {/* Selected products listing row */}
+          {selectedProducts.length > 0 && (
+            <div className="flex flex-col gap-2 pb-2 border-b border-slate-200/50 animate-fadeIn">
+              <div className="flex flex-wrap gap-2">
+                {selectedProducts.map((prod) => (
+                  <div 
+                    key={prod.id} 
+                    className="flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 shadow-sm"
+                  >
+                    <span className="text-sm select-none">{prod.image}</span>
+                    <span className="truncate max-w-[180px] font-medium leading-none">
+                      {prod.title.length > 30 ? `${prod.title.substring(0, 30)}...` : prod.title}
+                    </span>
+                    <button 
+                      onClick={() => handleToggleSelectProduct(prod)}
+                      className="p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Compare / Get Quotes action pills */}
+              <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 pl-0.5">
+                <button 
+                  onClick={() => alert(`Side-by-side comparison matrix loaded for ${selectedProducts.length} items.`)}
+                  className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-650 hover:text-slate-800 rounded transition-all cursor-pointer flex items-center gap-0.5 shadow-sm"
+                >
+                  Compare &rarr;
+                </button>
+                <button 
+                  onClick={() => setShowDetails(true)}
+                  className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-[#ff6600] hover:text-[#e05900] rounded transition-all cursor-pointer flex items-center gap-0.5 shadow-sm"
+                >
+                  Get quotes &rarr;
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Text Area */}
+          <textarea
+            value={inputText}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyPress}
+            placeholder="ask follow-up..."
+            rows={2}
+            className="w-full resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm px-1 leading-relaxed min-h-[48px]"
+          />
+
+          {/* Attached files preview */}
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-200/40">
+              {attachedFiles.map((file, idx) => (
+                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-full text-xs font-medium text-slate-600 animate-fadeIn">
+                  <span className="truncate max-w-[120px]">{file.name}</span>
+                  <button 
+                    onClick={() => removeFile(idx)}
+                    className="p-0.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Input Controls */}
+          <div className="flex items-center justify-between pt-1 border-t border-slate-200/40">
+            <button
+              onClick={handlePaperclipClick}
+              className="p-2 hover:bg-slate-200 rounded-full text-slate-500 hover:text-slate-700 transition-all"
+              title="Attach blueprints/spec sheets"
+            >
+              <Paperclip size={16} />
+            </button>
+            
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              multiple
+            />
+
+            <button
+              onClick={isGenerating ? onStopGeneration : handleSubmit}
+              disabled={!isGenerating && !inputText.trim() && attachedFiles.length === 0}
+              className={`p-2 rounded-full flex items-center justify-center transition-all ${
+                isGenerating
+                  ? "bg-slate-200 hover:bg-slate-300 text-slate-800 shadow-sm cursor-pointer"
+                  : inputText.trim() || attachedFiles.length > 0
+                    ? "bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer"
+                    : "bg-slate-100 text-slate-300 cursor-not-allowed"
+              }`}
+            >
+              {isGenerating ? (
+                <Square size={13} fill="currentColor" strokeWidth={0} className="text-slate-800" />
+              ) : (
+                <ArrowUp size={16} strokeWidth={2.5} />
+              )}
+            </button>
+          </div>
+
+        </div>
+        </div>
+      </div>
     </div>
   );
 }
