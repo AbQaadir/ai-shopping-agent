@@ -88,7 +88,7 @@ export default function ChatView({
 
   return (
     /* Full-height flex column — exactly fills the space below the app header */
-    <div className="flex-1 w-full flex flex-col overflow-hidden h-[calc(100vh-64px)] bg-white">
+    <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-white">
 
       {/* ── 1. Thin top bar ── */}
       <div className="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-white shrink-0 select-none">

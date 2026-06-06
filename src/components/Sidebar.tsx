@@ -30,7 +30,7 @@ export default function Sidebar({
 }: SidebarProps) {
   return (
     <aside 
-      className={`border-r border-slate-100 bg-white flex flex-col transition-all duration-300 ease-in-out z-20 ${
+      className={`shrink-0 h-full border-r border-slate-100 bg-white flex flex-col transition-all duration-300 ease-in-out z-20 ${
         isCollapsed ? "w-16" : "w-64"
       }`}
     >
