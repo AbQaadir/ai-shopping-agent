@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
     if (apiKey) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const geminiModel = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+        const model = genAI.getGenerativeModel({ model: geminiModel });
         const systemPrompt = "You are an AI sourcing agent for Kapuruka.com (a premium sourcing and shopping platform). Respond to the user's query about sourcing goods. Keep your reply concise (2-3 sentences max). Confirm that you have matched verified suppliers and relevant products in the database.";
         geminiStream = await model.generateContentStream({
           contents: [
