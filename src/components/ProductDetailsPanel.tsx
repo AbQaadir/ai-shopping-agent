@@ -275,7 +275,7 @@ export default function ProductDetailsPanel({ onClose }: ProductDetailsPanelProp
       </div>
 
       {/* Scrollable Products List Container */}
-      <div className="flex-1 overflow-y-auto p-6 bg-white">
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 bg-white">
         
         {viewMode === "grid" ? (
           /* GRID VIEW LAYOUT (3 columns) */
