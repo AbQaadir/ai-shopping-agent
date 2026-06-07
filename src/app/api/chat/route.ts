@@ -1,11 +1,11 @@
-import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { parseRequirementsTool, searchProductsTool, verifySuppliersTool } from "@/lib/tools";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
-  
+
   try {
     const body = await req.json().catch(() => ({}));
     const { sessionId, message } = body;
@@ -85,8 +85,14 @@ export async function POST(req: NextRequest) {
     if (apiKey) {
       try {
         genAI = new GoogleGenerativeAI(apiKey);
-        const geminiModel = process.env.GEMINI_MODEL || "gemini-1.5-flash";
-        classifierModel = genAI.getGenerativeModel({ model: geminiModel });
+        const fastModelName = process.env.FAST_GEMINI_MODEL;
+        const mainModelName = process.env.REASONING_GEMINI_MODEL;
+
+        if (!fastModelName || !mainModelName) {
+          throw new Error("Gemini model names missing in environment variables");
+        }
+
+        classifierModel = genAI.getGenerativeModel({ model: fastModelName });
 
         // Refine intent using Gemini (JSON Mode)
         try {
@@ -94,13 +100,13 @@ export async function POST(req: NextRequest) {
           Analyze the user's B2B message and classify it into one of these intents:
           - "sourcing": The user is searching for products, suppliers, manufacturers, pricing, materials, or B2B catalogue items.
           - "qa": The user is asking general informational questions about platform regulations, payment terms, delivery places, shipping rates, or generic logistics/policies.
-          
+
           Respond ONLY with a JSON object in this format:
           {
             "intent": "sourcing" | "qa",
             "reason": "brief explanation"
           }
-          
+
           User Message: "${message}"
           `;
 
@@ -138,11 +144,11 @@ export async function POST(req: NextRequest) {
           parts: [{ text: m.content }],
         }));
 
-        const chatModel = genAI.getGenerativeModel({ 
-          model: geminiModel,
+        const chatModel = genAI.getGenerativeModel({
+          model: mainModelName,
           systemInstruction: systemPrompt
         });
-          
+
         geminiStream = await chatModel.generateContentStream({
           contents: geminiHistory,
         });
@@ -175,7 +181,7 @@ export async function POST(req: NextRequest) {
           const criteria = await parseRequirementsTool(message);
           await new Promise((resolve) => setTimeout(resolve, 400));
           const duration1 = Date.now() - startTime1;
-          
+
           const step1 = {
             step: "parsing_specs",
             status: "completed",
@@ -288,7 +294,7 @@ export async function POST(req: NextRequest) {
 
         // Generate response text (stream from Gemini or fallback locally)
         let fullResponseText = "";
-        
+
         if (geminiStream) {
           try {
             for await (const chunk of geminiStream.stream) {
@@ -331,10 +337,10 @@ export async function POST(req: NextRequest) {
             const suggesterPrompt = `
             Based on the following user query and assistant response, generate exactly 3 short, helpful, contextually relevant follow-up suggestions that a B2B buyer could click next.
             Make them specific and focused on B2B procurement, payment, or logistics depending on the content. Keep each suggestion under 8 words. Do not include numbering or bullets.
-            
+
             User Query: "${message}"
             Assistant Response: "${fullResponseText}"
-            
+
             Respond ONLY with a JSON array of strings:
             [
               "suggested question 1",
