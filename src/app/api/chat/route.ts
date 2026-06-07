@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     let geminiStream: any = null;
     let intent = "sourcing"; // default
     let genAI: any = null;
-    let model: any = null;
+    let classifierModel: any = null;
 
     // Rule-based classification fallback
     const lowercaseQuery = message.toLowerCase();
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       try {
         genAI = new GoogleGenerativeAI(apiKey);
         const geminiModel = process.env.GEMINI_MODEL || "gemini-1.5-flash";
-        model = genAI.getGenerativeModel({ model: geminiModel });
+        classifierModel = genAI.getGenerativeModel({ model: geminiModel });
 
         // Refine intent using Gemini (JSON Mode)
         try {
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
           User Message: "${message}"
           `;
 
-          const classificationResult = await model.generateContent({
+          const classificationResult = await classifierModel.generateContent({
             contents: [{ role: "user", parts: [{ text: classifierPrompt }] }],
             generationConfig: {
               responseMimeType: "application/json",
@@ -121,15 +121,30 @@ export async function POST(req: NextRequest) {
           console.error("Intent classification failed, defaulting to rule-based:", classificationErr);
         }
 
-        // Initialize main stream
+        // Initialize main stream with history context
         const systemPrompt = intent === "sourcing"
           ? "You are an AI sourcing agent for Kapuruka.com. Respond to the user's query about sourcing goods. Keep your reply concise (2-3 sentences max). Confirm that you have matched verified suppliers and relevant products in the database."
           : "You are an expert customer helper for Kapuruka.com. Respond to the user's query about platform rules, delivery locations, logistics, or payment policies. Keep your reply concise and professional (2-3 sentences max).";
+
+        // Fetch all messages (including the one just inserted) sorted by createdAt ascending
+        const chatHistory = await prisma.chatMessage.findMany({
+          where: { sessionId: session.id },
+          orderBy: { createdAt: "asc" },
+        });
+
+        // Map messages to Gemini history structure
+        const geminiHistory = chatHistory.map((m: any) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }],
+        }));
+
+        const chatModel = genAI.getGenerativeModel({ 
+          model: geminiModel,
+          systemInstruction: systemPrompt
+        });
           
-        geminiStream = await model.generateContentStream({
-          contents: [
-            { role: "user", parts: [{ text: `${systemPrompt}\nUser Query: ${message}` }] },
-          ],
+        geminiStream = await chatModel.generateContentStream({
+          contents: geminiHistory,
         });
       } catch (err) {
         console.error("Gemini initialization failed:", err);
@@ -311,7 +326,7 @@ export async function POST(req: NextRequest) {
 
         // 5.4 Generate Dynamic B2B Suggestions
         let followUpQuestions: string[] = [];
-        if (model) {
+        if (classifierModel) {
           try {
             const suggesterPrompt = `
             Based on the following user query and assistant response, generate exactly 3 short, helpful, contextually relevant follow-up suggestions that a B2B buyer could click next.
@@ -328,7 +343,7 @@ export async function POST(req: NextRequest) {
             ]
             `;
 
-            const suggestionResult = await model.generateContent({
+            const suggestionResult = await classifierModel.generateContent({
               contents: [{ role: "user", parts: [{ text: suggesterPrompt }] }],
               generationConfig: {
                 responseMimeType: "application/json",
