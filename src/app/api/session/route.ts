@@ -28,6 +28,13 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
       });
 
+      // Sort pinned sessions to the top
+      sessions.sort((a: any, b: any) => {
+        const aPinned = a.status === "pinned" ? 1 : 0;
+        const bPinned = b.status === "pinned" ? 1 : 0;
+        return bPinned - aPinned;
+      });
+
       return NextResponse.json(sessions);
     }
   } catch (error: any) {
@@ -51,6 +58,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(newSession);
   } catch (error: any) {
     console.error("Session POST error:", error);
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const { id, status, title } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing session ID" }, { status: 400 });
+    }
+
+    const updated = await prisma.chatSession.update({
+      where: { id },
+      data: {
+        ...(status !== undefined && { status }),
+        ...(title !== undefined && { title }),
+      },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error: any) {
+    console.error("Session PATCH error:", error);
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing session ID" }, { status: 400 });
+    }
+
+    await prisma.chatSession.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Session DELETE error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }
