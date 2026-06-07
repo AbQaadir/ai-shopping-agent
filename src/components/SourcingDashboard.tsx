@@ -6,7 +6,7 @@ import Header from "@/components/Header";
 import LandingView from "@/components/LandingView";
 import ChatView from "@/components/ChatView";
 import { MessageSquare } from "lucide-react";
-import { InlineProduct, Message } from "@/components/ChatTimeline";
+import { InlineProduct, Message, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing } from "@/components/ChatTimeline";
 import { useRouter } from "next/navigation";
 
 interface HistoryItem {
@@ -218,7 +218,6 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
       sender: "user",
       text: text || `Attached ${files.length} document(s) for review`,
       timestamp,
-      attachments,
       status: "sending"
     };
 
@@ -296,6 +295,10 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
       let fullResponseText = "";
       let inlineProducts: InlineProduct[] = [];
       let followUpQuestions: string[] = [];
+      let deliveryResult: DeliveryResult | undefined;
+      let trackingResult: TrackingResult | undefined;
+      let importEstimate: ImportEstimate | undefined;
+      let serviceListing: ServiceListing | undefined;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -313,105 +316,108 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
             const dataStr = cleaned.replace("data:", "").trim();
             try {
               const packet = JSON.parse(dataStr);
-              
+
+              // ── Thought process updates ──
               if (packet.type === "thought") {
                 setMessages(prev => prev.map(m => {
                   if (m.id === aiMessageId) {
                     const steps = m.thinkingSteps ? [...m.thinkingSteps] : [];
                     const existingIdx = steps.findIndex(s => s.step === packet.step);
                     if (existingIdx !== -1) {
-                      steps[existingIdx] = {
-                        step: packet.step,
-                        status: packet.status,
-                        content: packet.content,
-                        durationMs: packet.durationMs,
-                      };
+                      steps[existingIdx] = { step: packet.step, status: packet.status, content: packet.content, durationMs: packet.durationMs };
                     } else {
-                      steps.push({
-                        step: packet.step,
-                        status: packet.status,
-                        content: packet.content,
-                        durationMs: packet.durationMs,
-                      });
+                      steps.push({ step: packet.step, status: packet.status, content: packet.content, durationMs: packet.durationMs });
                     }
                     return { ...m, thinkingSteps: steps };
                   }
                   return m;
                 }));
+
+              // ── Tool call in-progress ──
               } else if (packet.type === "tool_call") {
-                setMessages(prev => prev.map(m => {
-                  if (m.id === aiMessageId) {
-                    return {
-                      ...m,
-                      activeToolCall: { name: packet.name, args: packet.args }
-                    };
-                  }
-                  return m;
-                }));
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, activeToolCall: { name: packet.name, args: packet.args } } : m
+                ));
+
+              // ── Pillar 1/3: Product results ──
               } else if (packet.type === "tool_result") {
-                if (packet.result && packet.result.products) {
+                if (packet.result?.products) {
                   inlineProducts = packet.result.products;
-                  setMessages(prev => prev.map(m => {
-                    if (m.id === aiMessageId) {
-                      return {
-                        ...m,
-                        activeToolCall: null,
-                        inlineProductsHeader: "Matched Sourcing Products",
-                        inlineProducts,
-                        showViewProductsButton: true,
-                      };
-                    }
-                    return m;
-                  }));
+                  setMessages(prev => prev.map(m =>
+                    m.id === aiMessageId
+                      ? { ...m, activeToolCall: null, inlineProductsHeader: "Kapruka Products", inlineProducts, showViewProductsButton: true }
+                      : m
+                  ));
                 }
+
+              // ── Pillar 2: Delivery result ──
+              } else if (packet.type === "delivery_result") {
+                deliveryResult = packet.result as DeliveryResult;
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, activeToolCall: null, deliveryResult } : m
+                ));
+
+              // ── Pillar 2: Order tracking result ──
+              } else if (packet.type === "tracking_result") {
+                trackingResult = packet.result as TrackingResult;
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, activeToolCall: null, trackingResult } : m
+                ));
+
+              // ── Pillar 4: Import estimate ──
+              } else if (packet.type === "import_estimate") {
+                importEstimate = packet.result as ImportEstimate;
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, activeToolCall: null, importEstimate } : m
+                ));
+
+              // ── Pillar 5: Service listing ──
+              } else if (packet.type === "service_listing") {
+                serviceListing = packet.result as ServiceListing;
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, activeToolCall: null, serviceListing } : m
+                ));
+
+              // ── Text token ──
               } else if (packet.type === "text") {
                 setIsGenerating(false);
                 fullResponseText += packet.content;
                 setMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: fullResponseText } : m));
+
+              // ── Follow-up suggestions ──
               } else if (packet.type === "follow_ups") {
                 if (packet.questions) {
                   followUpQuestions = packet.questions;
-                  setMessages(prev => prev.map(m => {
-                    if (m.id === aiMessageId) {
-                      return {
-                        ...m,
-                        followUpText: "Based on this session, you can continue with:",
-                        followUpSamples: followUpQuestions
-                      };
-                    }
-                    return m;
-                  }));
+                  setMessages(prev => prev.map(m =>
+                    m.id === aiMessageId
+                      ? { ...m, followUpText: "Continue with:", followUpSamples: followUpQuestions }
+                      : m
+                  ));
                 }
               }
             } catch (e) {
-              console.error("Failed to parse event stream data line:", e, dataStr);
+              console.error("Failed to parse SSE data:", e, dataStr);
             }
           }
         }
       }
 
-      // After loop completes successfully, construct final state
+      // Finalise AI message state
       const finalMappedAi: Message = {
         id: aiMessageId,
         sender: "ai",
         text: fullResponseText,
         timestamp: new Date(),
         thinkingSteps: messages.find(m => m.id === aiMessageId)?.thinkingSteps || [],
-        inlineProductsHeader: inlineProducts.length > 0 ? "Matched Sourcing Products" : undefined,
+        inlineProductsHeader: inlineProducts.length > 0 ? "Kapruka Products" : undefined,
         inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
         showViewProductsButton: inlineProducts.length > 0,
-        followUpText: followUpQuestions.length > 0 
-          ? "Based on this session, you can continue with:"
-          : inlineProducts.length > 0 
-            ? "Based on these options, you can continue with:" 
-            : undefined,
-        followUpSamples: followUpQuestions.length > 0 
-          ? followUpQuestions 
-          : (inlineProducts.length > 0 ? [
-              "Filter by lower MOQ (e.g., < 10 pieces)",
-              "Find specific styles like moon chairs or heavy-duty options",
-              "Request customized logo printing for these models"
-            ] : undefined)
+        deliveryResult,
+        trackingResult,
+        importEstimate,
+        serviceListing,
+        followUpText: followUpQuestions.length > 0 ? "Continue with:" : undefined,
+        followUpSamples: followUpQuestions.length > 0 ? followUpQuestions : undefined,
       };
 
       setMessages(prev => prev.map(m => m.id === aiMessageId ? finalMappedAi : m));
@@ -437,11 +443,11 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     }
   };
 
-  // Suggestion pill click transitions to chat with the initial prompt
-  const handleSuggestionClick = () => {
+  // Suggestion click: open chat with a pre-filled prompt
+  const handleSuggestionClick = (suggestion?: string) => {
     setIsChatting(true);
-    setActiveQueryText(""); 
-    
+    setActiveQueryText("");
+
     const initialPrompt: Message = {
       id: "initial-prompt",
       sender: "ai",
@@ -449,13 +455,27 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
       timestamp: new Date(),
       isInitialPrompt: true,
       samples: [
-        "Find foldable camping chairs under $15.",
-        "Minimalist desk lamp with fast shipping.",
-        "Eco-friendly gifts for new hires, customizable with logo."
-      ]
+        "Show me birthday cakes under Rs. 3,000",
+        "Can you deliver flowers to Kandy this Saturday?",
+        "https://amazon.com/dp/B0EXAMPLE — how much in Sri Lanka?",
+        "My air conditioner is broken, find a technician in Colombo",
+        "Show me handmade gifts from local Sri Lankan artisans",
+      ],
     };
-    
+
     setMessages([initialPrompt]);
+
+    // If a specific suggestion text was passed, send it immediately
+    if (suggestion) {
+      setTimeout(() => handleSendMessage(suggestion, []), 100);
+    }
+  };
+
+  // Buy product handler — opens checkout URL in new tab
+  const handleBuyProduct = (product: InlineProduct) => {
+    if (product.url) {
+      window.open(product.url, "_blank", "noopener,noreferrer");
+    }
   };
 
   return (
@@ -490,11 +510,12 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
                 onBackToLanding={handleReset}
                 activeQueryText={activeQueryText}
                 onStopGeneration={handleStopGeneration}
+                onBuyProduct={handleBuyProduct}
               />
             ) : (
               <LandingView
                 onSend={handleSendMessage}
-                onSuggestionClick={handleSuggestionClick}
+                onSuggestionClick={(s) => handleSuggestionClick(s)}
               />
             )}
           </div>

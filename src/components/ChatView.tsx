@@ -23,6 +23,7 @@ interface ChatViewProps {
   onBackToLanding: () => void;
   activeQueryText: string;
   onStopGeneration?: () => void;
+  onBuyProduct?: (product: InlineProduct) => void;
 }
 
 export default function ChatView({
@@ -31,7 +32,8 @@ export default function ChatView({
   onSend,
   onBackToLanding,
   activeQueryText,
-  onStopGeneration
+  onStopGeneration,
+  onBuyProduct
 }: ChatViewProps) {
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -160,6 +162,7 @@ export default function ChatView({
             onViewDetailsClick={handleViewDetails}
             selectedProductIds={selectedProducts.map(p => p.id)}
             onToggleSelectProduct={handleToggleSelectProduct}
+            onBuyProduct={onBuyProduct}
           />
 
           {/* "Working on it" loader shown while generating */}
@@ -246,7 +249,9 @@ export default function ChatView({
                       >
                         <span className="text-sm select-none">{prod.image}</span>
                         <span className="truncate max-w-[160px] font-medium leading-none">
-                          {prod.title.length > 28 ? `${prod.title.substring(0, 28)}…` : prod.title}
+                          {((prod.name || prod.title) ?? "").length > 28
+                            ? `${((prod.name || prod.title) ?? "").substring(0, 28)}…`
+                            : ((prod.name || prod.title) ?? "Product")}
                         </span>
                         <button
                           onClick={() => handleToggleSelectProduct(prod)}
