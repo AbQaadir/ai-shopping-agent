@@ -409,7 +409,7 @@ User message: "${message.substring(0, 300)}"`;
                 ).join("\n");
             }
 
-            const geminiHistory = chatHistory.map((m) => ({
+            const geminiHistory = chatHistory.map((m: { role: string; content: string }) => ({
               role: m.role === "assistant" ? "model" : "user",
               parts: [{ text: m.content }],
             }));
