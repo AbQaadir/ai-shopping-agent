@@ -63,7 +63,6 @@ export default function Header({ onNewSourcing, isCompact = false }: HeaderProps
                 <span className="text-[11px] font-bold px-1 py-0.2 bg-slate-100 rounded text-slate-700 border border-slate-200">
                   🇱🇰 LK
                 </span>
-                <ChevronDown size={14} className="text-slate-400" />
               </div>
             </div>
 
