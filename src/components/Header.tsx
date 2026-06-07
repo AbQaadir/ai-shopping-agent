@@ -143,7 +143,7 @@ export default function Header({ onNewSourcing, isCompact = false }: HeaderProps
                   {/* Language Selector */}
                   <div className="space-y-1.5">
                     <label className="text-slate-700 text-xs font-semibold">Language</label>
-                    <div className="flex items-center justify-between border border-slate-200 rounded-lg bg-white hover:border-slate-300 transition-all focus-within:border-[#402970] relative">
+                    <div className="flex items-center justify-between border border-slate-200 rounded-lg bg-white hover:border-slate-300 transition-all focus-within:border-[#ff6000] relative">
                       <select className="w-full appearance-none px-3 py-2 bg-transparent text-xs text-slate-700 font-medium outline-none cursor-pointer">
                         <option value="en">English</option>
                         <option value="es">Español</option>
@@ -160,7 +160,7 @@ export default function Header({ onNewSourcing, isCompact = false }: HeaderProps
                   {/* Currency Selector */}
                   <div className="space-y-1.5">
                     <label className="text-slate-700 text-xs font-semibold">Currency</label>
-                    <div className="flex items-center justify-between border border-slate-200 rounded-lg bg-white hover:border-slate-300 transition-all focus-within:border-[#402970] relative">
+                    <div className="flex items-center justify-between border border-slate-200 rounded-lg bg-white hover:border-slate-300 transition-all focus-within:border-[#ff6000] relative">
                       <select className="w-full appearance-none px-3 py-2 bg-transparent text-xs text-slate-700 font-medium outline-none cursor-pointer">
                         <option value="USD">USD - US Dollar</option>
                         <option value="EUR">EUR - Euro</option>
@@ -175,7 +175,7 @@ export default function Header({ onNewSourcing, isCompact = false }: HeaderProps
                   </div>
 
                   {/* Save Button */}
-                  <button className="w-full bg-[#402970] hover:bg-[#33205a] active:scale-98 text-white text-xs font-bold py-2.5 rounded-full transition-all duration-200 shadow-md shadow-purple-500/10 cursor-pointer">
+                  <button className="w-full bg-[#ff6000] hover:bg-[#e65600] active:scale-98 text-white text-xs font-bold py-2.5 rounded-full transition-all duration-200 shadow-md shadow-orange-500/10 cursor-pointer">
                     Save
                   </button>
                 </div>

@@ -15,7 +15,6 @@ interface HistoryItem {
   date: string;
   queryType: "design" | "manufacturer" | "bestseller" | "product" | "general";
   messages: Message[];
-  isPinned?: boolean;
 }
 
 interface SourcingDashboardProps {
@@ -62,45 +61,12 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
           query: session.title,
           date: new Date(session.createdAt).toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
           queryType: "product",
-          messages: [],
-          isPinned: session.status === "pinned"
+          messages: []
         }));
         setHistory(items);
       }
     } catch (err) {
       console.error("Failed to load history sessions:", err);
-    }
-  };
-
-  const handlePinSession = async (id: string, isPinned: boolean) => {
-    try {
-      const res = await fetch("/api/session", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: isPinned ? "pinned" : "active" })
-      });
-      if (res.ok) {
-        await fetchHistory();
-      }
-    } catch (err) {
-      console.error("Failed to pin/unpin session:", err);
-    }
-  };
-
-  const handleDeleteSession = async (id: string) => {
-    try {
-      const res = await fetch(`/api/session?id=${id}`, {
-        method: "DELETE"
-      });
-      if (res.ok) {
-        if (activeHistoryId === id) {
-          handleResetLocal();
-          router.push("/");
-        }
-        await fetchHistory();
-      }
-    } catch (err) {
-      console.error("Failed to delete session:", err);
     }
   };
 
@@ -175,7 +141,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         setHistory(prev => {
           const exists = prev.some((h) => h.id === id);
           if (exists) {
-            return prev.map((h) => (h.id === id ? { ...h, messages: mappedMessages, isPinned: sessionData.status === "pinned" } : h));
+            return prev.map((h) => (h.id === id ? { ...h, messages: mappedMessages } : h));
           } else {
             return [
               {
@@ -183,8 +149,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
                 query: sessionData.title,
                 date: new Date(sessionData.createdAt).toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
                 queryType: "product",
-                messages: mappedMessages,
-                isPinned: sessionData.status === "pinned"
+                messages: mappedMessages
               },
               ...prev
             ];
@@ -282,8 +247,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
             query: text || "New Sourcing Task",
             date: new Date().toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
             queryType: "product",
-            messages: [],
-            isPinned: false
+            messages: []
           };
           setHistory(prev => [newHistoryItem, ...prev]);
           
@@ -512,8 +476,6 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
           history={history}
           onSelectHistory={handleSelectHistory}
           activeHistoryId={activeHistoryId}
-          onPinSession={handlePinSession}
-          onDeleteSession={handleDeleteSession}
         />
 
         {/* Sourcing Workspace */}
