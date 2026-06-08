@@ -43,7 +43,9 @@ export default function Sidebar({
       `}
     >
       {/* Top Section - Desktop Toggle & Mobile Close */}
-      <div className={`h-16 flex items-center justify-between md:justify-end px-4 ${isCollapsed ? "md:justify-center md:px-0" : ""}`}>
+      <div className={`h-16 flex items-center justify-between px-4 ${
+        isCollapsed ? "md:justify-center md:px-0" : "md:justify-end"
+      }`}>
         {/* Mobile close button */}
         <button
           onClick={() => setIsMobileOpen?.(false)}
