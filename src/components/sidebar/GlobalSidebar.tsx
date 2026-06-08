@@ -10,7 +10,7 @@ import {
   ChevronRight,
   X
 } from "lucide-react";
-import SidebarHistoryList from "./sidebar/SidebarHistoryList";
+import SidebarHistoryList from "./SidebarHistoryList";
 
 interface GlobalSidebarProps {
   isCollapsed: boolean;

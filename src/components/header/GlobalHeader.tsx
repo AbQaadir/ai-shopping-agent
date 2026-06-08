@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Globe, Menu, ShoppingCart, User } from "lucide-react";
-import LocationPopover from "./header/LocationPopover";
-import LanguagePopover from "./header/LanguagePopover";
+import LocationPopover from "./LocationPopover";
+import LanguagePopover from "./LanguagePopover";
 
 interface GlobalHeaderProps {
   onNewSourcing: () => void;

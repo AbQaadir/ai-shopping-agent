@@ -11,7 +11,7 @@ import {
 import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductDetailsDrawer, { ProductDetail } from "./ProductDetailsDrawer";
 import ProductCatalogModal from "./ProductCatalogModal";
-import ChatInputArea from "./chat/ChatInputArea";
+import ChatInputArea from "./ChatInputArea";
 import type { Message, InlineProduct } from "@/types/sourcing";
 
 interface ChatWorkspaceProps {

@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import GlobalSidebar from "@/components/GlobalSidebar";
-import GlobalHeader from "@/components/GlobalHeader";
-import LandingWorkspace from "@/components/LandingWorkspace";
-import ChatWorkspace from "@/components/ChatWorkspace";
+import GlobalSidebar from "@/components/sidebar/GlobalSidebar";
+import GlobalHeader from "@/components/header/GlobalHeader";
+import LandingWorkspace from "@/components/landing/LandingWorkspace";
+import ChatWorkspace from "@/components/chat/ChatWorkspace";
 import { MessageSquare } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
 

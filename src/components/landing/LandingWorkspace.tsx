@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { Paperclip, ArrowUp, X } from "lucide-react";
-import PillarSuggestionGrid from "./landing/PillarSuggestionGrid";
+import PillarSuggestionGrid from "./PillarSuggestionGrid";
 
 interface LandingWorkspaceProps {
   onSend: (text: string, files: File[]) => void;

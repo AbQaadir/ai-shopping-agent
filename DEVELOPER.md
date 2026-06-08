@@ -77,20 +77,25 @@ src/
 │   │   │   ├── ServiceListingCard.tsx  # Verified local technician listings
 │   │   │   └── TrackingCard.tsx       # Order delivery status timelines
 │   │   ├── ChatInputArea.tsx          # Floating bottom textarea & upload controls
+│   │   ├── ChatMessageTimeline.tsx    # AI Timeline list of message elements
+│   │   ├── ChatWorkspace.tsx          # Chat screen workspace container
 │   │   ├── ProductCard.tsx            # Grid/List item with SME/Discount flags
+│   │   ├── ProductCatalogModal.tsx    # Detailed item paginated list portal modal
+│   │   ├── ProductDetailsDrawer.tsx   # Detailed item comparison slide-over panel
 │   │   ├── ProductGrid.tsx            # View toggles & paginated display grids
 │   │   └── ThinkingPanel.tsx          # Real-time animated thought steps & tool calls
 │   ├── header/
+│   │   ├── GlobalHeader.tsx           # Main global navbar
 │   │   ├── LanguagePopover.tsx        # Currency / flag configuration select
 │   │   └── LocationPopover.tsx        # Local ZIP / delivery location specifiers
 │   ├── landing/
+│   │   ├── LandingWorkspace.tsx       # Landing search and upload portal workspace
 │   │   └── PillarSuggestionGrid.tsx   # Color-coded 5-pillar hint cards
-│   ├── GlobalHeader.tsx               # Main global navbar
-│   ├── GlobalSidebar.tsx              # Collapsible dashboard drawer
-│   ├── SourcingDashboard.tsx          # Layout coordinator orchestrating screen changes
-│   ├── ChatMessageTimeline.tsx        # AI Timeline list of message elements
-│   ├── ProductDetailsDrawer.tsx       # Detailed item comparison slide-over panel
-│   └── ProductCatalogModal.tsx        # Detailed item paginated list portal modal
+│   ├── sidebar/
+│   │   ├── GlobalSidebar.tsx          # Collapsible dashboard drawer
+│   │   ├── SidebarHistoryItem.tsx     # Single conversation history link
+│   │   └── SidebarHistoryList.tsx     # List of past conversation links
+│   └── SourcingDashboard.tsx          # Layout coordinator orchestrating screen changes
 ├── context/
 │   └── SourcingContext.tsx            # Global Context Provider for sourcing session state
 ├── lib/

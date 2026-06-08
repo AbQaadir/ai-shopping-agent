@@ -4,12 +4,12 @@ import React, { useEffect, useRef } from "react";
 import { Clock, Check } from "lucide-react";
 import type { Message, InlineProduct } from "@/types/sourcing";
 
-import DeliveryCard from "./chat/cards/DeliveryCard";
-import TrackingCard from "./chat/cards/TrackingCard";
-import ImportEstimateCard from "./chat/cards/ImportEstimateCard";
-import ServiceListingCard from "./chat/cards/ServiceListingCard";
-import ProductGrid from "./chat/ProductGrid";
-import ThinkingPanel from "./chat/ThinkingPanel";
+import DeliveryCard from "./cards/DeliveryCard";
+import TrackingCard from "./cards/TrackingCard";
+import ImportEstimateCard from "./cards/ImportEstimateCard";
+import ServiceListingCard from "./cards/ServiceListingCard";
+import ProductGrid from "./ProductGrid";
+import ThinkingPanel from "./ThinkingPanel";
 
 interface ChatTimelineProps {
   messages: Message[];
