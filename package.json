@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "clean": "node -e \"const fs = require('fs'); fs.rmSync('.next', { recursive: true, force: true }); console.log('Cleaned Next.js cache and build directory (.next).');\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

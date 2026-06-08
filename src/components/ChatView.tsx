@@ -5,7 +5,6 @@ import {
   Paperclip, 
   ArrowUp, 
   ChevronLeft, 
-  ChevronRight,
   X, 
   Share2, 
   Loader2, 
@@ -14,7 +13,7 @@ import {
   Check 
 } from "lucide-react";
 import ChatTimeline, { InlineProduct, Message } from "./ChatTimeline";
-import ProductDetailsPanel from "./ProductDetailsPanel";
+import ProductDetailsPanel, { ProductDetail } from "./ProductDetailsPanel";
 
 interface ChatViewProps {
   messages: Message[];
@@ -23,6 +22,7 @@ interface ChatViewProps {
   onBackToLanding: () => void;
   activeQueryText: string;
   onStopGeneration?: () => void;
+  onBuyProduct?: (product: InlineProduct) => void;
 }
 
 export default function ChatView({
@@ -31,7 +31,8 @@ export default function ChatView({
   onSend,
   onBackToLanding,
   activeQueryText,
-  onStopGeneration
+  onStopGeneration,
+  onBuyProduct
 }: ChatViewProps) {
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -39,6 +40,7 @@ export default function ChatView({
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
   const [detailProducts, setDetailProducts] = useState<InlineProduct[]>([]);
   const [isCopied, setIsCopied] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleViewDetails = (products?: InlineProduct[]) => {
@@ -147,10 +149,10 @@ export default function ChatView({
 
       {/* ── 2. Body: split-screen chat + products details panel ── */}
       <div className="flex-1 min-h-0 relative flex flex-row">
-
+ 
         {/* Left Chat Pane */}
         <div className={`flex-1 overflow-y-auto min-h-0 flex flex-col relative ${
-          showDetails ? "w-1/2 border-r border-slate-100" : "w-full"
+          showDetails ? "md:w-1/2 md:border-r border-slate-100" : "w-full"
         }`}>
           {/* Messages */}
           <ChatTimeline
@@ -160,11 +162,12 @@ export default function ChatView({
             onViewDetailsClick={handleViewDetails}
             selectedProductIds={selectedProducts.map(p => p.id)}
             onToggleSelectProduct={handleToggleSelectProduct}
+            onBuyProduct={onBuyProduct}
           />
-
+ 
           {/* "Working on it" loader shown while generating */}
           {isGenerating && (
-            <div className="px-6 pb-4 flex justify-start max-w-3xl mx-auto w-full">
+            <div className="px-4 sm:px-6 pb-4 flex justify-start max-w-3xl mx-auto w-full">
               <div className="px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-4 w-full animate-fadeIn">
                 <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
                   <Loader2 size={15} className="text-[#402970] animate-spin" />
@@ -209,32 +212,48 @@ export default function ChatView({
               </div>
             </div>
           )}
-
+ 
           {/* Bottom spacer so last message clears the gradient + input */}
           <div className="h-36 shrink-0" />
         </div>
-
+ 
+        {/* Mobile backdrop for details panel */}
+        {showDetails && (
+          <div 
+            className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 transition-opacity duration-300"
+            onClick={() => setShowDetails(false)}
+          />
+        )}
+ 
         {/* Right Split Panel Details Drawer */}
         {showDetails && (
-          <div className="w-1/2 h-full overflow-hidden select-none bg-white">
+          <div className="fixed inset-x-0 bottom-0 h-[80vh] md:static md:w-1/2 md:h-full bg-white border-t md:border-t-0 border-slate-200/80 md:border-l border-slate-100 rounded-t-[30px] md:rounded-none shadow-2xl md:shadow-none z-40 md:z-10 flex flex-col overflow-hidden animate-fadeIn">
+            {/* Drag indicator/handle on mobile */}
+            <div className="md:hidden w-full flex justify-center py-3.5 shrink-0 cursor-pointer select-none" onClick={() => setShowDetails(false)}>
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            </div>
             <ProductDetailsPanel 
               onClose={() => setShowDetails(false)} 
-              products={detailProducts as any}
+              products={detailProducts as unknown as ProductDetail[]}
             />
           </div>
         )}
-
+ 
         {/* ── Gradient fade — messages dissolve upward into white ── */}
         <div
-          className="pointer-events-none absolute bottom-0 left-0 right-0 h-28"
+          className="pointer-events-none absolute bottom-0 left-0 right-0 h-28 z-10"
           style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 55%)" }}
         />
-
+ 
         {/* ── 3. Pinned input — floats above the gradient ── */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 select-none">
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 select-none z-20">
           <div className="max-w-3xl mx-auto w-full">
-            <div className="w-full bg-white rounded-2xl shadow-[0_2px_16px_rgba(0,0,0,0.09)] p-3 flex flex-col gap-2">
-
+            <div className={`w-full bg-white rounded-2xl p-3 flex flex-col gap-2 transition-all duration-300 border ${
+              isFocused 
+                ? "border-[#402970]/35 shadow-[0_4px_20px_rgba(64,41,112,0.1)]" 
+                : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
+            }`}>
+ 
               {/* Selected products row */}
               {selectedProducts.length > 0 && (
                 <div className="flex flex-col gap-2 pb-2 border-b border-slate-100 animate-fadeIn">
@@ -246,7 +265,9 @@ export default function ChatView({
                       >
                         <span className="text-sm select-none">{prod.image}</span>
                         <span className="truncate max-w-[160px] font-medium leading-none">
-                          {prod.title.length > 28 ? `${prod.title.substring(0, 28)}…` : prod.title}
+                          {((prod.name || prod.title) ?? "").length > 28
+                            ? `${((prod.name || prod.title) ?? "").substring(0, 28)}…`
+                            : ((prod.name || prod.title) ?? "Product")}
                         </span>
                         <button
                           onClick={() => handleToggleSelectProduct(prod)}
@@ -273,17 +294,19 @@ export default function ChatView({
                   </div>
                 </div>
               )}
-
+ 
               {/* Textarea */}
               <textarea
                 value={inputText}
                 onChange={handleTextChange}
                 onKeyDown={handleKeyPress}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
                 placeholder="Ask follow-up…"
                 rows={2}
                 className="w-full resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm px-1 leading-relaxed min-h-[44px]"
               />
-
+ 
               {/* Attached files */}
               {attachedFiles.length > 0 && (
                 <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100">
@@ -297,12 +320,12 @@ export default function ChatView({
                   ))}
                 </div>
               )}
-
+ 
               {/* Controls row */}
               <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                 <button
                   onClick={handlePaperclipClick}
-                  className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-all"
+                  className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
                   title="Attach files"
                 >
                   <Paperclip size={15} />
@@ -325,16 +348,16 @@ export default function ChatView({
                   }
                 </button>
               </div>
-
+ 
             </div>
-
+ 
           </div>
         </div>
         {/* ── end pinned input ── */}
-
+ 
       </div>
       {/* ── end body ── */}
-
+ 
     </div>
   );
 }
