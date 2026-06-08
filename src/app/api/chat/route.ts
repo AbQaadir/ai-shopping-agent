@@ -1,3 +1,4 @@
+import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest } from "next/server";
@@ -13,9 +14,15 @@ import {
   parseRequirements,
   type KaprukaProduct,
 } from "@/lib/tools";
-
-// ── Intent Types ────────────────────────────────────────────────────────────
-type Intent = "product" | "delivery" | "import" | "service" | "qa";
+import {
+  extractCityFromMessage,
+  extractDate,
+  extractOrderId,
+  extractUrlFromMessage,
+  extractUsdPrice,
+  Intent,
+  ruleBasedIntent,
+} from "@/lib/nlp";
 
 // ── System Prompts per Pillar ───────────────────────────────────────────────
 const SYSTEM_PROMPTS: Record<Intent, string> = {
@@ -45,89 +52,6 @@ Be warm and helpful. Explain what each service provider specialises in. Suggest 
 Answer questions about the platform: payment methods, delivery terms, return policy, seller information, and general help.
 Be concise and accurate. If you don't know something, say so honestly and suggest contacting support at support@kapruka.com.`,
 };
-
-// ── URL Detection (for import intent) ──────────────────────────────────────
-function extractUrlFromMessage(message: string): string | null {
-  const urlRegex = /https?:\/\/[^\s]+/i;
-  const match = message.match(urlRegex);
-  return match ? match[0] : null;
-}
-
-// ── Price extraction for import queries ────────────────────────────────────
-function extractUsdPrice(message: string): number | undefined {
-  const match = message.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
-  if (match) return parseFloat(match[1].replace(",", ""));
-  const wordMatch = message.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:usd|dollars?)/i);
-  if (wordMatch) return parseFloat(wordMatch[1].replace(",", ""));
-  return undefined;
-}
-
-// ── City extraction for delivery queries ───────────────────────────────────
-function extractCityFromMessage(message: string): string | null {
-  const knownCities = [
-    "Colombo", "Kandy", "Galle", "Negombo", "Jaffna", "Trincomalee",
-    "Batticaloa", "Kurunegala", "Anuradhapura", "Ratnapura", "Badulla",
-    "Matara", "Hambantota", "Nuwara Eliya", "Matale", "Gampaha",
-    "Kalutara", "Kegalle", "Polonnaruwa", "Mullaitivu", "Vavuniya",
-    "Mannar", "Puttalam", "Ampara", "Monaragala",
-  ];
-  const lower = message.toLowerCase();
-  return knownCities.find((c) => lower.includes(c.toLowerCase())) || null;
-}
-
-// ── Order ID extraction ─────────────────────────────────────────────────────
-function extractOrderId(message: string): string | null {
-  const match = message.match(/\b(KAP-?[A-Z0-9]{6,12}|order[:\s#]*([A-Z0-9-]{6,15}))\b/i);
-  return match ? (match[2] || match[1]).toUpperCase() : null;
-}
-
-// ── Date extraction (simple) ───────────────────────────────────────────────
-function extractDate(message: string): string {
-  const lower = message.toLowerCase();
-  const today = new Date();
-  if (lower.includes("tomorrow")) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  }
-  if (lower.includes("saturday")) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7));
-    return d.toISOString().split("T")[0];
-  }
-  if (lower.includes("sunday")) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + ((0 - d.getDay() + 7) % 7 || 7));
-    return d.toISOString().split("T")[0];
-  }
-  // Default to tomorrow
-  const d = new Date(today);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
-}
-
-// ── Rule-based intent fallback ─────────────────────────────────────────────
-function ruleBasedIntent(message: string): Intent {
-  const lower = message.toLowerCase();
-
-  // Import: URL presence = definitive signal
-  if (/https?:\/\/(www\.)?(amazon|walmart|ebay|aliexpress|target)\./i.test(lower)) return "import";
-  if (/import|from amazon|from abroad|overseas|global shop|landed cost|customs duty/i.test(lower)) return "import";
-
-  // Delivery / tracking
-  if (/track|tracking|order status|where.*order|my order/i.test(lower)) return "delivery";
-  if (/deliver.*to|can.*deliver|delivery.*rate|flat rate|grasshoppers|ship.*to|when.*arrive/i.test(lower)) return "delivery";
-
-  // Service
-  if (/repair|fix.*my|broken|not working|technician|plumber|electrician|ac.*repair|cleaning service|pest control/i.test(lower)) return "service";
-  if (/book.*service|service.*provider|home service/i.test(lower)) return "service";
-
-  // QA
-  if (/payment|return|policy|refund|contact|support|faq|how.*work|what.*kapruka|terms/i.test(lower)) return "qa";
-
-  // Default to product search
-  return "product";
-}
 
 // ── Main Chat POST Handler ─────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -162,7 +86,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 3. Determine intent ───────────────────────────────────────────────────
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = config.gemini.apiKey;
     let genAI: InstanceType<typeof GoogleGenerativeAI> | null = null;
     let classifierModel: ReturnType<InstanceType<typeof GoogleGenerativeAI>["getGenerativeModel"]> | null = null;
     let mainModel: ReturnType<InstanceType<typeof GoogleGenerativeAI>["getGenerativeModel"]> | null = null;
@@ -173,8 +97,8 @@ export async function POST(req: NextRequest) {
     if (apiKey) {
       try {
         genAI = new GoogleGenerativeAI(apiKey);
-        const fastModel = process.env.FAST_GEMINI_MODEL || "gemini-1.5-flash-8b";
-        const reasoningModel = process.env.REASONING_GEMINI_MODEL || "gemini-1.5-flash";
+        const fastModel = config.gemini.fastModel;
+        const reasoningModel = config.gemini.reasoningModel;
 
         classifierModel = genAI.getGenerativeModel({ model: fastModel });
         mainModel = genAI.getGenerativeModel({ model: reasoningModel });
@@ -239,26 +163,40 @@ User message: "${message.substring(0, 300)}"`;
 
           // Step 2: MCP product search
           const t2 = Date.now();
-          send({ type: "thought", step: "searching_kapruka", status: "running", content: `Searching Kapruka live catalog for "${criteria.keywords.join(" ")}"...` });
-          send({ type: "tool_call", name: "kapruka_search_products", args: { query: criteria.keywords.join(" "), max_price: criteria.maxPrice } });
+          const searchQuery = criteria.keywords.join(" ").trim() || message.trim();
 
-          products = await pillar1_searchProducts(criteria.keywords.join(" "), {
-            maxPriceLKR: criteria.maxPrice,
-            smeFirst: false,
-          });
-          const dur2 = Date.now() - t2;
+          if (searchQuery) {
+            send({ type: "thought", step: "searching_kapruka", status: "running", content: `Searching Kapruka live catalog for "${searchQuery}"...` });
+            send({ type: "tool_call", name: "kapruka_search_products", args: { query: searchQuery, max_price: criteria.maxPrice } });
 
-          const step2 = {
-            step: "searching_kapruka",
-            status: "completed",
-            content: products.length > 0
-              ? `Found ${products.length} products from Kapruka live catalog.`
-              : "No exact matches — showing closest available products.",
-            durationMs: dur2,
-          };
-          steps.push(step2);
-          send({ type: "thought", ...step2 });
-          send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
+            products = await pillar1_searchProducts(searchQuery, {
+              maxPriceLKR: criteria.maxPrice,
+              smeFirst: false,
+            });
+            const dur2 = Date.now() - t2;
+
+            const step2 = {
+              step: "searching_kapruka",
+              status: "completed",
+              content: products.length > 0
+                ? `Found ${products.length} products from Kapruka live catalog.`
+                : "No matching products found in the catalog.",
+              durationMs: dur2,
+            };
+            steps.push(step2);
+            send({ type: "thought", ...step2 });
+            send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
+          } else {
+            const step2 = {
+              step: "searching_kapruka",
+              status: "completed",
+              content: "Search query is empty. Showing 0 products.",
+              durationMs: 0,
+            };
+            steps.push(step2);
+            send({ type: "thought", ...step2 });
+            send({ type: "tool_result", toolName: "kapruka_search_products", result: { products: [] } });
+          }
         }
 
         // ── Pillar 3: SME/Partner Central ──────────────────────────────────
@@ -402,11 +340,15 @@ User message: "${message.substring(0, 300)}"`;
 
             // Augment context with tool results for the LLM
             let contextNote = "";
-            if (intent === "product" && products.length > 0) {
-              contextNote = `\n\n[Tool Results] Found ${products.length} products on Kapruka:\n` +
-                products.slice(0, 5).map((p, i) =>
-                  `${i + 1}. ${p.name} — Rs. ${p.price?.toLocaleString() || "N/A"} (${p.inStock ? "In Stock" : "Out of Stock"})${p.isSME ? " 🇱🇰 Local Brand" : ""}`
-                ).join("\n");
+            if (intent === "product") {
+              if (products.length > 0) {
+                contextNote = `\n\n[Tool Results] Found ${products.length} products on Kapruka:\n` +
+                  products.slice(0, 5).map((p, i) =>
+                    `${i + 1}. ${p.name} — Rs. ${p.price?.toLocaleString() || "N/A"} (${p.inStock ? "In Stock" : "Out of Stock"})${p.isSME ? " 🇱🇰 Local Brand" : ""}`
+                  ).join("\n");
+              } else {
+                contextNote = `\n\n[Tool Results] NO products matching the query were found in the Kapruka live catalog. Explain to the user that no items were found, apologize politely, and ask if they would like to try searching for something else or adjusting their keywords. Do not list any products.`;
+              }
             }
 
             const geminiHistory = chatHistory.map((m: { role: string; content: string }) => ({
@@ -424,7 +366,7 @@ User message: "${message.substring(0, 300)}"`;
             }
 
             const chatModel = genAI!.getGenerativeModel({
-              model: process.env.REASONING_GEMINI_MODEL || "gemini-1.5-flash",
+              model: config.gemini.reasoningModel,
               systemInstruction: SYSTEM_PROMPTS[intent],
             });
 

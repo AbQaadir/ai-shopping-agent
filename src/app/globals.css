@@ -16,3 +16,67 @@ body {
   color: var(--foreground);
   font-family: var(--font-plus-jakarta-sans), system-ui, -apple-system, sans-serif;
 }
+
+/* ── Modal & UI Animations ──────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+/* ── Thought Process Animations ─────────────────────────────────────── */
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(64, 41, 112, 0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(64, 41, 112, 0); }
+}
+
+@keyframes scan-line {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes step-enter {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@layer utilities {
+  .animate-fadeIn       { animation: fadeIn       0.2s ease-out forwards; }
+  .animate-slideUp      { animation: slideUp      0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; }
+  .animate-fadeInScale  { animation: fadeInScale  0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .animate-slideInRight { animation: slideInRight 0.2s ease-out forwards; }
+  .animate-slideInDown  { animation: slideInDown  0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .animate-step-enter   { animation: step-enter   0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .animate-glow-pulse   { animation: glow-pulse   1.5s ease-in-out infinite; }
+  .animate-shimmer      { 
+    background: linear-gradient(90deg, transparent 0%, rgba(64,41,112,0.08) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.8s ease-in-out infinite;
+  }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+}

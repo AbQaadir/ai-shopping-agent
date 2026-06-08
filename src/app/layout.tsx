@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { SourcingProvider } from "@/context/SourcingContext";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -9,7 +10,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Kapuruka.com AI Mode - Intelligent Sourcing Agent",
+  title: "Kapuruka.com AI Mode",
   description: "All tasks in one ask, smart sourcing with AI. Go beyond search — let Kapuruka Work handle your entire sourcing workflow.",
 };
 
@@ -23,8 +24,13 @@ export default function RootLayout({
       lang="en"
       className={`${plusJakartaSans.variable} h-full antialiased`}
     >
-      <body className="h-full overflow-hidden flex flex-col bg-white text-slate-800 font-sans">
-        {children}
+      <body 
+        className="h-full overflow-hidden flex flex-col bg-white text-slate-800 font-sans"
+        suppressHydrationWarning
+      >
+        <SourcingProvider>
+          {children}
+        </SourcingProvider>
       </body>
     </html>
   );

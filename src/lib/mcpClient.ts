@@ -1,18 +1,22 @@
 /**
  * mcpClient.ts
  * ---------------------------------------------------------------------------
- * Lightweight, secure MCP (Model Context Protocol) HTTP client for the
- * Kapruka public MCP server (https://mcp.kapruka.com/mcp).
+ * MCP (Model Context Protocol) client for the Kapruka public MCP server.
  *
- * Transport: JSON-RPC 2.0 over HTTP POST (stateless, no SSE tunnel needed).
+ * Uses the official @modelcontextprotocol/sdk which handles the mandatory
+ * initialize → initialized handshake automatically before any tool call.
+ *
+ * Transport: StreamableHTTPClientTransport (stateless per-request sessions).
  *
  * Security notes:
  *   - MCP URL is read exclusively from env vars — never hard-coded.
  *   - No authentication headers are embedded in source code.
- *   - Timeout is enforced per-call to prevent hung server-side requests.
  *   - Errors are sanitised before logging (no raw response bodies in prod).
  * ---------------------------------------------------------------------------
  */
+
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -20,20 +24,6 @@ export interface MCPToolResult<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
-}
-
-/** Raw JSON-RPC 2.0 response shape returned by the MCP server */
-interface JsonRpcResponse {
-  jsonrpc: "2.0";
-  id: number;
-  result?: {
-    content?: Array<{ type: "text"; text: string }>;
-    isError?: boolean;
-  };
-  error?: {
-    code: number;
-    message: string;
-  };
 }
 
 /** Kapruka product as returned by kapruka_search_products / kapruka_get_product */
@@ -100,103 +90,57 @@ export interface KaprukaCategory {
   url?: string;
 }
 
-// ── Core MCP Client ────────────────────────────────────────────────────────
-
-let _requestId = 1;
+// ── Core MCP Client (using official SDK) ──────────────────────────────────
 
 /**
- * Generic MCP tool caller.
- * Sends a JSON-RPC 2.0 `tools/call` request to the Kapruka MCP server.
+ * Creates a fresh MCP client, connects with the initialize handshake,
+ * calls the requested tool, and returns the text result.
  *
- * @param toolName - Exact MCP tool name (e.g. "kapruka_search_products")
- * @param args     - Tool arguments object
- * @returns Parsed tool result text or throws on error
+ * A new client+transport is created per call to keep the Next.js API route
+ * stateless — this matches how Streamable HTTP transport works (each
+ * initialize creates a new session-id via the Mcp-Session-Id header).
  */
-async function callMCPTool(toolName: string, args: Record<string, unknown>): Promise<string> {
+async function callMCPTool(
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<string> {
   const mcpUrl = process.env.KAPRUKA_MCP_URL;
   if (!mcpUrl) {
     throw new Error("KAPRUKA_MCP_URL is not set in environment variables");
   }
 
-  const timeoutMs = parseInt(process.env.KAPRUKA_MCP_TIMEOUT_MS || "10000", 10);
+  const client = new Client(
+    { name: "kapuruka-agent", version: "1.0.0" },
+    { capabilities: {} }
+  );
 
-  const body = {
-    jsonrpc: "2.0",
-    id: _requestId++,
-    method: "tools/call",
-    params: {
-      name: toolName,
-      arguments: args,
-    },
-  };
+  const transport = new StreamableHTTPClientTransport(new URL(mcpUrl));
 
-  // Enforce a per-request timeout using AbortController
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // connect() performs initialize → initialized handshake automatically
+  await client.connect(transport);
 
-  let response: Response;
   try {
-    response = await fetch(mcpUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json, text/event-stream",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (fetchErr: unknown) {
-    clearTimeout(timer);
-    const msg = fetchErr instanceof Error ? fetchErr.message : "Unknown network error";
-    // Sanitise — don't expose internal URL in client-facing errors
-    throw new Error(`MCP network error for tool "${toolName}": ${msg}`);
+    const result = await client.callTool({ name: toolName, arguments: args });
+
+    // Extract text content from the tool result
+    const content = result.content;
+    if (!Array.isArray(content) || content.length === 0) {
+      throw new Error(`MCP tool "${toolName}" returned empty content`);
+    }
+
+    const textItem = content.find((c: { type: string }) => c.type === "text") as
+      | { type: "text"; text: string }
+      | undefined;
+
+    if (!textItem) {
+      throw new Error(`MCP tool "${toolName}" returned no text content`);
+    }
+
+    return textItem.text;
   } finally {
-    clearTimeout(timer);
+    // Always close the transport to release the session
+    await client.close();
   }
-
-  if (!response.ok) {
-    throw new Error(`MCP HTTP ${response.status} for tool "${toolName}"`);
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-
-  let rawText: string;
-
-  // MCP may respond with text/event-stream (SSE) or application/json
-  if (contentType.includes("text/event-stream")) {
-    // Read SSE stream and collect the last data event
-    const text = await response.text();
-    const dataLines = text
-      .split("\n")
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.replace(/^data:\s*/, "").trim())
-      .filter(Boolean);
-    rawText = dataLines[dataLines.length - 1] || "{}";
-  } else {
-    rawText = await response.text();
-  }
-
-  let json: JsonRpcResponse;
-  try {
-    json = JSON.parse(rawText);
-  } catch {
-    throw new Error(`MCP returned non-JSON response for tool "${toolName}"`);
-  }
-
-  if (json.error) {
-    throw new Error(`MCP tool error [${json.error.code}]: ${json.error.message}`);
-  }
-
-  if (!json.result) {
-    throw new Error(`MCP returned empty result for tool "${toolName}"`);
-  }
-
-  if (json.result.isError) {
-    const errText = json.result.content?.[0]?.text || "Unknown tool error";
-    throw new Error(`MCP tool "${toolName}" returned error: ${errText}`);
-  }
-
-  return json.result.content?.[0]?.text || "";
 }
 
 /**
@@ -238,15 +182,58 @@ export async function searchProducts(
     page?: number;
   } = {}
 ): Promise<MCPToolResult<KaprukaProduct[]>> {
-  const args: Record<string, unknown> = { query };
-  if (options.category) args.category = options.category;
-  if (options.maxPrice !== undefined) args.max_price = options.maxPrice;
-  if (options.inStockOnly !== undefined) args.in_stock = options.inStockOnly;
-  if (options.page !== undefined) args.page = options.page;
+  const params: Record<string, unknown> = {
+    q: query,
+    response_format: "json",
+    limit: 12,
+  };
+  if (options.category) params.category = options.category;
+  if (options.maxPrice !== undefined) params.max_price = options.maxPrice;
+  if (options.inStockOnly !== undefined) params.in_stock_only = options.inStockOnly;
 
-  return safeCallMCPTool("kapruka_search_products", args, (text) => {
-    const raw = parseJSON<{ products?: KaprukaProduct[]; items?: KaprukaProduct[] }>(text);
-    return (raw.products || raw.items || []) as KaprukaProduct[];
+  return safeCallMCPTool("kapruka_search_products", { params }, (text) => {
+    interface RawProduct {
+      id: string;
+      name: string;
+      summary?: string;
+      price: { amount: number | null; currency: string };
+      compare_at_price: { amount: number; currency: string } | null;
+      in_stock: boolean;
+      stock_level?: string;
+      image_url?: string | null;
+      category?: { id: string; name: string; slug: string };
+      rating?: number | null;
+      ships_internationally?: boolean;
+      url?: string;
+    }
+    interface RawResponse {
+      results?: RawProduct[];
+    }
+    const raw = parseJSON<RawResponse>(text);
+    const results = raw.results || [];
+    
+    // Deduplicate products by id to prevent key duplicates in React lists
+    const seen = new Set<string>();
+    const uniqueResults = results.filter((item) => {
+      if (!item.id) return false;
+      const key = item.id.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    return uniqueResults.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price?.amount ?? 0,
+      originalPrice: item.compare_at_price?.amount || undefined,
+      currency: item.price?.currency || "LKR",
+      imageUrl: item.image_url || undefined,
+      category: item.category?.name || undefined,
+      inStock: item.in_stock,
+      description: item.summary || undefined,
+      url: item.url || undefined,
+    }));
   });
 }
 
@@ -254,19 +241,68 @@ export async function searchProducts(
  * Pillar 1 — Get full details for a specific Kapruka product.
  */
 export async function getProduct(productId: string): Promise<MCPToolResult<KaprukaProduct>> {
-  return safeCallMCPTool("kapruka_get_product", { product_id: productId }, (text) => {
-    return parseJSON<KaprukaProduct>(text);
-  });
+  return safeCallMCPTool(
+    "kapruka_get_product",
+    {
+      params: {
+        product_id: productId,
+        response_format: "json",
+      },
+    },
+    (text) => {
+      interface RawProductDetail {
+        id: string;
+        name: string;
+        description?: string;
+        summary?: string;
+        price: { amount: number | null; currency: string };
+        compare_at_price: { amount: number; currency: string } | null;
+        in_stock: boolean;
+        stock_level?: string;
+        category?: { id: string; name: string; slug: string };
+        images?: string[];
+        url?: string;
+      }
+      const raw = parseJSON<RawProductDetail>(text);
+      return {
+        id: raw.id,
+        name: raw.name,
+        price: raw.price?.amount ?? 0,
+        originalPrice: raw.compare_at_price?.amount || undefined,
+        currency: raw.price?.currency || "LKR",
+        imageUrl: raw.images?.[0] || undefined,
+        category: raw.category?.name || undefined,
+        inStock: raw.in_stock,
+        description: raw.description || raw.summary || undefined,
+        url: raw.url || undefined,
+      };
+    }
+  );
 }
 
 /**
  * Pillar 1 — List all top-level Kapruka categories.
  */
 export async function listCategories(): Promise<MCPToolResult<KaprukaCategory[]>> {
-  return safeCallMCPTool("kapruka_list_categories", {}, (text) => {
-    const raw = parseJSON<{ categories?: KaprukaCategory[] }>(text);
-    return raw.categories || [];
-  });
+  return safeCallMCPTool(
+    "kapruka_list_categories",
+    {
+      params: {
+        depth: 1,
+        response_format: "json",
+      },
+    },
+    (text) => {
+      interface RawListCategoriesResponse {
+        categories?: Array<{ name: string; url?: string }>;
+      }
+      const raw = parseJSON<RawListCategoriesResponse>(text);
+      return (raw.categories || []).map((c) => ({
+        name: c.name,
+        url: c.url,
+      }));
+    }
+  );
 }
 
 /**
@@ -285,18 +321,50 @@ export async function createOrder(
     city: string;
   }
 ): Promise<MCPToolResult<KaprukaOrderResult>> {
-  return safeCallMCPTool(
-    "kapruka_create_order",
-    {
-      product_id: productId,
-      quantity,
-      recipient_name: recipient.name,
-      recipient_phone: recipient.phone,
-      delivery_address: recipient.address,
-      delivery_city: recipient.city,
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split("T")[0]; // YYYY-MM-DD
+
+  const params = {
+    cart: [
+      {
+        product_id: productId,
+        quantity,
+      },
+    ],
+    recipient: {
+      name: recipient.name,
+      phone: recipient.phone,
     },
-    (text) => parseJSON<KaprukaOrderResult>(text)
-  );
+    delivery: {
+      address: recipient.address,
+      city: recipient.city,
+      date: tomorrowStr,
+    },
+    sender: {
+      name: "Kapuruka Guest Client",
+      anonymous: true,
+    },
+    response_format: "json",
+  };
+
+  return safeCallMCPTool("kapruka_create_order", { params }, (text) => {
+    interface RawOrderResponse {
+      checkout_url: string;
+      order_ref: string;
+      expires_at: string;
+      summary?: {
+        grand_total: number;
+      };
+    }
+    const raw = parseJSON<RawOrderResponse>(text);
+    return {
+      checkoutUrl: raw.checkout_url,
+      orderId: raw.order_ref,
+      expiresAt: raw.expires_at,
+      totalLKR: raw.summary?.grand_total,
+    };
+  });
 }
 
 /**
@@ -309,8 +377,31 @@ export async function checkDelivery(
 ): Promise<MCPToolResult<KaprukaDeliveryResult>> {
   return safeCallMCPTool(
     "kapruka_check_delivery",
-    { city, date, is_perishable: isPerishable },
-    (text) => parseJSON<KaprukaDeliveryResult>(text)
+    {
+      params: {
+        city,
+        delivery_date: date,
+        response_format: "json",
+      },
+    },
+    (text) => {
+      interface RawDeliveryResponse {
+        city: string;
+        available: boolean;
+        next_available_date?: string;
+        rate?: number;
+        reason?: string;
+        perishable_warning?: string | null;
+      }
+      const raw = parseJSON<RawDeliveryResponse>(text);
+      return {
+        city: raw.city,
+        canDeliver: raw.available,
+        deliveryDate: raw.next_available_date,
+        flatRateLKR: raw.rate,
+        warning: raw.reason || raw.perishable_warning || undefined,
+      };
+    }
   );
 }
 
@@ -320,8 +411,37 @@ export async function checkDelivery(
 export async function trackOrder(orderId: string): Promise<MCPToolResult<KaprukaTrackingResult>> {
   return safeCallMCPTool(
     "kapruka_track_order",
-    { order_id: orderId },
-    (text) => parseJSON<KaprukaTrackingResult>(text)
+    {
+      params: {
+        order_number: orderId,
+        response_format: "json",
+      },
+    },
+    (text) => {
+      interface RawTrackingStep {
+        step: string;
+        timestamp: string;
+        location?: string;
+      }
+      interface RawTrackingResponse {
+        order_number: string;
+        status_display: string;
+        delivery_date?: string;
+        progress?: RawTrackingStep[];
+      }
+      const raw = parseJSON<RawTrackingResponse>(text);
+      return {
+        orderId: raw.order_number,
+        currentStatus: raw.status_display,
+        estimatedDelivery: raw.delivery_date,
+        steps: (raw.progress || []).map((step) => ({
+          timestamp: step.timestamp,
+          status: step.step,
+          description: step.step,
+          location: step.location,
+        })),
+      };
+    }
   );
 }
 
@@ -331,8 +451,25 @@ export async function trackOrder(orderId: string): Promise<MCPToolResult<Kapruka
 export async function listDeliveryCities(
   query: string
 ): Promise<MCPToolResult<KaprukaCity[]>> {
-  return safeCallMCPTool("kapruka_list_delivery_cities", { query }, (text) => {
-    const raw = parseJSON<{ cities?: KaprukaCity[] }>(text);
-    return raw.cities || [];
-  });
+  return safeCallMCPTool(
+    "kapruka_list_delivery_cities",
+    {
+      params: {
+        query,
+        response_format: "json",
+        limit: 25,
+      },
+    },
+    (text) => {
+      interface RawCitiesResponse {
+        cities?: Array<{ name: string; aliases?: string[]; province?: string }>;
+      }
+      const raw = parseJSON<RawCitiesResponse>(text);
+      return (raw.cities || []).map((c) => ({
+        name: c.name,
+        alias: c.aliases?.join(", ") || undefined,
+        province: c.province || undefined,
+      }));
+    }
+  );
 }

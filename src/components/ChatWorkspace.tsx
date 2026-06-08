@@ -1,21 +1,20 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { 
-  Paperclip, 
-  ArrowUp, 
   ChevronLeft, 
-  X, 
   Share2, 
+  Check, 
   Loader2, 
-  Square, 
-  Box,
-  Check 
+  Box 
 } from "lucide-react";
-import ChatTimeline, { InlineProduct, Message } from "./ChatTimeline";
-import ProductDetailsPanel, { ProductDetail } from "./ProductDetailsPanel";
+import ChatMessageTimeline from "./ChatMessageTimeline";
+import ProductDetailsDrawer, { ProductDetail } from "./ProductDetailsDrawer";
+import ProductCatalogModal from "./ProductCatalogModal";
+import ChatInputArea from "./chat/ChatInputArea";
+import type { Message, InlineProduct } from "@/types/sourcing";
 
-interface ChatViewProps {
+interface ChatWorkspaceProps {
   messages: Message[];
   isGenerating: boolean;
   onSend: (text: string, files: File[]) => void;
@@ -25,7 +24,7 @@ interface ChatViewProps {
   onBuyProduct?: (product: InlineProduct) => void;
 }
 
-export default function ChatView({
+export default function ChatWorkspace({
   messages,
   isGenerating,
   onSend,
@@ -33,15 +32,17 @@ export default function ChatView({
   activeQueryText,
   onStopGeneration,
   onBuyProduct
-}: ChatViewProps) {
+}: ChatWorkspaceProps) {
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
   const [detailProducts, setDetailProducts] = useState<InlineProduct[]>([]);
   const [isCopied, setIsCopied] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Product search modal
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [modalProducts, setModalProducts] = useState<InlineProduct[]>([]);
+  const [modalSearchQuery, setModalSearchQuery] = useState("");
 
   const handleViewDetails = (products?: InlineProduct[]) => {
     if (products && products.length > 0) {
@@ -50,6 +51,13 @@ export default function ChatView({
       setDetailProducts([]);
     }
     setShowDetails(true);
+  };
+
+  const handleViewMoreProducts = (products: InlineProduct[]) => {
+    setModalProducts(products);
+    // Derive a search query hint from the active query text
+    setModalSearchQuery(activeQueryText || "Products");
+    setShowProductModal(true);
   };
 
   const handleShareClick = () => {
@@ -62,35 +70,13 @@ export default function ChatView({
     if (navigator.share) {
       navigator.share({
         title: `Kapuruka Sourcing: ${activeQueryText || 'AI Sourcing Task'}`,
-        text: `Review this AI matched supplier list and conversation history on Kapuruka.`,
+        text: `Review this AI matched supplier list and conversation history on Kapruka.`,
         url: window.location.href
       }).catch(() => {
         copyToClipboard();
       });
     } else {
       copyToClipboard();
-    }
-  };
-
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
-  const handlePaperclipClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setAttachedFiles((prev) => [...prev, ...filesArray]);
     }
   };
 
@@ -155,11 +141,12 @@ export default function ChatView({
           showDetails ? "md:w-1/2 md:border-r border-slate-100" : "w-full"
         }`}>
           {/* Messages */}
-          <ChatTimeline
+          <ChatMessageTimeline
             messages={messages}
             isGenerating={isGenerating}
             onSampleClick={handleSampleClick}
             onViewDetailsClick={handleViewDetails}
+            onViewMoreProducts={handleViewMoreProducts}
             selectedProductIds={selectedProducts.map(p => p.id)}
             onToggleSelectProduct={handleToggleSelectProduct}
             onBuyProduct={onBuyProduct}
@@ -180,7 +167,7 @@ export default function ChatView({
                       Getting everything ready
                     </div>
                     <p className="text-slate-500 text-xs font-medium pl-3">
-                      Searching for &ldquo;{activeQueryText || 'foldable camping chairs under $15'}&rdquo; on B2B platforms…
+                      Searching for &ldquo;{activeQueryText || 'products'}&rdquo; on Kapruka&hellip;
                     </p>
                     <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold pl-3 pt-1 border-t border-slate-50">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
@@ -232,7 +219,7 @@ export default function ChatView({
             <div className="md:hidden w-full flex justify-center py-3.5 shrink-0 cursor-pointer select-none" onClick={() => setShowDetails(false)}>
               <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
             </div>
-            <ProductDetailsPanel 
+            <ProductDetailsDrawer 
               onClose={() => setShowDetails(false)} 
               products={detailProducts as unknown as ProductDetail[]}
             />
@@ -246,117 +233,34 @@ export default function ChatView({
         />
  
         {/* ── 3. Pinned input — floats above the gradient ── */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 select-none z-20">
-          <div className="max-w-3xl mx-auto w-full">
-            <div className={`w-full bg-white rounded-2xl p-3 flex flex-col gap-2 transition-all duration-300 border ${
-              isFocused 
-                ? "border-[#402970]/35 shadow-[0_4px_20px_rgba(64,41,112,0.1)]" 
-                : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
-            }`}>
- 
-              {/* Selected products row */}
-              {selectedProducts.length > 0 && (
-                <div className="flex flex-col gap-2 pb-2 border-b border-slate-100 animate-fadeIn">
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedProducts.map((prod) => (
-                      <div
-                        key={prod.id}
-                        className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
-                      >
-                        <span className="text-sm select-none">{prod.image}</span>
-                        <span className="truncate max-w-[160px] font-medium leading-none">
-                          {((prod.name || prod.title) ?? "").length > 28
-                            ? `${((prod.name || prod.title) ?? "").substring(0, 28)}…`
-                            : ((prod.name || prod.title) ?? "Product")}
-                        </span>
-                        <button
-                          onClick={() => handleToggleSelectProduct(prod)}
-                          className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                    <button
-                      onClick={() => alert(`Comparing ${selectedProducts.length} items side-by-side.`)}
-                      className="px-2.5 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded transition-all cursor-pointer shadow-sm"
-                    >
-                      Compare →
-                    </button>
-                    <button
-                      onClick={() => setShowDetails(true)}
-                      className="px-2.5 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#402970] rounded transition-all cursor-pointer shadow-sm"
-                    >
-                      Get quotes →
-                    </button>
-                  </div>
-                </div>
-              )}
- 
-              {/* Textarea */}
-              <textarea
-                value={inputText}
-                onChange={handleTextChange}
-                onKeyDown={handleKeyPress}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                placeholder="Ask follow-up…"
-                rows={2}
-                className="w-full resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm px-1 leading-relaxed min-h-[44px]"
-              />
- 
-              {/* Attached files */}
-              {attachedFiles.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100">
-                  {attachedFiles.map((file, idx) => (
-                    <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs font-medium text-slate-600 animate-fadeIn">
-                      <span className="truncate max-w-[120px]">{file.name}</span>
-                      <button onClick={() => removeFile(idx)} className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
-                        <X size={10} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
- 
-              {/* Controls row */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                <button
-                  onClick={handlePaperclipClick}
-                  className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
-                  title="Attach files"
-                >
-                  <Paperclip size={15} />
-                </button>
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
-                <button
-                  onClick={isGenerating ? onStopGeneration : handleSubmit}
-                  disabled={!isGenerating && !inputText.trim() && attachedFiles.length === 0}
-                  className={`p-2 rounded-full flex items-center justify-center transition-all ${
-                    isGenerating
-                      ? "bg-slate-200 hover:bg-slate-300 text-slate-800 cursor-pointer"
-                      : inputText.trim() || attachedFiles.length > 0
-                        ? "bg-slate-900 hover:bg-slate-700 text-white cursor-pointer"
-                        : "bg-slate-100 text-slate-300 cursor-not-allowed"
-                  }`}
-                >
-                  {isGenerating
-                    ? <Square size={12} fill="currentColor" strokeWidth={0} />
-                    : <ArrowUp size={15} strokeWidth={2.5} />
-                  }
-                </button>
-              </div>
- 
-            </div>
- 
-          </div>
-        </div>
+        <ChatInputArea
+          inputText={inputText}
+          setInputText={setInputText}
+          attachedFiles={attachedFiles}
+          onRemoveFile={removeFile}
+          onAttachFile={(files) => setAttachedFiles((prev) => [...prev, ...files])}
+          onSubmit={handleSubmit}
+          isGenerating={isGenerating}
+          onStopGeneration={onStopGeneration}
+          selectedProducts={selectedProducts}
+          onToggleSelectProduct={handleToggleSelectProduct}
+          onShowDetails={() => setShowDetails(true)}
+        />
         {/* ── end pinned input ── */}
  
       </div>
       {/* ── end body ── */}
+ 
+      {/* ── Product Search Modal (floating portal) ── */}
+      <ProductCatalogModal
+        isOpen={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        products={modalProducts}
+        searchQuery={modalSearchQuery}
+        onBuyProduct={onBuyProduct}
+        onToggleSelectProduct={handleToggleSelectProduct}
+        selectedProductIds={selectedProducts.map((p) => p.id)}
+      />
  
     </div>
   );

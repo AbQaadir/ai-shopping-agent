@@ -10,8 +10,9 @@ import {
   ChevronRight,
   X
 } from "lucide-react";
+import SidebarHistoryList from "./sidebar/SidebarHistoryList";
 
-interface SidebarProps {
+interface GlobalSidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
   isMobileOpen?: boolean;
@@ -22,7 +23,7 @@ interface SidebarProps {
   activeHistoryId?: string;
 }
 
-export default function Sidebar({
+export default function GlobalSidebar({
   isCollapsed,
   setIsCollapsed,
   isMobileOpen = false,
@@ -31,7 +32,7 @@ export default function Sidebar({
   history,
   onSelectHistory,
   activeHistoryId
-}: SidebarProps) {
+}: GlobalSidebarProps) {
   const [showHistoryList, setShowHistoryList] = useState(true);
 
   return (
@@ -127,26 +128,11 @@ export default function Sidebar({
 
           {/* Indented History List (Only if expanded & toggled open) */}
           {!isCollapsed && showHistoryList && history.length > 0 && (
-            <div className="pl-4 pr-1 py-1 space-y-1 max-h-[400px] overflow-y-auto scrollbar-none animate-fadeIn border-l border-slate-100/80 ml-5">
-              {history.map((item, idx) => (
-                <button
-                  key={item.id}
-                  onClick={() => onSelectHistory(item.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all duration-150 flex items-center justify-between gap-2 cursor-pointer ${
-                    activeHistoryId === item.id 
-                      ? "bg-[#402970]/5 text-[#402970] font-semibold border-l-2 border-[#402970]" 
-                      : "text-slate-500 hover:bg-slate-100/80 hover:text-slate-800"
-                  }`}
-                  title={item.query}
-                >
-                  <span className="truncate">{item.query}</span>
-                  {/* Status red dot matching Screenshot */}
-                  {idx % 2 === 0 && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
-                  )}
-                </button>
-              ))}
-            </div>
+            <SidebarHistoryList
+              history={history}
+              activeHistoryId={activeHistoryId}
+              onSelectHistory={onSelectHistory}
+            />
           )}
         </div>
       </div>

@@ -47,7 +47,11 @@ export async function pillar1_searchProducts(
   query: string,
   options: { maxPriceLKR?: number; category?: string; smeFirst?: boolean } = {}
 ): Promise<KaprukaProduct[]> {
-  const result = await searchProducts(query, {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) {
+    return [];
+  }
+  const result = await searchProducts(trimmedQuery, {
     category: options.category,
     maxPrice: options.maxPriceLKR,
     inStockOnly: false,
@@ -75,7 +79,7 @@ export async function pillar1_searchProducts(
     products.sort((a, b) => (b.isSME ? 1 : 0) - (a.isSME ? 1 : 0));
   }
 
-  return products.slice(0, 8);
+  return products.slice(0, 12);
 }
 
 /**

@@ -13,7 +13,7 @@ import {
   Box
 } from "lucide-react";
 
-interface ProductDetailsPanelProps {
+interface ProductDetailsDrawerProps {
   onClose: () => void;
   products?: ProductDetail[];
 }
@@ -34,7 +34,7 @@ export interface ProductDetail {
   requirements?: string[];
 }
 
-export default function ProductDetailsPanel({ onClose, products: propProducts }: ProductDetailsPanelProps) {
+export default function ProductDetailsDrawer({ onClose, products: propProducts }: ProductDetailsDrawerProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [activePage, setActivePage] = useState(1);
 
