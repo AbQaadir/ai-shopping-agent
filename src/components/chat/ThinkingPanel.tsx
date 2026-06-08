@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Loader2, Check, ChevronDown, ChevronUp, Box, Sparkle } from "lucide-react";
+import { Loader2, Check, ChevronDown, Box, Sparkle } from "lucide-react";
 import type { InlineProduct } from "@/types/sourcing";
 
 interface ThinkingStep {
@@ -72,28 +72,36 @@ export default function ThinkingPanel({
       {/* ── 1. Show Thought Process Header ── */}
       <div 
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="flex items-center gap-2 cursor-pointer text-[#858585] hover:text-slate-700 text-xs font-semibold py-1.5 transition-colors duration-200"
+        className="flex items-center gap-2 cursor-pointer text-[#858585] hover:text-slate-700 text-xs font-semibold py-1.5 transition-colors duration-200 select-none"
       >
-        <Sparkle size={13} className="text-[#f97316] shrink-0" fill="#f97316" />
+        {/* Sparkle star matching primary theme color #402970 */}
+        <Sparkle size={13} className="text-[#402970] shrink-0" fill="#402970" />
         <span>Show thought process</span>
-        {showContent ? (
-          <ChevronUp size={13} className="text-[#858585]" />
-        ) : (
-          <ChevronDown size={13} className="text-[#858585]" />
-        )}
+        <ChevronDown 
+          size={13} 
+          className={`text-[#858585] transition-transform duration-300 ease-in-out shrink-0 ${
+            showContent ? "rotate-180" : "rotate-0"
+          }`} 
+        />
       </div>
 
-      {/* ── 2. Expanded / Streaming Inner Content ── */}
-      {showContent && (
-        <div className="pl-6 border-l border-slate-200/80 ml-1.5 mt-2 space-y-3.5 animate-fadeIn">
-          {/* Status checklist line */}
-          <div className="flex items-center gap-2">
+      {/* ── 2. Smooth Collapsible Content Container (CSS Grid animation trick) ── */}
+      <div 
+        className={`grid transition-all duration-300 ease-in-out ${
+          showContent 
+            ? "grid-rows-[1fr] opacity-100 pointer-events-auto mt-2" 
+            : "grid-rows-[0fr] opacity-0 pointer-events-none mt-0"
+        }`}
+      >
+        <div className="overflow-hidden pl-6 border-l border-slate-200/80 ml-1.5 space-y-3.5 pb-1">
+          {/* Status checklist line matching primary theme color #402970 */}
+          <div className="flex items-center gap-2 pt-0.5">
             {isGenerating ? (
-              <div className="w-4 h-4 rounded-full bg-[#f97316]/10 flex items-center justify-center shrink-0 animate-spin">
-                <Loader2 size={10} className="text-[#f97316]" />
+              <div className="w-4 h-4 rounded-full bg-[#402970]/10 flex items-center justify-center shrink-0 animate-spin">
+                <Loader2 size={10} className="text-[#402970]" />
               </div>
             ) : (
-              <div className="w-4 h-4 rounded-full bg-[#f97316] flex items-center justify-center shrink-0">
+              <div className="w-4 h-4 rounded-full bg-[#402970] flex items-center justify-center shrink-0">
                 <Check size={9} className="text-white stroke-[3.5]" />
               </div>
             )}
@@ -113,7 +121,7 @@ export default function ThinkingPanel({
               <div className="flex items-center gap-2 text-xs font-bold text-slate-600 truncate min-w-0">
                 {/* White capsule badge */}
                 <div className="bg-white border border-slate-200/80 rounded-lg px-2.5 py-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 shadow-xs shrink-0 select-none">
-                  <Box size={13} className="text-[#f97316] shrink-0" />
+                  <Box size={13} className="text-[#402970] shrink-0" />
                   <span>Product search</span>
                 </div>
                 <span className="text-slate-600 font-semibold truncate pl-1">
@@ -154,7 +162,7 @@ export default function ThinkingPanel({
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
