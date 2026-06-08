@@ -228,14 +228,14 @@ export default function ProductDetailsPanel({ onClose, products: propProducts }:
     <div className="w-full h-full bg-white flex flex-col overflow-hidden animate-fadeIn relative">
       
       {/* Header Panel */}
-      <div className="h-14 bg-white border-b border-slate-100 flex items-center justify-between px-6 shrink-0">
+      <div className="h-14 bg-white border-b border-slate-100 flex items-center justify-between px-4 sm:px-6 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-[#402970]/5 border border-[#402970]/15 flex items-center justify-center text-[#402970]">
             <Box size={16} />
           </div>
           <span className="font-bold text-slate-800 text-sm">Product search</span>
         </div>
-
+ 
         {/* Action Controls */}
         <div className="flex items-center gap-3">
           {/* Grid/List togglers */}
@@ -263,30 +263,30 @@ export default function ProductDetailsPanel({ onClose, products: propProducts }:
               <List size={15} />
             </button>
           </div>
-
+ 
           <div className="w-[1px] h-6 bg-slate-200"></div>
-
+ 
           {/* Close Panel */}
           <button 
             onClick={onClose}
-            className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+            className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
             title="Close details"
           >
             <X size={18} />
           </button>
         </div>
       </div>
-
+ 
       {/* Scrollable Products List Container */}
-      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 bg-white">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-4 sm:pt-6 pb-32 bg-white">
         
         {viewMode === "grid" ? (
-          /* GRID VIEW LAYOUT (3 columns) */
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          /* GRID VIEW LAYOUT (responsive columns) */
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {products.map((prod) => (
               <div 
                 key={prod.id} 
-                className="bg-white rounded-xl p-2.5 flex flex-col justify-between hover:shadow-md transition-all duration-200 relative group"
+                className="bg-white rounded-xl p-2.5 flex flex-col justify-between hover:shadow-md transition-all duration-200 relative border border-slate-100/60 group"
               >
                 <div>
                   {/* Image Block */}
@@ -299,21 +299,21 @@ export default function ProductDetailsPanel({ onClose, products: propProducts }:
                       </div>
                     )}
                   </div>
-
+ 
                   {/* Removed Requirements Status Pill */}
-
+ 
                   {/* Product Title */}
                   <h4 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2 hover:text-[#402970] cursor-pointer mb-2">
                     {prod.title}
                   </h4>
-
+ 
                   {/* Price & MOQ */}
                   <div className="flex flex-col gap-0.5 mb-2.5">
                     <span className="text-sm font-extrabold text-slate-800">{prod.price}</span>
                     <span className="text-[11px] text-slate-400 font-semibold">Min. order: {prod.moq}</span>
                   </div>
                 </div>
-
+ 
                 {/* Supplier Detail Rows */}
                 <div className="pt-2 border-t border-slate-50 text-[11px]">
                   <div className="text-slate-500 truncate font-semibold mb-1" title={prod.supplier}>
@@ -327,7 +327,7 @@ export default function ProductDetailsPanel({ onClose, products: propProducts }:
                       <>
                         <span>•</span>
                         <div className="flex items-center gap-0.5">
-                          <Star size={10} className="fill-amber-400 text-amber-400" />
+                           <Star size={10} className="fill-amber-400 text-amber-400" />
                           <span className="font-bold text-slate-600">{prod.rating}</span>
                           <span className="text-slate-400">({prod.reviews})</span>
                         </div>
@@ -344,10 +344,10 @@ export default function ProductDetailsPanel({ onClose, products: propProducts }:
             {products.map((prod) => (
               <div 
                 key={prod.id} 
-                className="bg-white rounded-xl p-3 flex gap-4 hover:shadow-md transition-all duration-200 relative group"
+                className="bg-white rounded-xl p-3 flex flex-col sm:flex-row gap-3 sm:gap-4 hover:shadow-md border border-slate-100/60 transition-all duration-200 relative group"
               >
                 {/* Image Frame */}
-                <div className={`w-28 h-24 ${prod.bgColor} rounded-xl shrink-0 flex items-center justify-center text-3xl group-hover:scale-[1.01] transition-transform select-none relative`}>
+                <div className={`w-full sm:w-28 h-40 sm:h-24 ${prod.bgColor} rounded-xl shrink-0 flex items-center justify-center text-4xl sm:text-3xl group-hover:scale-[1.01] transition-transform select-none relative`}>
                   <span>{prod.image}</span>
                   {prod.verified && (
                     <div className="absolute bottom-1 left-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded px-1.5 py-0.2 text-[8px] font-bold flex items-center gap-0.5">
@@ -356,26 +356,26 @@ export default function ProductDetailsPanel({ onClose, products: propProducts }:
                     </div>
                   )}
                 </div>
-
+ 
                 {/* Content Block */}
                 <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                   <div className="space-y-1">
                     <div className="flex items-start justify-between gap-4">
                       
                       {/* Removed Requirements Badge */}
-
+ 
                       <span className="text-xs font-extrabold text-[#402970] whitespace-nowrap">{prod.price}</span>
                     </div>
-
+ 
                     <h4 className="text-xs font-bold text-slate-800 leading-snug truncate hover:text-[#402970] cursor-pointer">
                       {prod.title}
                     </h4>
-
+ 
                     <p className="text-[11px] text-slate-400 font-semibold">Min. order: {prod.moq}</p>
                   </div>
-
-                  <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-50 text-[10px]">
-                    <div className="text-slate-500 font-semibold truncate max-w-[250px]">
+ 
+                  <div className="flex items-center justify-between gap-4 pt-1.5 border-t border-slate-50 text-[10px]">
+                    <div className="text-slate-500 font-semibold truncate max-w-[200px] sm:max-w-[250px]">
                       {prod.supplier}
                     </div>
                     <div className="flex items-center gap-2 text-slate-400">
@@ -394,7 +394,7 @@ export default function ProductDetailsPanel({ onClose, products: propProducts }:
                     </div>
                   </div>
                 </div>
-
+ 
               </div>
             ))}
           </div>

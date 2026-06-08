@@ -7,12 +7,15 @@ import {
   History, 
   Headset,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  X
 } from "lucide-react";
 
 interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  isMobileOpen?: boolean;
+  setIsMobileOpen?: (open: boolean) => void;
   onReset: () => void;
   history: Array<{ id: string; query: string; date: string }>;
   onSelectHistory: (id: string) => void;
@@ -22,6 +25,8 @@ interface SidebarProps {
 export default function Sidebar({
   isCollapsed,
   setIsCollapsed,
+  isMobileOpen = false,
+  setIsMobileOpen,
   onReset,
   history,
   onSelectHistory,
@@ -31,15 +36,27 @@ export default function Sidebar({
 
   return (
     <aside 
-      className={`shrink-0 h-full border-r border-slate-100 bg-slate-50/50 flex flex-col transition-all duration-300 ease-in-out z-20 ${
-        isCollapsed ? "w-16" : "w-64"
-      }`}
+      className={`shrink-0 flex flex-col transition-all duration-300 ease-in-out bg-[#faf9f6] md:bg-slate-50/50
+        fixed md:static inset-y-0 left-0 h-full z-40 md:z-20 md:border-r border-slate-100
+        ${isMobileOpen ? "translate-x-0 w-64 shadow-2xl" : "-translate-x-full md:translate-x-0"}
+        ${isCollapsed ? "md:w-16" : "md:w-64"}
+      `}
     >
-      {/* Top Section - Toggle Button Only */}
-      <div className={`h-16 flex items-center ${isCollapsed ? "justify-center px-0" : "justify-end px-4"}`}>
+      {/* Top Section - Desktop Toggle & Mobile Close */}
+      <div className={`h-16 flex items-center justify-between md:justify-end px-4 ${isCollapsed ? "md:justify-center md:px-0" : ""}`}>
+        {/* Mobile close button */}
+        <button
+          onClick={() => setIsMobileOpen?.(false)}
+          className="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          title="Close sidebar"
+        >
+          <X size={20} />
+        </button>
+
+        {/* Desktop collapse button */}
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+          className="hidden md:block p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}

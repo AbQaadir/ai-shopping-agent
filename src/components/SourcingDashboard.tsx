@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import LandingView from "@/components/LandingView";
@@ -23,6 +23,7 @@ interface SourcingDashboardProps {
 
 export default function SourcingDashboard({ initialSessionId }: SourcingDashboardProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isChatting, setIsChatting] = useState(false);
   const [activeHistoryId, setActiveHistoryId] = useState<string | undefined>(initialSessionId);
   const [activeQueryText, setActiveQueryText] = useState("");
@@ -36,27 +37,12 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const router = useRouter();
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  // Hydrate session if initialSessionId prop is passed or changed
-  useEffect(() => {
-    if (initialSessionId) {
-      setActiveHistoryId(initialSessionId);
-      setIsChatting(true);
-      fetchSessionAndHydrate(initialSessionId);
-    } else {
-      handleResetLocal();
-    }
-  }, [initialSessionId]);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       const res = await fetch("/api/session");
       if (res.ok) {
         const data = await res.json();
-        const items = data.map((session: any) => ({
+        const items = data.map((session: { id: string; title: string; createdAt: string }) => ({
           id: session.id,
           query: session.title,
           date: new Date(session.createdAt).toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
@@ -68,9 +54,9 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     } catch (err) {
       console.error("Failed to load history sessions:", err);
     }
-  };
+  }, []);
 
-  const fetchSessionAndHydrate = async (id: string) => {
+  const fetchSessionAndHydrate = useCallback(async (id: string) => {
     try {
       // Find if we already loaded it in memory history list
       const cachedItem = history.find((h) => h.id === id && h.messages.length > 0);
@@ -84,23 +70,23 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
       const res = await fetch(`/api/session?id=${id}`);
       if (res.ok) {
         const sessionData = await res.json();
-        const mappedMessages: Message[] = sessionData.messages.map((m: any) => {
+        const mappedMessages: Message[] = sessionData.messages.map((m: { id: string; role: string; content: string; createdAt: string; products?: unknown; thoughtProcess?: unknown }) => {
           let inlineProducts: InlineProduct[] = [];
           if (m.products) {
             try {
-              inlineProducts = typeof m.products === "string" ? JSON.parse(m.products) : m.products;
+              inlineProducts = typeof m.products === "string" ? JSON.parse(m.products) : (m.products as InlineProduct[]);
             } catch (e) {
               console.error("Error parsing product data:", e);
             }
           }
-          let thinkingSteps: any[] = [];
+          let thinkingSteps: { step: string; status: "running" | "completed"; content: string; durationMs?: number }[] = [];
           let followUpSamples: string[] = [];
           if (m.thoughtProcess) {
             try {
               const parsedProcess = typeof m.thoughtProcess === "string" ? JSON.parse(m.thoughtProcess) : m.thoughtProcess;
-              if (parsedProcess && parsedProcess.steps) {
-                thinkingSteps = parsedProcess.steps;
-                followUpSamples = parsedProcess.followUpQuestions || [];
+              if (parsedProcess && (parsedProcess as Record<string, unknown>).steps) {
+                thinkingSteps = (parsedProcess as { steps: typeof thinkingSteps }).steps;
+                followUpSamples = (parsedProcess as { followUpQuestions?: string[] }).followUpQuestions || [];
               } else if (Array.isArray(parsedProcess)) {
                 thinkingSteps = parsedProcess;
               }
@@ -162,18 +148,40 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     } catch (err) {
       console.error("Failed to load session details:", err);
     }
-  };
+  }, [history, router]);
 
-  const handleResetLocal = () => {
+  const handleResetLocal = useCallback(() => {
     setIsChatting(false);
     setMessages([]);
     setActiveHistoryId(undefined);
     setActiveQueryText("");
     setIsGenerating(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchHistory();
+    });
+  }, [fetchHistory]);
+
+  // Hydrate session if initialSessionId prop is passed or changed
+  useEffect(() => {
+    if (initialSessionId) {
+      Promise.resolve().then(() => {
+        setActiveHistoryId(initialSessionId);
+        setIsChatting(true);
+        fetchSessionAndHydrate(initialSessionId);
+      });
+    } else {
+      Promise.resolve().then(() => {
+        handleResetLocal();
+      });
+    }
+  }, [initialSessionId, fetchSessionAndHydrate, handleResetLocal]);
 
   // Handle New Session / Reset
   const handleReset = () => {
+    setIsMobileSidebarOpen(false);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -183,6 +191,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
 
   // Select history item in sidebar
   const handleSelectHistory = (id: string) => {
+    setIsMobileSidebarOpen(false);
     router.push(`/c/${id}`);
   };
 
@@ -206,12 +215,6 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
 
     const userMessageId = `msg-${Date.now()}`;
     const timestamp = new Date();
-    
-    const attachments = files.map(f => ({
-      name: f.name,
-      size: f.size,
-      type: f.type
-    }));
 
     const newUserMessage: Message = {
       id: userMessageId,
@@ -433,8 +436,8 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         return h;
       }));
 
-    } catch (err: any) {
-      if (err.name === "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
         console.log("Generation aborted");
       } else {
         console.error("Failed to stream message response:", err);
@@ -484,6 +487,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
       <Header 
         onNewSourcing={handleReset} 
         isCompact={isChatting} 
+        onMenuToggle={() => setIsMobileSidebarOpen(prev => !prev)}
       />
 
       {/* 2. Content Area (Sidebar + Sourcing Workspace below the header) */}
@@ -492,11 +496,21 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
+          isMobileOpen={isMobileSidebarOpen}
+          setIsMobileOpen={setIsMobileSidebarOpen}
           onReset={handleReset}
           history={history}
           onSelectHistory={handleSelectHistory}
           activeHistoryId={activeHistoryId}
         />
+
+        {/* Mobile Sidebar Backdrop Overlay */}
+        {isMobileSidebarOpen && (
+          <div 
+            className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 transition-opacity duration-300"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+        )}
 
         {/* Sourcing Workspace */}
         <div className="flex-1 overflow-hidden flex flex-col">
@@ -523,7 +537,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
 
         {/* Floating Message Drawer Bubble (bottom right on landing) */}
         {!isChatting && (
-          <button className="fixed bottom-6 right-6 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-full px-5 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-30 font-semibold text-xs active:scale-95">
+          <button className="fixed bottom-6 right-6 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-full px-5 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-20 font-semibold text-xs active:scale-95">
             <MessageSquare size={16} className="text-[#402970]" />
             Messages
           </button>
