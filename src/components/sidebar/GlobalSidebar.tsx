@@ -8,7 +8,8 @@ import {
   Headset,
   ChevronDown,
   ChevronRight,
-  X
+  X,
+  Plus
 } from "lucide-react";
 import SidebarHistoryList from "./SidebarHistoryList";
 
@@ -68,7 +69,7 @@ export default function GlobalSidebar({
 
       {/* Main Navigation List */}
       <div className="flex-1 px-3 py-2 space-y-1">
-        {/* Home Option */}
+        {/* New Chat Option */}
         <button 
           onClick={onReset}
           className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer relative ${
@@ -80,15 +81,10 @@ export default function GlobalSidebar({
                 ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold" 
                 : "text-slate-700 hover:bg-slate-100/60 font-semibold"
           } ${isCollapsed ? "justify-center" : ""}`}
-          title="Home"
+          title="New chat"
         >
-          {/* Custom search-sparkle icon representing Home search reset */}
-          <svg className={`w-5 h-5 shrink-0 ${activeHistoryId === undefined ? "text-[#402970]" : "text-slate-500"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="10" cy="14" r="5" />
-            <path d="m14 18 4 4" />
-            <path d="M18 3c-.1 1.5-1.5 2.9-3 3 1.5 .1 2.9 1.5 3 3 .1-1.5 1.5-2.9 3-3-1.5-.1-2.9-1.5-3-3z" />
-          </svg>
-          {!isCollapsed && <span>Home</span>}
+          <Plus size={19} className={activeHistoryId === undefined ? "text-[#402970] shrink-0" : "text-slate-500 shrink-0"} />
+          {!isCollapsed && <span>New chat</span>}
           {isCollapsed && activeHistoryId === undefined && (
             <span className="absolute -right-3 top-1/2 -translate-y-1/2 w-[4px] h-8 bg-[#402970] rounded-l-full" />
           )}

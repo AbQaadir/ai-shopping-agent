@@ -69,12 +69,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   const fetchSessionAndHydrate = useCallback(async (id: string) => {
     try {
+      setMessages([]);
+      setIsChatting(true);
+
       // Find if we already loaded it in memory history list
       const cachedItem = history.find((h) => h.id === id && h.messages.length > 0);
       if (cachedItem) {
         setMessages(cachedItem.messages);
         setActiveQueryText(cachedItem.query);
-        setIsChatting(true);
         return;
       }
 

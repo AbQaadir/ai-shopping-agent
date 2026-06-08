@@ -110,6 +110,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
           <div className="flex-1 overflow-hidden flex flex-col">
             {isChatting ? (
               <ChatWorkspace
+                key={activeHistoryId}
                 messages={messages}
                 isGenerating={isGenerating}
                 onSend={handleSendMessage}
