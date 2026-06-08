@@ -14,6 +14,7 @@ import ThinkingPanel from "./ThinkingPanel";
 interface ChatTimelineProps {
   messages: Message[];
   isGenerating: boolean;
+  activeQueryText?: string;
   onSampleClick?: (sampleText: string) => void;
   onViewDetailsClick?: (products?: InlineProduct[]) => void;
   onViewMoreProducts?: (products: InlineProduct[]) => void;
@@ -43,6 +44,7 @@ function renderFormattedText(text: string) {
 export default function ChatTimeline({
   messages,
   isGenerating,
+  activeQueryText,
   onSampleClick,
   onViewDetailsClick,
   onViewMoreProducts,
@@ -110,6 +112,7 @@ export default function ChatTimeline({
                             hasText={!!msg.text}
                             inlineProducts={msg.inlineProducts}
                             onViewDetails={() => onViewDetailsClick?.(msg.inlineProducts)}
+                            activeQueryText={activeQueryText}
                           />
                         )}
 
@@ -199,17 +202,7 @@ export default function ChatTimeline({
           );
         })}
 
-        {/* Typing indicator */}
-        {isGenerating && (
-          <div className="self-start max-w-[85%] animate-pulse flex flex-col gap-1 py-3">
-            <div className="flex items-center gap-2 text-slate-500">
-              <span className="w-2 h-2 bg-[#402970] rounded-full animate-bounce" />
-              <span className="w-2 h-2 bg-[#402970] rounded-full animate-bounce [animation-delay:0.2s]" />
-              <span className="w-2 h-2 bg-[#402970] rounded-full animate-bounce [animation-delay:0.4s]" />
-              <span className="text-xs font-semibold">Searching Kapruka...</span>
-            </div>
-          </div>
-        )}
+
       </div>
       <div ref={bottomRef} />
     </div>

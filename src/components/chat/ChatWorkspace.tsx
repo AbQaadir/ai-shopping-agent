@@ -4,9 +4,7 @@ import React, { useState } from "react";
 import { 
   ChevronLeft, 
   Share2, 
-  Check, 
-  Loader2, 
-  Box 
+  Check 
 } from "lucide-react";
 import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductDetailsDrawer, { ProductDetail } from "./ProductDetailsDrawer";
@@ -144,6 +142,7 @@ export default function ChatWorkspace({
           <ChatMessageTimeline
             messages={messages}
             isGenerating={isGenerating}
+            activeQueryText={activeQueryText}
             onSampleClick={handleSampleClick}
             onViewDetailsClick={handleViewDetails}
             onViewMoreProducts={handleViewMoreProducts}
@@ -151,54 +150,6 @@ export default function ChatWorkspace({
             onToggleSelectProduct={handleToggleSelectProduct}
             onBuyProduct={onBuyProduct}
           />
- 
-          {/* "Working on it" loader shown while generating */}
-          {isGenerating && (
-            <div className="px-4 sm:px-6 pb-4 flex justify-start max-w-3xl mx-auto w-full">
-              <div className="px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-4 w-full animate-fadeIn">
-                <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
-                  <Loader2 size={15} className="text-[#402970] animate-spin" />
-                  <span>Working on your task</span>
-                </div>
-                <div className="pl-5 space-y-3">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970] animate-ping" />
-                      Getting everything ready
-                    </div>
-                    <p className="text-slate-500 text-xs font-medium pl-3">
-                      Searching for &ldquo;{activeQueryText || 'products'}&rdquo; on Kapruka&hellip;
-                    </p>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-700 font-extrabold pl-3 pt-1 border-t border-slate-50">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
-                      Preparing the response
-                    </div>
-                  </div>
-                  <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-600 truncate">
-                      <Box size={13} className="text-[#402970]" />
-                      <span>Product search</span>
-                      <span className="text-slate-300 font-light">|</span>
-                      <span className="text-slate-500 font-medium truncate">
-                        {activeQueryText || "foldable camping chair price < 15 USD"}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleViewDetails()}
-                      className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition-all whitespace-nowrap cursor-pointer hover:border-slate-300"
-                    >
-                      View details
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-1.5 bg-slate-100 rounded-full w-full animate-pulse" />
-                    <div className="h-1.5 bg-slate-100 rounded-full w-5/6 animate-pulse [animation-delay:0.2s]" />
-                    <div className="h-1.5 bg-slate-100 rounded-full w-2/3 animate-pulse [animation-delay:0.4s]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
  
           {/* Bottom spacer so last message clears the gradient + input */}
           <div className="h-36 shrink-0" />
