@@ -87,11 +87,16 @@ export default function ThinkingPanel({
 
       {/* ── 2. Smooth Collapsible Content Container (CSS Grid animation trick) ── */}
       <div 
-        className={`grid transition-all duration-300 ease-in-out ${
+        className={`grid ${
           showContent 
             ? "grid-rows-[1fr] opacity-100 pointer-events-auto mt-2" 
             : "grid-rows-[0fr] opacity-0 pointer-events-none mt-0"
         }`}
+        style={{
+          transitionProperty: "grid-template-rows, opacity, margin-top",
+          transitionDuration: "300ms",
+          transitionTimingFunction: "ease-in-out"
+        }}
       >
         <div className="overflow-hidden pl-6 border-l border-slate-200/80 ml-1.5 space-y-3.5 pb-1">
           {/* Status checklist line matching primary theme color #402970 */}

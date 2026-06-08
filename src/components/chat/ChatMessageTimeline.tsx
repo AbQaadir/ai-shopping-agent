@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Clock, Check } from "lucide-react";
+import { Clock, Check, ThumbsUp, ThumbsDown, Flag } from "lucide-react";
 import type { Message, InlineProduct } from "@/types/sourcing";
 
 import DeliveryCard from "./cards/DeliveryCard";
@@ -59,7 +59,10 @@ export default function ChatTimeline({
   }, [messages, isGenerating]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 pt-6 space-y-6 flex flex-col items-center w-full">
+    <div 
+      className="flex-1 overflow-y-auto px-4 pt-6 space-y-6 flex flex-col items-center w-full"
+      style={{ scrollbarGutter: "stable" }}
+    >
       <div className="w-full max-w-3xl space-y-6 flex flex-col">
         {messages.map((msg) => {
           const isUser = msg.sender === "user";
@@ -153,19 +156,19 @@ export default function ChatTimeline({
 
                         {/* Follow-up suggestions */}
                         {msg.followUpSamples && msg.followUpSamples.length > 0 && (
-                          <div className="space-y-2.5 pt-3 border-t border-slate-50">
-                            <p className="text-xs font-bold text-slate-500">
-                              {msg.followUpText || "You can continue with:"}
+                          <div className="space-y-3 pt-3.5 border-t border-slate-100/50">
+                            <p className="text-sm font-semibold text-slate-800">
+                              {msg.followUpText || "You can refine these results further. Here are some options:"}
                             </p>
-                            <div className="space-y-1.5 pl-1">
+                            <div className="space-y-2.5 pl-1 flex flex-col items-start">
                               {msg.followUpSamples.map((sample, idx) => (
                                 <button
                                   key={idx}
                                   onClick={() => onSampleClick?.(sample)}
                                   onMouseDown={(e) => e.preventDefault()}
-                                  className="flex items-center gap-1.5 text-sky-600 hover:text-sky-800 font-bold text-xs hover:underline cursor-pointer text-left py-0.5"
+                                  className="flex items-center gap-1.5 text-slate-700 hover:text-slate-900 font-medium text-[13px] underline decoration-slate-300 hover:decoration-slate-500 cursor-pointer text-left py-0.5 transition-all"
                                 >
-                                  <span className="text-sm font-semibold">↙</span>
+                                  <span className="text-slate-400 font-semibold select-none">↙</span>
                                   <span>{sample}</span>
                                 </button>
                               ))}
@@ -176,12 +179,15 @@ export default function ChatTimeline({
                     )}
 
                     {/* Reaction bar */}
-                    <div className="flex items-center gap-3 text-slate-400 select-none pt-1">
-                      <button className="p-1 hover:bg-slate-50 hover:text-[#402970] rounded transition-colors" title="Good response">
-                        <span className="text-xs">👍</span>
+                    <div className="flex items-center gap-1.5 text-slate-400 select-none pt-1">
+                      <button className="p-1.5 hover:bg-slate-50 hover:text-[#402970] rounded-lg transition-colors cursor-pointer" title="Good response">
+                        <ThumbsUp size={14} className="text-slate-400 hover:text-[#402970] transition-colors" />
                       </button>
-                      <button className="p-1 hover:bg-slate-50 hover:text-[#402970] rounded transition-colors" title="Bad response">
-                        <span className="text-xs">👎</span>
+                      <button className="p-1.5 hover:bg-slate-50 hover:text-[#402970] rounded-lg transition-colors cursor-pointer" title="Bad response">
+                        <ThumbsDown size={14} className="text-slate-400 hover:text-[#402970] transition-colors" />
+                      </button>
+                      <button className="p-1.5 hover:bg-slate-50 hover:text-rose-600 rounded-lg transition-colors cursor-pointer" title="Report response">
+                        <Flag size={14} className="text-slate-400 hover:text-rose-600 transition-colors" />
                       </button>
                     </div>
                   </div>
