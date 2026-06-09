@@ -171,19 +171,47 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setIsGenerating(false);
   }, []);
 
+  // Synchronize state when browser Back/Forward navigation occurs
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path.startsWith("/c/")) {
+        const id = path.split("/c/")[1];
+        if (id) {
+          setActiveHistoryId(id);
+          setIsChatting(true);
+          fetchSessionAndHydrate(id);
+        }
+      } else {
+        handleResetLocal();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [fetchSessionAndHydrate, handleResetLocal]);
+
   const handleReset = () => {
     setIsMobileSidebarOpen(false);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    router.push("/");
+    // Update path without unmounting the dashboard component tree
+    window.history.pushState(null, "", "/");
+    handleResetLocal();
   };
 
   const handleSelectHistory = (id: string) => {
     setIsMobileSidebarOpen(false);
-    router.push(`/c/${id}`);
+    // Update path without unmounting the dashboard component tree
+    window.history.pushState(null, "", `/c/${id}`);
+    setActiveHistoryId(id);
+    fetchSessionAndHydrate(id);
   };
+
 
   const handleStopGeneration = () => {
     if (abortControllerRef.current) {

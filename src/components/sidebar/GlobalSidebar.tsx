@@ -51,7 +51,7 @@ export default function GlobalSidebar({
         {/* Mobile close button */}
         <button
           onClick={() => setIsMobileOpen?.(false)}
-          className="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          className="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer outline-none focus:outline-none focus:ring-0"
           title="Close sidebar"
         >
           <X size={20} />
@@ -60,7 +60,7 @@ export default function GlobalSidebar({
         {/* Desktop collapse button */}
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden md:block p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          className="hidden md:block p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer outline-none focus:outline-none focus:ring-0"
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}
@@ -72,7 +72,7 @@ export default function GlobalSidebar({
         {/* New Chat Option */}
         <button 
           onClick={onReset}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer relative ${
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer relative outline-none focus:outline-none focus:ring-0 ${
             isCollapsed
               ? activeHistoryId === undefined 
                 ? "text-[#402970] font-bold" 
@@ -90,40 +90,20 @@ export default function GlobalSidebar({
           )}
         </button>
 
-        {/* History Option */}
-        <div className="space-y-1">
-          <button 
-            onClick={() => {
-              if (isCollapsed) {
-                setIsCollapsed(false);
-              }
-              setShowHistoryList(!showHistoryList);
-            }}
-            className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer relative ${
-              isCollapsed
-                ? activeHistoryId !== undefined 
-                  ? "text-[#402970] font-bold" 
-                  : "text-slate-500 hover:bg-slate-100/60 font-semibold"
-                : activeHistoryId !== undefined 
-                  ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold" 
-                  : "text-slate-700 hover:bg-slate-100/60 font-semibold"
-            } ${isCollapsed ? "justify-center" : ""}`}
+        {/* History Section Header (Always Flat & Open) */}
+        <div className="space-y-1 pt-2">
+          <div 
+            className={`w-full flex items-center justify-between px-3 py-3 text-slate-800 font-bold text-sm select-none ${isCollapsed ? "justify-center" : ""}`}
             title="History"
           >
             <div className="flex items-center gap-3">
-              <History size={19} className={activeHistoryId !== undefined ? "text-[#402970] shrink-0" : "text-slate-500 shrink-0"} />
-              {!isCollapsed && <span>History</span>}
+              <History size={19} className="text-slate-700 shrink-0" />
+              {!isCollapsed && <span className="font-extrabold text-[13px] text-slate-800 tracking-wide">History</span>}
             </div>
-            {!isCollapsed && history.length > 0 && (
-              showHistoryList ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />
-            )}
-            {isCollapsed && activeHistoryId !== undefined && (
-              <span className="absolute -right-3 top-1/2 -translate-y-1/2 w-[4px] h-8 bg-[#402970] rounded-l-full" />
-            )}
-          </button>
+          </div>
 
-          {/* Indented History List (Only if expanded & toggled open) */}
-          {!isCollapsed && showHistoryList && history.length > 0 && (
+          {/* History List (Always rendered directly under header when not collapsed) */}
+          {!isCollapsed && history.length > 0 && (
             <SidebarHistoryList
               history={history}
               activeHistoryId={activeHistoryId}
@@ -137,7 +117,7 @@ export default function GlobalSidebar({
       <div className="p-3 border-t border-slate-100/50">
         <button 
           onClick={() => alert("Contact support at support@kapuruka.com")}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-700 hover:bg-slate-100/60 hover:text-slate-700 text-sm font-semibold transition-all duration-200 cursor-pointer ${
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-700 hover:bg-slate-100/60 hover:text-slate-700 text-sm font-semibold transition-all duration-200 cursor-pointer outline-none focus:outline-none focus:ring-0 ${
             isCollapsed ? "justify-center" : ""
           }`}
           title="Contact us"

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   ChevronLeft, 
   Share2, 
@@ -13,6 +13,7 @@ import ChatInputArea from "./ChatInputArea";
 import type { Message, InlineProduct } from "@/types/sourcing";
 
 interface ChatWorkspaceProps {
+  activeHistoryId?: string;
   messages: Message[];
   isGenerating: boolean;
   onSend: (text: string, files: File[]) => void;
@@ -23,6 +24,7 @@ interface ChatWorkspaceProps {
 }
 
 export default function ChatWorkspace({
+  activeHistoryId,
   messages,
   isGenerating,
   onSend,
@@ -37,6 +39,15 @@ export default function ChatWorkspace({
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
   const [detailProducts, setDetailProducts] = useState<InlineProduct[]>([]);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Reset internal states when activeHistoryId changes to avoid unmounting ChatWorkspace
+  useEffect(() => {
+    setInputText("");
+    setAttachedFiles([]);
+    setShowDetails(false);
+    setSelectedProducts([]);
+    setDetailProducts([]);
+  }, [activeHistoryId]);
   // Product search modal
   const [showProductModal, setShowProductModal] = useState(false);
   const [modalProducts, setModalProducts] = useState<InlineProduct[]>([]);
