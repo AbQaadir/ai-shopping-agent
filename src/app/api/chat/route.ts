@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
 
     // Start with rule-based, then refine with LLM
     let intent: Intent = ruleBasedIntent(message);
+    let isRelated = true;
 
     if (apiKey) {
       try {
@@ -100,15 +101,23 @@ export async function POST(req: NextRequest) {
         const fastModel = config.gemini.fastModel;
 
         // LLM-based intent refinement
-        const classifierPrompt = `Classify this Sri Lankan e-commerce user message into exactly ONE intent:
+        const classifierPrompt = `You are a query classifier for Kapruka (Sri Lankan e-commerce assistant).
+Analyze the user message and perform two classifications:
 
-- "product": Searching for, comparing, or buying products on Kapruka.com (e.g. cakes, gifts, clothes, electronics)
-- "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order
-- "import": User pastes a URL from Amazon/Walmart/eBay, or asks about importing goods from abroad + customs/duties
-- "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry)
-- "qa": General platform questions (payment, returns, policies, account help) or general knowledge/informational queries that require web search grounding
+1. Determine if the query is RELATED or UNRELATED to the business of Kapruka.
+   - RELATED: Product search, cake/gift shopping, order tracking, delivery rates/checks, cross-border import cost calculator, local home services (electrical, plumbing, AC repair, cleaning, etc.), or e-commerce platform support/Q&A.
+   - UNRELATED: Software coding/programming help, copywriting, content/essay writing, translation, general homework/math solver, or generic chat/questions having nothing to do with e-commerce or local services.
+   Set "isRelated" to true if it is related, or false if it is unrelated.
 
-Respond ONLY with JSON: {"intent": "product"|"delivery"|"import"|"service"|"qa", "reason": "brief"}
+2. Classify the user message into exactly ONE intent:
+   - "product": Searching for, comparing, or buying products on Kapruka.com (e.g. cakes, gifts, clothes, electronics) or reordering.
+   - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order.
+   - "import": User asks about importing goods from abroad, pastes Amazon/Walmart/eBay URLs, or asks customs/duties.
+   - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
+   - "qa": General platform questions (payment, returns, policies, account help) or general knowledge/informational queries that require web search grounding.
+
+Respond ONLY with JSON matching this structure:
+{"intent": "product"|"delivery"|"import"|"service"|"qa", "isRelated": boolean, "reason": "brief explanation"}
 
 User message: "${message.substring(0, 300)}"`;
 
@@ -123,8 +132,11 @@ User message: "${message.substring(0, 300)}"`;
         const parsed = JSON.parse(result.text || "{}");
         if (parsed?.intent && ["product", "delivery", "import", "service", "qa"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
-          console.log(`[Intent] "${message.substring(0, 60)}" → ${intent} (${parsed.reason})`);
         }
+        if (typeof parsed?.isRelated === "boolean") {
+          isRelated = parsed.isRelated;
+        }
+        console.log(`[Intent] "${message.substring(0, 60)}" → ${intent} (isRelated: ${isRelated}, reason: ${parsed.reason})`);
       } catch (err) {
         console.error("[Intent] LLM classification failed, using rule-based:", (err as Error).message);
       }
@@ -136,6 +148,37 @@ User message: "${message.substring(0, 300)}"`;
         const send = (payload: Record<string, unknown>) => {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
         };
+
+        if (!isRelated) {
+          send({ type: "thought", step: "intent_routing", status: "completed", content: "Checking query appropriateness...", durationMs: 0 });
+          
+          const refusalText = "That's an interesting question! My expertise is shopping and product assistance. If you're looking for a product, need recommendations, or have questions about an order, I'd be happy to help.";
+          const words = refusalText.split(" ");
+          
+          for (let i = 0; i < words.length; i++) {
+            send({ type: "text", content: words[i] + (i === words.length - 1 ? "" : " ") });
+            await new Promise((r) => setTimeout(r, 40));
+          }
+
+          const followUps = STATIC_FOLLOW_UPS["product"];
+          send({ type: "follow_ups", questions: followUps });
+
+          await prisma.chatMessage.create({
+            data: {
+              sessionId: sessionId,
+              role: "assistant",
+              content: refusalText,
+              thoughtProcess: JSON.stringify({ 
+                steps: [{ step: "intent_routing", status: "completed", content: "Query filtered by guardrails.", durationMs: 0 }], 
+                intent: "qa", 
+                followUpQuestions: followUps 
+              }),
+            },
+          });
+
+          controller.close();
+          return;
+        }
 
         const steps: Array<{ step: string; status: string; content: string; durationMs: number }> = [];
         let products: KaprukaProduct[] = [];
