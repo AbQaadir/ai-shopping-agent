@@ -167,9 +167,6 @@ export default function ThinkingPanel({
                           <Box size={13} className="text-[#402970] shrink-0" />
                           <span>{badge}</span>
                         </div>
-                        <span className="text-slate-800 font-semibold truncate pl-1">
-                          {query}
-                        </span>
                       </div>
                       {hasDetailView(badge) && (
                         <button
@@ -198,9 +195,6 @@ export default function ThinkingPanel({
                         <Box size={13} className="text-[#402970] shrink-0" />
                         <span>{getToolBadge(activeToolCall.name)}</span>
                       </div>
-                      <span className="text-slate-800 font-semibold truncate pl-1">
-                        {(activeToolCall.args as any)?.query || activeQueryText}
-                      </span>
                     </div>
                     {hasDetailView(getToolBadge(activeToolCall.name)) && (
                       <button
