@@ -30,12 +30,21 @@ function formatTime(date: Date) {
 
 function renderFormattedText(text: string) {
   if (!text) return null;
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\[[^\]]+\]\([^)]+\))/g);
+  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
   return parts.map((part, idx) => {
     if (part.startsWith("**") && part.endsWith("**"))
       return <strong key={idx} className="font-extrabold text-slate-800">{part.slice(2, -2)}</strong>;
     if (part.startsWith("*") && part.endsWith("*"))
       return <strong key={idx} className="font-bold text-slate-800">{part.slice(1, -1)}</strong>;
+    if (part.startsWith("`") && part.endsWith("`"))
+      return (
+        <code
+          key={idx}
+          className="bg-slate-100 text-[#402970] font-mono text-[12px] px-1.5 py-0.5 rounded border border-slate-200/60 font-semibold"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
     if (part.startsWith("[") && part.includes("](")) {
       const match = part.match(/\[([^\]]+)\]\(([^)]+)\)/);
       if (match) {
@@ -158,11 +167,11 @@ export default function ChatTimeline({
                       <div className="space-y-4">
 
                         {/* ── AI Thinking Panel ── */}
-                        {((msg.thinkingSteps && msg.thinkingSteps.length > 0) || msg.activeToolCall || isGenerating) && (
+                        {((msg.thinkingSteps && msg.thinkingSteps.length > 0) || (isLastAIResponse && (msg.activeToolCall || isGenerating))) && (
                           <ThinkingPanel
                             steps={msg.thinkingSteps || []}
                             activeToolCall={msg.activeToolCall}
-                            isGenerating={isGenerating}
+                            isGenerating={isLastAIResponse}
                             hasText={!!msg.text}
                             inlineProducts={msg.inlineProducts}
                             activeQueryText={activeQueryText}
@@ -183,19 +192,119 @@ export default function ChatTimeline({
                                 }
                               }
 
-                              return lines.map((line, lineIdx) => {
-                                const isLastLine = lineIdx === lastNonEmptyIdx;
+                              const processedElements: React.ReactNode[] = [];
+                              let sourceElements: React.ReactNode[] = [];
+                              let isInsideSources = false;
+                              let isInsideCodeBlock = false;
+                              let codeBlockLines: string[] = [];
+
+                              for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+                                const line = lines[lineIdx];
                                 const trimmed = line.trim();
 
-                                if (trimmed === "") {
-                                  return <div key={lineIdx} className="h-2" />;
+                                // Fenced Code Blocks
+                                if (trimmed.startsWith("```")) {
+                                  if (isInsideCodeBlock) {
+                                    const codeContent = codeBlockLines.join("\n");
+                                    processedElements.push(
+                                      <pre key={`code-block-${lineIdx}`} className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
+                                        <code>{codeContent}</code>
+                                      </pre>
+                                    );
+                                    codeBlockLines = [];
+                                    isInsideCodeBlock = false;
+                                  } else {
+                                    isInsideCodeBlock = true;
+                                  }
+                                  continue;
                                 }
 
-                                // Bullet point check: starting with *, -, or •
+                                if (isInsideCodeBlock) {
+                                  codeBlockLines.push(line);
+                                  continue;
+                                }
+
+                                // Sources Header
+                                if (trimmed === "**Sources:**" || trimmed === "Sources:") {
+                                  isInsideSources = true;
+                                  continue;
+                                }
+
+                                // Source Citation Item
+                                const sourceMatch = trimmed.match(/^\[(\d+)\]\s+\[([^\]]+)\]\(([^)]+)\)/);
+                                if (sourceMatch) {
+                                  const title = sourceMatch[2];
+                                  const url = sourceMatch[3];
+
+                                  sourceElements.push(
+                                    <React.Fragment key={`src-item-${lineIdx}`}>
+                                      {sourceElements.length > 0 && <span className="text-slate-400 select-none text-sm">,</span>}
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sky-600 hover:text-sky-800 underline font-semibold text-sm transition-colors"
+                                      >
+                                        {title}
+                                      </a>
+                                    </React.Fragment>
+                                  );
+                                  continue;
+                                }
+
+                                // Flush source items if the block ended
+                                if (isInsideSources && sourceElements.length > 0 && trimmed !== "") {
+                                  processedElements.push(
+                                    <p key={`src-container-${lineIdx}`} className="text-sm text-slate-500 font-medium mt-3.5 flex flex-wrap items-center gap-1">
+                                      <span className="font-bold text-slate-800 select-none">Sources:</span>
+                                      {sourceElements}
+                                    </p>
+                                  );
+                                  sourceElements = [];
+                                  isInsideSources = false;
+                                }
+
+                                // Empty Line
+                                if (trimmed === "") {
+                                  processedElements.push(<div key={lineIdx} className="h-2" />);
+                                  continue;
+                                }
+
+                                const isLastLine = lineIdx === lastNonEmptyIdx;
+
+                                // Headers (###, ##, #)
+                                const headerMatch = line.match(/^(\s*)(#{1,3})\s+(.*)/);
+                                if (headerMatch) {
+                                  const level = headerMatch[2].length;
+                                  const content = headerMatch[3];
+
+                                  if (level === 3) {
+                                    processedElements.push(
+                                      <h5 key={lineIdx} className="text-[14px] font-extrabold text-slate-800 mt-4 mb-1 select-none">
+                                        {renderFormattedText(content)}
+                                      </h5>
+                                    );
+                                  } else if (level === 2) {
+                                    processedElements.push(
+                                      <h4 key={lineIdx} className="text-[15px] font-extrabold text-slate-800 mt-5 mb-1.5 select-none">
+                                        {renderFormattedText(content)}
+                                      </h4>
+                                    );
+                                  } else {
+                                    processedElements.push(
+                                      <h3 key={lineIdx} className="text-[17px] font-extrabold text-slate-900 mt-6 mb-2 select-none">
+                                        {renderFormattedText(content)}
+                                      </h3>
+                                    );
+                                  }
+                                  continue;
+                                }
+
+                                // Bullet Points (*, -, or •)
                                 const bulletMatch = line.match(/^\s*([*\-•])\s+(.*)/);
                                 if (bulletMatch) {
                                   const content = bulletMatch[2];
-                                  return (
+                                  processedElements.push(
                                     <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
                                       <span className="text-[#402970] mt-1.5 shrink-0 select-none text-[8px]">●</span>
                                       <span className="flex-1">
@@ -206,14 +315,15 @@ export default function ChatTimeline({
                                       </span>
                                     </div>
                                   );
+                                  continue;
                                 }
 
-                                // Numbered list check: starting with 1. 2. etc.
+                                // Numbered Lists
                                 const numMatch = line.match(/^\s*(\d+)\.\s+(.*)/);
                                 if (numMatch) {
                                   const num = numMatch[1];
                                   const content = numMatch[2];
-                                  return (
+                                  processedElements.push(
                                     <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
                                       <span className="text-[#402970] font-bold text-xs mt-0.5 shrink-0 select-none">{num}.</span>
                                       <span className="flex-1">
@@ -224,10 +334,11 @@ export default function ChatTimeline({
                                       </span>
                                     </div>
                                   );
+                                  continue;
                                 }
 
-                                // Standard line
-                                return (
+                                // Standard Line
+                                processedElements.push(
                                   <p key={lineIdx}>
                                     {renderFormattedText(line)}
                                     {isLastAIResponse && isLastLine && (
@@ -235,7 +346,27 @@ export default function ChatTimeline({
                                     )}
                                   </p>
                                 );
-                              });
+                              }
+
+                              // Final flushes at end of message text loop
+                              if (isInsideCodeBlock && codeBlockLines.length > 0) {
+                                processedElements.push(
+                                  <pre key="code-block-end" className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
+                                    <code>{codeBlockLines.join("\n")}</code>
+                                  </pre>
+                                );
+                              }
+
+                              if (sourceElements.length > 0) {
+                                processedElements.push(
+                                  <p key="src-container-end" className="text-sm text-slate-500 font-medium mt-3.5 flex flex-wrap items-center gap-1">
+                                    <span className="font-bold text-slate-800 select-none">Sources:</span>
+                                    {sourceElements}
+                                  </p>
+                                );
+                              }
+
+                              return processedElements;
                             })()}
                           </div>
                         )}
