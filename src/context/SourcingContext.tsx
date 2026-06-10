@@ -22,6 +22,8 @@ interface SourcingContextType {
   history: HistoryItem[];
   setHistory: React.Dispatch<React.SetStateAction<HistoryItem[]>>;
 
+  activeUserId: string;
+  handleSwitchUser: (userId: string) => void;
   fetchHistory: () => Promise<void>;
   fetchSessionAndHydrate: (id: string) => Promise<void>;
   handleResetLocal: () => void;
@@ -44,13 +46,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [activeUserId, setActiveUserId] = useState<string>("e17d0577-c93d-4c3e-9080-60b6bbfdf071"); // Kamal Silva default
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const router = useRouter();
 
   const fetchHistory = useCallback(async () => {
     try {
-      const res = await fetch("/api/session");
+      const res = await fetch(`/api/session?userId=${activeUserId}`);
       if (res.ok) {
         const data = await res.json();
         const items = data.map((session: { id: string; title: string; createdAt: string }) => ({
@@ -65,6 +68,20 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to load history sessions:", err);
     }
+  }, [activeUserId]);
+
+  const handleSwitchUser = useCallback((userId: string) => {
+    setActiveUserId(userId);
+    setIsChatting(false);
+    setMessages([]);
+    setActiveHistoryId(undefined);
+    setActiveQueryText("");
+    setIsGenerating(false);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    window.history.pushState(null, "", "/");
   }, []);
 
   const fetchSessionAndHydrate = useCallback(async (id: string) => {
@@ -80,7 +97,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const res = await fetch(`/api/session?id=${id}`);
+      const res = await fetch(`/api/session?id=${id}&userId=${activeUserId}`);
       if (res.ok) {
         const sessionData = await res.json();
         const mappedMessages: Message[] = sessionData.messages.map((m: { id: string; role: string; content: string; createdAt: string; products?: unknown; thoughtProcess?: unknown }) => {
@@ -255,7 +272,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         const sessionRes = await fetch("/api/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: text || "New Sourcing Task" })
+          body: JSON.stringify({ title: text || "New Sourcing Task", userId: activeUserId })
         });
         if (sessionRes.ok) {
           const newSession = await sessionRes.json();
@@ -281,7 +298,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: currentSessionId, message: text || "Uploaded design request" }),
+        body: JSON.stringify({ sessionId: currentSessionId, message: text || "Uploaded design request", userId: activeUserId }),
         signal: abortController.signal
       });
 
@@ -516,6 +533,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         setMessages,
         history,
         setHistory,
+        activeUserId,
+        handleSwitchUser,
 
         fetchHistory,
         fetchSessionAndHydrate,
