@@ -37,6 +37,8 @@ interface SourcingContextType {
   setCountry: (country: string) => void;
   currency: string;
   setCurrency: (currency: string) => void;
+  selectedProducts: InlineProduct[];
+  setSelectedProducts: React.Dispatch<React.SetStateAction<InlineProduct[]>>;
 }
 
 const SourcingContext = createContext<SourcingContextType | undefined>(undefined);
@@ -53,6 +55,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [activeUserId, setActiveUserId] = useState<string>("e17d0577-c93d-4c3e-9080-60b6bbfdf071"); // Kamal Silva default
   const [country, setCountry] = useState("LK");
   const [currency, setCurrency] = useState("USD");
+  const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
 
   useEffect(() => {
     const detectLocation = async () => {
@@ -103,6 +106,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setActiveHistoryId(undefined);
     setActiveQueryText("");
     setIsGenerating(false);
+    setSelectedProducts([]);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -215,6 +219,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setActiveHistoryId(undefined);
     setActiveQueryText("");
     setIsGenerating(false);
+    setSelectedProducts([]);
   }, []);
 
   // Synchronize state when browser Back/Forward navigation occurs
@@ -241,6 +246,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   const handleReset = () => {
     setIsMobileSidebarOpen(false);
+    setSelectedProducts([]);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -252,6 +258,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   const handleSelectHistory = (id: string) => {
     setIsMobileSidebarOpen(false);
+    setSelectedProducts([]);
     // Update path without unmounting the dashboard component tree
     window.history.pushState(null, "", `/c/${id}`);
     setActiveHistoryId(id);
@@ -283,8 +290,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       sender: "user",
       text: text || `Attached ${files.length} document(s) for review`,
       timestamp,
-      status: "sending"
+      status: "sending",
+      inlineProducts: selectedProducts.length > 0 ? [...selectedProducts] : undefined
     };
+
+    const selectedProductIds = selectedProducts.map(p => p.id);
+    setSelectedProducts([]);
 
     const updatedMessages = [...messages, newUserMessage];
     setMessages(updatedMessages);
@@ -329,7 +340,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           message: text || "Uploaded design request",
           userId: activeUserId,
           country,
-          currency
+          currency,
+          selectedProductIds
         }),
         signal: abortController.signal
       });
@@ -580,7 +592,9 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         country,
         setCountry,
         currency,
-        setCurrency
+        setCurrency,
+        selectedProducts,
+        setSelectedProducts
       }}
     >
       {children}

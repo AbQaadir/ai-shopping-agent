@@ -7,6 +7,7 @@ import {
   Share2
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSourcing } from "@/context/SourcingContext";
 import ChatInputArea from "./ChatInputArea";
 import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductCatalogModal from "./ProductCatalogModal";
@@ -32,9 +33,9 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
+  const { selectedProducts, setSelectedProducts } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
   const [isCopied, setIsCopied] = useState(false);
 
   // Reset internal states when activeHistoryId changes to avoid unmounting ChatWorkspace
@@ -42,7 +43,7 @@ export default function ChatWorkspace({
     setInputText("");
     setAttachedFiles([]);
     setSelectedProducts([]);
-  }, [activeHistoryId]);
+  }, [activeHistoryId, setSelectedProducts]);
 
   // Product search modal
   const [showProductModal, setShowProductModal] = useState(false);
@@ -80,9 +81,10 @@ export default function ChatWorkspace({
     setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
-    if (inputText.trim() || attachedFiles.length > 0) {
-      onSend(inputText, attachedFiles);
+  const handleSubmit = (overrideText?: string) => {
+    const textToSubmit = overrideText !== undefined ? overrideText : inputText;
+    if (textToSubmit.trim() || attachedFiles.length > 0) {
+      onSend(textToSubmit, attachedFiles);
       setInputText("");
       setAttachedFiles([]);
     }

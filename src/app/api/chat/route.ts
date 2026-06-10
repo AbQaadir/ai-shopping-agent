@@ -11,6 +11,7 @@ import {
 } from "@/lib/nlp";
 import {
   parseRequirements,
+  pillar1_getProductDetails,
   pillar1_searchProducts,
   pillar2_checkDelivery,
   pillar2_findCity,
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { sessionId, message, userId, country, currency } = body;
+    const { sessionId, message, userId, country, currency, selectedProductIds } = body;
 
     if (!sessionId || !message) {
       return new Response(JSON.stringify({ error: "Missing sessionId or message" }), {
@@ -83,9 +84,38 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Save user message to DB
+    let fetchedSelectedProducts: KaprukaProduct[] = [];
+
+    if (selectedProductIds && Array.isArray(selectedProductIds) && selectedProductIds.length > 0) {
+      const detailsList = await Promise.all(
+        selectedProductIds.map(id => pillar1_getProductDetails(id).catch(err => {
+          console.error(`Failed to fetch product details for ${id}:`, err);
+          return null;
+        }))
+      );
+      fetchedSelectedProducts = detailsList.filter((p): p is KaprukaProduct => p !== null);
+    }
+
     await prisma.chatMessage.create({
-      data: { sessionId: session.id, role: "user", content: message },
+      data: { 
+        sessionId: session.id, 
+        role: "user", 
+        content: message,
+        products: fetchedSelectedProducts.length > 0 ? (fetchedSelectedProducts as any) : undefined
+      },
     });
+
+    // 2b. Fetch chat history for context-aware classification
+    const chatHistoryForClassifier = await prisma.chatMessage.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const historySnippet = chatHistoryForClassifier
+      .slice(0, -1) // Exclude the user message we just created so we only see prior history
+      .slice(-6)    // Take up to the last 6 messages (3 turns)
+      .map(m => `${m.role.toUpperCase()}: ${m.content.substring(0, 150)}`)
+      .join("\n");
 
     // 3. Determine intent ───────────────────────────────────────────────────
     const apiKey = config.gemini.apiKey;
@@ -102,15 +132,15 @@ export async function POST(req: NextRequest) {
 
         // LLM-based intent refinement
         const classifierPrompt = `You are a query classifier for Kapruka (Sri Lankan e-commerce assistant).
-Analyze the user message and perform two classifications:
+Analyze the user query in the context of the recent conversation history, and perform two classifications:
 
 1. Determine if the query is RELATED or UNRELATED to the business of Kapruka.
-   - RELATED: Product search, cake/gift shopping, order tracking, delivery rates/checks, cross-border import cost calculator, local home services (electrical, plumbing, AC repair, cleaning, etc.), or e-commerce platform support/Q&A.
-   - UNRELATED: Software coding/programming help, copywriting, content/essay writing, translation, general homework/math solver, or generic chat/questions having nothing to do with e-commerce or local services.
+   - RELATED: Product search, cake/gift shopping, order tracking, delivery rates/checks, cross-border import cost calculator, local home services (electrical, plumbing, AC repair, cleaning, etc.), or e-commerce platform support/Q&A. Also count follow-up requests for details/authors/specifications of previously discussed products in the conversation as RELATED.
+   - UNRELATED: Software coding/programming help, copywriting, content/essay writing, translation, general homework/math solver, or generic chat/questions having nothing to do with e-commerce, local services, or the current conversation's context.
    Set "isRelated" to true if it is related, or false if it is unrelated.
 
 2. Classify the user message into exactly ONE intent:
-   - "product": Searching for, comparing, or buying products on Kapruka.com (e.g. cakes, gifts, clothes, electronics) or reordering.
+   - "product": Searching for, comparing, or buying products on Kapruka.com (e.g. cakes, gifts, clothes, books, electronics), asking for details/specifications of a product in the conversation, or reordering.
    - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order.
    - "import": User asks about importing goods from abroad, pastes Amazon/Walmart/eBay URLs, or asks customs/duties.
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
@@ -119,7 +149,10 @@ Analyze the user message and perform two classifications:
 Respond ONLY with JSON matching this structure:
 {"intent": "product"|"delivery"|"import"|"service"|"qa", "isRelated": boolean, "reason": "brief explanation"}
 
-User message: "${message.substring(0, 300)}"`;
+[Recent Conversation History]
+${historySnippet || "No previous history."}
+
+User query to classify: "${message}"`;
 
         const result = await ai.models.generateContent({
           model: fastModel,
@@ -140,6 +173,11 @@ User message: "${message.substring(0, 300)}"`;
       } catch (err) {
         console.error("[Intent] LLM classification failed, using rule-based:", (err as Error).message);
       }
+    }
+
+    if (selectedProductIds && Array.isArray(selectedProductIds) && selectedProductIds.length > 0) {
+      intent = "product";
+      isRelated = true;
     }
 
     // 4. Build SSE stream ──────────────────────────────────────────────────
@@ -193,131 +231,159 @@ User message: "${message.substring(0, 300)}"`;
         }
 
         if (intent === "product") {
-          // Step 1: Parse requirements
-          send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
-          criteria = parseRequirements(message);
-          
-          const isReorderQuery = /reorder|ordered|bought|purchased|past order|history/.test(message.toLowerCase());
-
-          if (isReorderQuery) {
-            const step1 = {
-              step: "intent_routing",
-              status: "completed",
-              content: "Identified as: Order History Lookup.",
-              durationMs: 0,
-            };
-            steps.push(step1);
-            send({ type: "thought", ...step1 });
-
-            send({ type: "thought", step: "searching_kapruka", status: "running", content: "Retrieving user's order history..." });
+          if (selectedProductIds && Array.isArray(selectedProductIds) && selectedProductIds.length > 0) {
+            send({ type: "thought", step: "intent_routing", status: "completed", content: `Processing ${selectedProductIds.length} selected product(s)...`, durationMs: 0 });
             
-            if (userId && userId !== "guest") {
-              const userWithOrders = await prisma.user.findUnique({
-                where: { id: userId },
-                include: {
-                  orders: {
-                    include: {
-                      items: true
-                    },
-                    orderBy: { createdAt: "desc" }
-                  }
-                }
-              });
+            send({ type: "thought", step: "fetching_product_details", status: "running", content: "Fetching selected product details in parallel..." });
+            send({ type: "tool_call", name: "kapruka_get_product", args: { productIds: selectedProductIds } });
 
-              let orderProducts: KaprukaProduct[] = [];
-              if (userWithOrders && userWithOrders.orders.length > 0) {
-                pastOrdersContext = `\n\n[User's Past Orders] You have access to the user's transaction history. The user (${userWithOrders.name}) has placed the following orders in the past:\n`;
-                for (const order of userWithOrders.orders) {
-                  pastOrdersContext += `- Order Ref: ${order.id}, Date: ${order.createdAt.toISOString().split("T")[0]}, Status: ${order.status}, Total: LKR ${order.totalLKR}\n`;
-                  for (const item of order.items) {
-                    pastOrdersContext += `  * Item: ${item.productName} (ID: ${item.productId}), Qty: ${item.quantity}, Price: LKR ${item.priceLKR}\n`;
-                    orderProducts.push({
-                      id: item.productId,
-                      name: item.productName,
-                      price: item.priceLKR,
-                      currency: "LKR",
-                      inStock: true,
-                      imageUrl: item.imageUrl || undefined,
-                      url: `https://www.kapruka.com/buyonline/${item.productName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}/kid/${item.productId}`
-                    });
-                  }
-                }
-
-                // Deduplicate orderProducts by id
-                const seenIds = new Set<string>();
-                products = orderProducts.filter(p => {
-                  if (seenIds.has(p.id)) return false;
-                  seenIds.add(p.id);
-                  return true;
-                });
-                
-                pastOrdersContext += `\nInstruction to AI: The user wants to reorder a previous purchase. Confirm the details of the item they are referring to (item name, price, order date) and recommend they click the 'Buy Now' button to reorder.`;
-              } else {
-                pastOrdersContext = `\n\n[User's Past Orders] The user (${userWithOrders?.name || "Unknown"}) has no past order history in the system. Explain this politely.`;
-              }
-            } else {
-              pastOrdersContext = `\n\n[User's Past Orders] The user is currently browsing as a Guest and has no associated order history. Politely prompt them to select a user profile from the header to view order history.`;
-            }
+            products = fetchedSelectedProducts;
 
             const step2 = {
-              step: "searching_kapruka",
+              step: "fetching_product_details",
               status: "completed",
-              content: products.length > 0
-                ? `Retrieved ${products.length} product(s) from past order history.`
-                : "No past purchases found.",
+              content: `Retrieved ${products.length} product(s).`,
               durationMs: 0,
             };
             steps.push(step2);
             send({ type: "thought", ...step2 });
-            send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
 
+            pastOrdersContext = `\n\n[Selected Products Context] The user has selected the following products in the chat interface:\n` +
+              products.map((p, idx) =>
+                `- Product ${idx + 1}: ${p.name} (ID: ${p.id})\n` +
+                `  * Price: LKR ${p.price || "N/A"}\n` +
+                `  * Description: ${p.description || "No description available."}\n` +
+                `  * Stock Status: ${p.inStock ? "In Stock" : "Out of Stock"}\n` +
+                `  * URL: ${p.url || "N/A"}`
+              ).join("\n") +
+              `\n\nInstruction to AI: Focus your answer specifically on the selected products listed above. If the user requested a comparison (e.g. they clicked the 'Compare' action or asked to compare), you MUST generate a clean, detailed Markdown comparison table. Compare them by price, key features/description, and stock status. Highlight the best option for the user. Do not perform any other search.`;
           } else {
-            // Standard product search
-            const step1 = {
-              step: "intent_routing",
-              status: "completed",
-              content: `Identified as: Product Search. Keywords: [${criteria.keywords.slice(0, 5).join(", ")}]${criteria.maxPrice ? `. Max price: Rs. ${criteria.maxPrice.toLocaleString()}` : ""}`,
-              durationMs: 0,
-            };
-            steps.push(step1);
-            send({ type: "thought", ...step1 });
+            // Step 1: Parse requirements
+            send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
+            criteria = parseRequirements(message);
+            
+            const isReorderQuery = /reorder|ordered|bought|purchased|past order|history/.test(message.toLowerCase());
 
-            const t2 = Date.now();
-            const searchQuery = criteria.keywords.join(" ").trim() || message.trim();
+            if (isReorderQuery) {
+              const step1 = {
+                step: "intent_routing",
+                status: "completed",
+                content: "Identified as: Order History Lookup.",
+                durationMs: 0,
+              };
+              steps.push(step1);
+              send({ type: "thought", ...step1 });
 
-            if (searchQuery) {
-              send({ type: "thought", step: "searching_kapruka", status: "running", content: `Searching Kapruka live catalog for "${searchQuery}"...` });
-              send({ type: "tool_call", name: "kapruka_search_products", args: { query: searchQuery, max_price: criteria.maxPrice } });
+              send({ type: "thought", step: "searching_kapruka", status: "running", content: "Retrieving user's order history..." });
+              
+              if (userId && userId !== "guest") {
+                const userWithOrders = await prisma.user.findUnique({
+                  where: { id: userId },
+                  include: {
+                    orders: {
+                      include: {
+                        items: true
+                      },
+                      orderBy: { createdAt: "desc" }
+                    }
+                  }
+                });
 
-              products = await pillar1_searchProducts(searchQuery, {
-                maxPriceLKR: criteria.maxPrice,
-                smeFirst: false,
-                limit: 50,
-                currency: currency || "USD",
-              });
-              const dur2 = Date.now() - t2;
+                let orderProducts: KaprukaProduct[] = [];
+                if (userWithOrders && userWithOrders.orders.length > 0) {
+                  pastOrdersContext = `\n\n[User's Past Orders] You have access to the user's transaction history. The user (${userWithOrders.name}) has placed the following orders in the past:\n`;
+                  for (const order of userWithOrders.orders) {
+                    pastOrdersContext += `- Order Ref: ${order.id}, Date: ${order.createdAt.toISOString().split("T")[0]}, Status: ${order.status}, Total: LKR ${order.totalLKR}\n`;
+                    for (const item of order.items) {
+                      pastOrdersContext += `  * Item: ${item.productName} (ID: ${item.productId}), Qty: ${item.quantity}, Price: LKR ${item.priceLKR}\n`;
+                      orderProducts.push({
+                        id: item.productId,
+                        name: item.productName,
+                        price: item.priceLKR,
+                        currency: "LKR",
+                        inStock: true,
+                        imageUrl: item.imageUrl || undefined,
+                        url: `https://www.kapruka.com/buyonline/${item.productName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}/kid/${item.productId}`
+                      });
+                    }
+                  }
+
+                  // Deduplicate orderProducts by id
+                  const seenIds = new Set<string>();
+                  products = orderProducts.filter(p => {
+                    if (seenIds.has(p.id)) return false;
+                    seenIds.add(p.id);
+                    return true;
+                  });
+                  
+                  pastOrdersContext += `\nInstruction to AI: The user wants to reorder a previous purchase. Confirm the details of the item they are referring to (item name, price, order date) and recommend they click the 'Buy Now' button to reorder.`;
+                } else {
+                  pastOrdersContext = `\n\n[User's Past Orders] The user (${userWithOrders?.name || "Unknown"}) has no past order history in the system. Explain this politely.`;
+                }
+              } else {
+                pastOrdersContext = `\n\n[User's Past Orders] The user is currently browsing as a Guest and has no associated order history. Politely prompt them to select a user profile from the header to view order history.`;
+              }
 
               const step2 = {
                 step: "searching_kapruka",
                 status: "completed",
                 content: products.length > 0
-                  ? `Found ${products.length} products from Kapruka live catalog.`
-                  : "No matching products found in the catalog.",
-                durationMs: dur2,
-              };
-              steps.push(step2);
-              send({ type: "thought", ...step2 });
-              send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
-            } else {
-              const step2 = {
-                step: "searching_kapruka",
-                status: "completed",
-                content: "Search query is empty. Showing 0 products.",
+                  ? `Retrieved ${products.length} product(s) from past order history.`
+                  : "No past purchases found.",
                 durationMs: 0,
               };
               steps.push(step2);
               send({ type: "thought", ...step2 });
-              send({ type: "tool_result", toolName: "kapruka_search_products", result: { products: [] } });
+              send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
+
+            } else {
+              // Standard product search
+              const step1 = {
+                step: "intent_routing",
+                status: "completed",
+                content: `Identified as: Product Search. Keywords: [${criteria.keywords.slice(0, 5).join(", ")}]${criteria.maxPrice ? `. Max price: Rs. ${criteria.maxPrice.toLocaleString()}` : ""}`,
+                durationMs: 0,
+              };
+              steps.push(step1);
+              send({ type: "thought", ...step1 });
+
+              const t2 = Date.now();
+              const searchQuery = criteria.keywords.join(" ").trim() || message.trim();
+
+              if (searchQuery) {
+                send({ type: "thought", step: "searching_kapruka", status: "running", content: `Searching Kapruka live catalog for "${searchQuery}"...` });
+                send({ type: "tool_call", name: "kapruka_search_products", args: { query: searchQuery, max_price: criteria.maxPrice } });
+
+                products = await pillar1_searchProducts(searchQuery, {
+                  maxPriceLKR: criteria.maxPrice,
+                  smeFirst: false,
+                  limit: 50,
+                  currency: currency || "USD",
+                });
+                const dur2 = Date.now() - t2;
+
+                const step2 = {
+                  step: "searching_kapruka",
+                  status: "completed",
+                  content: products.length > 0
+                    ? `Found ${products.length} products from Kapruka live catalog.`
+                    : "No matching products found in the catalog.",
+                  durationMs: dur2,
+                };
+                steps.push(step2);
+                send({ type: "thought", ...step2 });
+                send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
+              } else {
+                const step2 = {
+                  step: "searching_kapruka",
+                  status: "completed",
+                  content: "Search query is empty. Showing 0 products.",
+                  durationMs: 0,
+                };
+                steps.push(step2);
+                send({ type: "thought", ...step2 });
+                send({ type: "tool_result", toolName: "kapruka_search_products", result: { products: [] } });
+              }
             }
           }
         }
@@ -459,11 +525,8 @@ User message: "${message.substring(0, 300)}"`;
 
         if (ai) {
           try {
-            // Build chat history for context
-            const chatHistory = await prisma.chatMessage.findMany({
-              where: { sessionId: session.id },
-              orderBy: { createdAt: "asc" },
-            });
+            // Reuse the chat history loaded earlier
+            const chatHistory = chatHistoryForClassifier;
 
             // Augment context with tool results for the LLM
             let contextNote = "";
@@ -578,11 +641,11 @@ User message: "${message.substring(0, 300)}"`;
 
         if (ai) {
           try {
-            const suggestPrompt = `Given this user query and AI response for a Sri Lankan e-commerce platform, generate exactly 3 short follow-up questions (max 8 words each).
+            const suggestPrompt = `Given this user query and AI response for a Sri Lankan e-commerce platform, generate exactly 3 short follow-up queries that the user is most likely to ask next (written from the user's perspective as action/search prompts, NOT questions from the system to the user. Max 8 words each).
 Context pillar: ${intent}
 User: "${message.substring(0, 100)}"
 AI: "${fullResponseText.substring(0, 200)}"
-Respond ONLY as JSON array: ["question1", "question2", "question3"]`;
+Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
 
             const sug = await ai.models.generateContent({
               model: config.gemini.fastModel,
@@ -613,7 +676,7 @@ Respond ONLY as JSON array: ["question1", "question2", "question3"]`;
             role: "assistant",
             content: fullResponseText,
             thoughtProcess: JSON.stringify({ steps, intent, followUpQuestions, groundingSources: groundingSourcesList.length > 0 ? groundingSourcesList : undefined }),
-            products: products.length > 0 ? JSON.stringify(products) : undefined,
+            products: (selectedProductIds && selectedProductIds.length > 0) ? undefined : (products.length > 0 ? JSON.stringify(products) : undefined),
           },
         });
 

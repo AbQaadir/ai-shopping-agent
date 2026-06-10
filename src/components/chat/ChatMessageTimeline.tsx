@@ -132,8 +132,47 @@ export default function ChatTimeline({
 
                 {/* User message */}
                 {isUser ? (
-                  <div className="px-4 py-2.5 bg-slate-100 text-slate-800 rounded-full font-semibold shadow-sm text-sm">
-                    {msg.text}
+                  <div className="flex flex-col items-end gap-2 max-w-full">
+                    {/* Selected products cards */}
+                    {msg.inlineProducts && msg.inlineProducts.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-end select-none">
+                        {msg.inlineProducts.map((prod) => (
+                          <div
+                            key={prod.id}
+                            className="flex items-center gap-2 bg-slate-100 border border-slate-200/50 rounded-xl p-1.5 pr-3 max-w-[200px]"
+                          >
+                            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
+                              {prod.imageUrl ? (
+                                <img
+                                  src={prod.imageUrl}
+                                  alt={prod.name || prod.title || "Product"}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-sm select-none">{prod.image || "🛍️"}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[10px] font-semibold text-slate-700 leading-tight line-clamp-2 truncate-line-clamp break-all">
+                                {prod.name || prod.title || "Product"}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Text bubble */}
+                    <div className={`px-4 py-2.5 font-semibold shadow-xs text-sm ${
+                      msg.inlineProducts && msg.inlineProducts.length > 0
+                        ? "bg-orange-50 border border-orange-100 text-orange-700 rounded-2xl"
+                        : "bg-slate-100 text-slate-800 rounded-full border border-slate-200/20"
+                    }`}>
+                      {msg.text}
+                    </div>
                   </div>
                 ) : (
                   /* AI message */
@@ -198,9 +237,92 @@ export default function ChatTimeline({
                               let isInsideCodeBlock = false;
                               let codeBlockLines: string[] = [];
 
+                              let isInsideTable = false;
+                              let tableRows: string[][] = [];
+
+                              const parseTableRow = (lineStr: string): string[] => {
+                                const parts = lineStr.split("|");
+                                if (parts[0].trim() === "") parts.shift();
+                                if (parts[parts.length - 1]?.trim() === "") parts.pop();
+                                return parts.map(p => p.trim());
+                              };
+
+                              const isSeparatorRow = (cells: string[]): boolean => {
+                                return cells.length > 0 && cells.every(c => /^[:\-\s]+$/.test(c));
+                              };
+
+                              const renderTable = (rows: string[][], key: string | number) => {
+                                if (rows.length === 0) return null;
+                                const headerRow = rows[0];
+                                let bodyRows = rows.slice(1);
+                                let alignments: string[] = [];
+                                
+                                if (bodyRows.length > 0 && isSeparatorRow(bodyRows[0])) {
+                                  const separatorRow = bodyRows[0];
+                                  alignments = separatorRow.map(c => {
+                                    const t = c.trim();
+                                    if (t.startsWith(":") && t.endsWith(":")) return "text-center";
+                                    if (t.endsWith(":")) return "text-right";
+                                    return "text-left";
+                                  });
+                                  bodyRows = bodyRows.slice(1);
+                                }
+                                
+                                return (
+                                  <div key={key} className="overflow-x-auto my-4 border border-slate-200/80 rounded-xl shadow-xs w-full select-text">
+                                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                                      <thead className="bg-slate-50/80 select-none">
+                                        <tr>
+                                          {headerRow.map((cell, idx) => (
+                                            <th
+                                              key={idx}
+                                              className={`px-4 py-2.5 font-extrabold text-slate-700 uppercase tracking-wider border-b border-slate-200/60 ${alignments[idx] || "text-left"}`}
+                                            >
+                                              {renderFormattedText(cell)}
+                                            </th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white divide-y divide-slate-100 font-medium">
+                                        {bodyRows.map((row, rIdx) => (
+                                          <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors even:bg-slate-50/30">
+                                            {row.map((cell, cIdx) => (
+                                              <td
+                                                key={cIdx}
+                                                className={`px-4 py-2.5 text-slate-600 ${alignments[cIdx] || "text-left"}`}
+                                              >
+                                                {renderFormattedText(cell)}
+                                              </td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                );
+                              };
+
                               for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
                                 const line = lines[lineIdx];
                                 const trimmed = line.trim();
+
+                                const isTableRow = trimmed.startsWith("|");
+
+                                if (isInsideTable && !isTableRow) {
+                                  processedElements.push(renderTable(tableRows, `table-${lineIdx}`));
+                                  tableRows = [];
+                                  isInsideTable = false;
+                                }
+
+                                if (isTableRow) {
+                                  if (!isInsideTable) {
+                                    isInsideTable = true;
+                                    tableRows = [parseTableRow(trimmed)];
+                                  } else {
+                                    tableRows.push(parseTableRow(trimmed));
+                                  }
+                                  continue;
+                                }
 
                                 // Fenced Code Blocks
                                 if (trimmed.startsWith("```")) {
@@ -349,6 +471,10 @@ export default function ChatTimeline({
                               }
 
                               // Final flushes at end of message text loop
+                              if (isInsideTable && tableRows.length > 0) {
+                                processedElements.push(renderTable(tableRows, "table-end"));
+                              }
+
                               if (isInsideCodeBlock && codeBlockLines.length > 0) {
                                 processedElements.push(
                                   <pre key="code-block-end" className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
