@@ -5,6 +5,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("id");
+    const userId = searchParams.get("userId");
 
     if (sessionId) {
       // Fetch a specific session with its messages
@@ -23,8 +24,9 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json(session);
     } else {
-      // Fetch all sessions sorted by creation time descending
+      // Fetch sessions filtered by userId if provided, sorted by creation time descending
       const sessions = await prisma.chatSession.findMany({
+        where: userId ? { userId: userId === "guest" ? null : userId } : undefined,
         orderBy: { createdAt: "desc" },
       });
 
@@ -39,12 +41,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { title } = body;
+    const { title, userId } = body;
 
     const newSession = await prisma.chatSession.create({
       data: {
         title: title || "New Sourcing Task",
         status: "active",
+        userId: userId && userId !== "guest" ? userId : null,
       },
     });
 
