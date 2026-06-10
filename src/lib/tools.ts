@@ -45,7 +45,7 @@ export type {
  */
 export async function pillar1_searchProducts(
   query: string,
-  options: { maxPriceLKR?: number; category?: string; smeFirst?: boolean } = {}
+  options: { maxPriceLKR?: number; category?: string; smeFirst?: boolean; limit?: number; currency?: string } = {}
 ): Promise<KaprukaProduct[]> {
   const trimmedQuery = query.trim();
   if (!trimmedQuery) {
@@ -55,6 +55,8 @@ export async function pillar1_searchProducts(
     category: options.category,
     maxPrice: options.maxPriceLKR,
     inStockOnly: false,
+    limit: options.limit || 50,
+    currency: options.currency,
   });
 
   if (!result.success || !result.data) {
@@ -79,7 +81,7 @@ export async function pillar1_searchProducts(
     products.sort((a, b) => (b.isSME ? 1 : 0) - (a.isSME ? 1 : 0));
   }
 
-  return products.slice(0, 12);
+  return products.slice(0, options.limit || 50);
 }
 
 /**
@@ -163,8 +165,11 @@ export async function pillar2_findCity(partialName: string): Promise<KaprukaCity
  * Search products with SME/local artisan prioritisation.
  * Thin wrapper over Pillar 1 search with smeFirst = true.
  */
-export async function pillar3_searchSMEProducts(query: string): Promise<KaprukaProduct[]> {
-  return pillar1_searchProducts(query, { smeFirst: true });
+export async function pillar3_searchSMEProducts(
+  query: string,
+  options: { maxPriceLKR?: number; limit?: number; currency?: string } = {}
+): Promise<KaprukaProduct[]> {
+  return pillar1_searchProducts(query, { smeFirst: true, maxPriceLKR: options.maxPriceLKR, limit: options.limit || 50, currency: options.currency });
 }
 
 // ── Pillar 4 — Cross-Border Import Cost Estimator ─────────────────────────
@@ -599,9 +604,28 @@ export function parseRequirements(message: string): SourcingCriteria {
     criteria.maxPrice = parseInt(priceMatch[1].replace(/,/g, ""), 10);
   }
 
-  const skipWords = ["find", "show", "me", "want", "need", "get", "the", "and", "for", "with", "under", "below"];
-  const words = lowercase.split(/\s+/).filter((w) => w.length > 2 && !skipWords.includes(w));
-  criteria.keywords = words;
+  // Words that we want to explicitly skip (sourcing verbs, stopwords)
+  const skipWords = new Set([
+    "find", "show", "me", "want", "need", "get", "the", "and", "for", "with", 
+    "under", "below", "above", "max", "maximum", "min", "minimum", "less", "than", 
+    "please", "search", "list", "rs", "lkr", "rupee", "rupees", "usd", "dollar", 
+    "dollars", "price", "budget", "cost", "cheap", "expensive", "about", "around"
+  ]);
 
+  // Strip punctuation and split into words
+  const cleanMessage = lowercase.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, " ");
+  const rawWords = cleanMessage.split(/\s+/).filter(Boolean);
+
+  const keywords = rawWords.filter((w) => {
+    // Length must be > 2
+    if (w.length <= 2) return false;
+    // Must not be in skipWords
+    if (skipWords.has(w)) return false;
+    // Must not be purely numeric
+    if (/^\d+$/.test(w)) return false;
+    return true;
+  });
+
+  criteria.keywords = keywords;
   return criteria;
 }

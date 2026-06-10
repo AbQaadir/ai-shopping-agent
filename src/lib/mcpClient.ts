@@ -180,16 +180,19 @@ export async function searchProducts(
     maxPrice?: number;
     inStockOnly?: boolean;
     page?: number;
+    limit?: number;
+    currency?: string;
   } = {}
 ): Promise<MCPToolResult<KaprukaProduct[]>> {
   const params: Record<string, unknown> = {
     q: query,
     response_format: "json",
-    limit: 12,
+    limit: options.limit || 12,
   };
   if (options.category) params.category = options.category;
   if (options.maxPrice !== undefined) params.max_price = options.maxPrice;
   if (options.inStockOnly !== undefined) params.in_stock_only = options.inStockOnly;
+  if (options.currency) params.currency = options.currency;
 
   return safeCallMCPTool("kapruka_search_products", { params }, (text) => {
     interface RawProduct {

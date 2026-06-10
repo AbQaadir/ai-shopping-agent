@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { sessionId, message, userId } = body;
+    const { sessionId, message, userId, country, currency } = body;
 
     if (!sessionId || !message) {
       return new Response(JSON.stringify({ error: "Missing sessionId or message" }), {
@@ -142,6 +142,7 @@ User message: "${message.substring(0, 300)}"`;
         let fullResponseText = "";
         let groundingSourcesList: Array<{ title: string; uri: string }> = [];
         let pastOrdersContext = "";
+        let criteria: any = null;
 
         // ── Pillar 1 & 3: Product Search ───────────────────────────────────
         if (intent === "product" || intent === "service") {
@@ -151,7 +152,7 @@ User message: "${message.substring(0, 300)}"`;
         if (intent === "product") {
           // Step 1: Parse requirements
           send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
-          const criteria = parseRequirements(message);
+          criteria = parseRequirements(message);
           
           const isReorderQuery = /reorder|ordered|bought|purchased|past order|history/.test(message.toLowerCase());
 
@@ -248,6 +249,8 @@ User message: "${message.substring(0, 300)}"`;
               products = await pillar1_searchProducts(searchQuery, {
                 maxPriceLKR: criteria.maxPrice,
                 smeFirst: false,
+                limit: 50,
+                currency: currency || "USD",
               });
               const dur2 = Date.now() - t2;
 
@@ -283,7 +286,11 @@ User message: "${message.substring(0, 300)}"`;
           if (smeQuery) {
             send({ type: "thought", step: "sme_filter", status: "running", content: "Highlighting local Sri Lankan SME products..." });
             const t3 = Date.now();
-            const smeProducts = await pillar3_searchSMEProducts(message);
+            const smeProducts = await pillar3_searchSMEProducts(message, {
+              maxPriceLKR: criteria.maxPrice,
+              limit: 50,
+              currency: currency || "USD",
+            });
             const dur3 = Date.now() - t3;
 
             if (smeProducts.length > 0) {

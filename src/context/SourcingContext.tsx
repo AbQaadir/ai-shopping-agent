@@ -33,6 +33,10 @@ interface SourcingContextType {
   handleSendMessage: (text: string, files: File[]) => Promise<void>;
   handleBuyProduct: (product: InlineProduct) => void;
   handleSuggestionClick: (suggestion?: string) => void;
+  country: string;
+  setCountry: (country: string) => void;
+  currency: string;
+  setCurrency: (currency: string) => void;
 }
 
 const SourcingContext = createContext<SourcingContextType | undefined>(undefined);
@@ -47,6 +51,28 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeUserId, setActiveUserId] = useState<string>("e17d0577-c93d-4c3e-9080-60b6bbfdf071"); // Kamal Silva default
+  const [country, setCountry] = useState("LK");
+  const [currency, setCurrency] = useState("USD");
+
+  useEffect(() => {
+    const detectLocation = async () => {
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.country_code) {
+            setCountry(data.country_code);
+          }
+          if (data.currency) {
+            setCurrency(data.currency);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not auto-detect location/currency by IP:", err);
+      }
+    };
+    detectLocation();
+  }, []);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const router = useRouter();
@@ -298,7 +324,13 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: currentSessionId, message: text || "Uploaded design request", userId: activeUserId }),
+        body: JSON.stringify({
+          sessionId: currentSessionId,
+          message: text || "Uploaded design request",
+          userId: activeUserId,
+          country,
+          currency
+        }),
         signal: abortController.signal
       });
 
@@ -544,7 +576,11 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         handleStopGeneration,
         handleSendMessage,
         handleBuyProduct,
-        handleSuggestionClick
+        handleSuggestionClick,
+        country,
+        setCountry,
+        currency,
+        setCurrency
       }}
     >
       {children}

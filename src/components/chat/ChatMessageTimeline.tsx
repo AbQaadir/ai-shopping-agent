@@ -16,7 +16,6 @@ interface ChatTimelineProps {
   isGenerating: boolean;
   activeQueryText?: string;
   onSampleClick?: (sampleText: string) => void;
-  onViewDetailsClick?: (products?: InlineProduct[]) => void;
   onViewMoreProducts?: (products: InlineProduct[]) => void;
   selectedProductIds?: string[];
   onToggleSelectProduct?: (product: InlineProduct) => void;
@@ -62,7 +61,6 @@ export default function ChatTimeline({
   isGenerating,
   activeQueryText,
   onSampleClick,
-  onViewDetailsClick,
   onViewMoreProducts,
   selectedProductIds = [],
   onToggleSelectProduct,
@@ -167,10 +165,6 @@ export default function ChatTimeline({
                             isGenerating={isGenerating}
                             hasText={!!msg.text}
                             inlineProducts={msg.inlineProducts}
-                            onViewDetails={() => {
-                              setClosedMessages(prev => ({ ...prev, [msg.id]: false }));
-                              onViewDetailsClick?.(msg.inlineProducts);
-                            }}
                             activeQueryText={activeQueryText}
                           />
                         )}
@@ -255,7 +249,6 @@ export default function ChatTimeline({
                             <ProductGrid
                               products={msg.inlineProducts}
                               header={msg.inlineProductsHeader}
-                              onViewMore={() => onViewMoreProducts?.(msg.inlineProducts || [])}
                               selectedIds={selectedProductIds}
                               onToggle={onToggleSelectProduct}
                               onBuy={onBuyProduct}

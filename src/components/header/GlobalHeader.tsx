@@ -16,7 +16,7 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
   const [showLocationPopover, setShowLocationPopover] = useState(false);
   const [showLanguagePopover, setShowLanguagePopover] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const { activeUserId, handleSwitchUser } = useSourcing();
+  const { activeUserId, handleSwitchUser, country, currency } = useSourcing();
 
   return (
     <header className="w-full bg-white/70 backdrop-blur-md border-b border-slate-100 sticky top-0 z-10">
@@ -72,8 +72,8 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
             <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors py-2">
               <span className="text-xs">Deliver to:</span>
               <div className="flex items-center gap-1">
-                <span className="text-[11px] font-bold px-1 py-0.2 bg-slate-100 rounded text-slate-700 border border-slate-200">
-                  LK
+                <span className="text-[11px] font-bold px-1 py-0.2 bg-slate-100 rounded text-slate-700 border border-slate-200 uppercase">
+                  {country}
                 </span>
               </div>
             </div>
@@ -92,7 +92,7 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
           >
             <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors py-2">
               <Globe size={16} className="text-slate-500" />
-              <span>English-USD</span>
+              <span>English-{currency}</span>
             </div>
 
             {/* Popover Card matching Screenshot */}

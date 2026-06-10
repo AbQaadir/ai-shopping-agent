@@ -15,7 +15,6 @@ interface ChatInputAreaProps {
   onStopGeneration?: () => void;
   selectedProducts: InlineProduct[];
   onToggleSelectProduct: (product: InlineProduct) => void;
-  onShowDetails: () => void;
 }
 
 export default function ChatInputArea({
@@ -29,7 +28,6 @@ export default function ChatInputArea({
   onStopGeneration,
   selectedProducts,
   onToggleSelectProduct,
-  onShowDetails,
 }: ChatInputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,7 +60,7 @@ export default function ChatInputArea({
               <div className="flex flex-wrap gap-1.5">
                 {selectedProducts.map((prod) => (
                   <div
-                    key={prod.id}
+                     key={prod.id}
                     className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
                   >
                     <span className="text-sm select-none">{prod.image}</span>
@@ -86,12 +84,6 @@ export default function ChatInputArea({
                   className="px-2.5 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded transition-all cursor-pointer shadow-sm"
                 >
                   Compare →
-                </button>
-                <button
-                  onClick={onShowDetails}
-                  className="px-2.5 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#402970] rounded transition-all cursor-pointer shadow-sm"
-                >
-                  Get quotes →
                 </button>
               </div>
             </div>

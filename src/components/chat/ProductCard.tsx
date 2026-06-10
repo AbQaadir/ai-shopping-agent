@@ -12,6 +12,26 @@ interface ProductCardProps {
   viewMode?: "grid" | "list";
 }
 
+function formatCurrency(price: number, currencyCode?: string): string {
+  const code = currencyCode?.toUpperCase() || "LKR";
+  if (code === "USD") {
+    return `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (code === "EUR") {
+    return `€${price.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (code === "GBP") {
+    return `£${price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (code === "AUD") {
+    return `A$${price.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (code === "CAD") {
+    return `C$${price.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `Rs. ${price.toLocaleString("en-LK")}`;
+}
+
 export default function ProductCard({
   product,
   isSelected,
@@ -21,14 +41,14 @@ export default function ProductCard({
 }: ProductCardProps) {
   const displayName = product.name || product.title || "Product";
   const displayPrice = product.price
-    ? `Rs. ${product.price.toLocaleString("en-LK")}`
+    ? formatCurrency(product.price, product.currency)
     : product.priceDisplay || "N/A";
   const hasDiscount =
     product.originalPrice != null &&
     product.price != null &&
     product.originalPrice > product.price;
   const originalPriceDisplay = hasDiscount
-    ? `Rs. ${product.originalPrice!.toLocaleString("en-LK")}`
+    ? formatCurrency(product.originalPrice!, product.currency)
     : null;
   const outOfStock = product.inStock === false;
 

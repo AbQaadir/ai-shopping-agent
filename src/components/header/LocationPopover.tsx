@@ -1,12 +1,30 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useSourcing } from "@/context/SourcingContext";
 
 interface LocationPopoverProps {
   onClose?: () => void;
 }
 
+const COUNTRIES = [
+  { code: "LK", name: "Sri Lanka", flag: "🇱🇰" },
+  { code: "US", name: "United States", flag: "🇺🇸" },
+  { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
+  { code: "CA", name: "Canada", flag: "🇨🇦" },
+  { code: "AU", name: "Australia", flag: "🇦🇺" },
+];
+
 export default function LocationPopover({ onClose }: LocationPopoverProps) {
+  const { country, setCountry } = useSourcing();
+  const [selectedCountry, setSelectedCountry] = useState(country.toUpperCase());
+
+  const handleSave = () => {
+    setCountry(selectedCountry);
+    onClose?.();
+  };
+
   return (
     <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-[320px] bg-white border border-slate-100 rounded-2xl shadow-xl p-5 z-50 animate-fadeIn text-left">
       {/* Arrow indicator pointing up */}
@@ -32,13 +50,23 @@ export default function LocationPopover({ onClose }: LocationPopoverProps) {
         </div>
 
         {/* Dropdown Input */}
-        <div className="relative">
-          <div className="w-full flex items-center justify-between px-3 py-2 border border-slate-200 rounded-lg bg-slate-50/50 text-xs text-slate-700 font-bold hover:border-slate-300 transition-all cursor-pointer">
-            <div className="flex items-center gap-2">
-              <span>🇱🇰</span>
-              <span>Sri Lanka</span>
+        <div className="space-y-1">
+          <label className="text-slate-500 text-[11px] font-bold">Country</label>
+          <div className="flex items-center justify-between border border-slate-200 rounded-lg bg-slate-50/50 hover:border-slate-300 transition-all focus-within:border-[#402970] relative">
+            <select
+              value={selectedCountry}
+              onChange={(e) => setSelectedCountry(e.target.value)}
+              className="w-full appearance-none px-3 py-2 bg-transparent text-xs text-slate-700 font-bold outline-none cursor-pointer"
+            >
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.flag} {c.name} ({c.code})
+                </option>
+              ))}
+            </select>
+            <div className="px-3 flex items-center justify-center pointer-events-none">
+              <ChevronDown size={14} className="text-slate-400" />
             </div>
-            <ChevronDown size={14} className="text-slate-400" />
           </div>
         </div>
 
@@ -51,7 +79,7 @@ export default function LocationPopover({ onClose }: LocationPopoverProps) {
 
         {/* Save Button */}
         <button 
-          onClick={onClose}
+          onClick={handleSave}
           className="w-full bg-[#402970] hover:bg-[#33205a] active:scale-98 text-white text-xs font-bold py-2.5 rounded-full transition-all duration-200 shadow-md shadow-purple-500/10 cursor-pointer"
         >
           Save
