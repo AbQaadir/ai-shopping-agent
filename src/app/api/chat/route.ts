@@ -159,7 +159,7 @@ User message: "${message.substring(0, 300)}"`;
             const step1 = {
               step: "intent_routing",
               status: "completed",
-              content: `Identified as: Order History Lookup. User ID: ${userId || "guest"}`,
+              content: "Identified as: Order History Lookup.",
               durationMs: 0,
             };
             steps.push(step1);
