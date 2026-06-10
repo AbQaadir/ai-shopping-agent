@@ -1,12 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useSourcing } from "@/context/SourcingContext";
 
 interface LanguagePopoverProps {
   onClose?: () => void;
 }
 
 export default function LanguagePopover({ onClose }: LanguagePopoverProps) {
+  const { currency, setCurrency } = useSourcing();
+  const [selectedCurrency, setSelectedCurrency] = useState(currency.toUpperCase());
+
+  const handleSave = () => {
+    setCurrency(selectedCurrency);
+    onClose?.();
+  };
+
   return (
     <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-[320px] bg-white border border-slate-100 rounded-2xl shadow-xl p-5 z-50 animate-fadeIn text-left">
       {/* Arrow indicator pointing up */}
@@ -39,7 +49,11 @@ export default function LanguagePopover({ onClose }: LanguagePopoverProps) {
         <div className="space-y-1.5">
           <label className="text-slate-700 text-xs font-semibold">Currency</label>
           <div className="flex items-center justify-between border border-slate-200 rounded-lg bg-white hover:border-slate-300 transition-all focus-within:border-[#402970] relative">
-            <select className="w-full appearance-none px-3 py-2 bg-transparent text-xs text-slate-700 font-medium outline-none cursor-pointer">
+            <select
+              value={selectedCurrency}
+              onChange={(e) => setSelectedCurrency(e.target.value)}
+              className="w-full appearance-none px-3 py-2 bg-transparent text-xs text-slate-700 font-medium outline-none cursor-pointer"
+            >
               <option value="USD">USD - US Dollar</option>
               <option value="EUR">EUR - Euro</option>
               <option value="GBP">GBP - British Pound</option>
@@ -54,7 +68,7 @@ export default function LanguagePopover({ onClose }: LanguagePopoverProps) {
 
         {/* Save Button */}
         <button 
-          onClick={onClose}
+          onClick={handleSave}
           className="w-full bg-[#402970] hover:bg-[#33205a] active:scale-98 text-white text-xs font-bold py-2.5 rounded-full transition-all duration-200 shadow-md shadow-purple-500/10 cursor-pointer"
         >
           Save

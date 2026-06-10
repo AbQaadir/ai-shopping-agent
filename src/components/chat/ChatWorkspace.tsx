@@ -7,10 +7,10 @@ import {
   Share2
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSourcing } from "@/context/SourcingContext";
 import ChatInputArea from "./ChatInputArea";
 import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductCatalogModal from "./ProductCatalogModal";
-import ProductDetailsDrawer, { ProductDetail } from "./ProductDetailsDrawer";
 
 interface ChatWorkspaceProps {
   activeHistoryId?: string;
@@ -33,34 +33,22 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
+  const { selectedProducts, setSelectedProducts } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [showDetails, setShowDetails] = useState(false);
-  const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
-  const [detailProducts, setDetailProducts] = useState<InlineProduct[]>([]);
   const [isCopied, setIsCopied] = useState(false);
 
   // Reset internal states when activeHistoryId changes to avoid unmounting ChatWorkspace
   useEffect(() => {
     setInputText("");
     setAttachedFiles([]);
-    setShowDetails(false);
     setSelectedProducts([]);
-    setDetailProducts([]);
-  }, [activeHistoryId]);
+  }, [activeHistoryId, setSelectedProducts]);
+
   // Product search modal
   const [showProductModal, setShowProductModal] = useState(false);
   const [modalProducts, setModalProducts] = useState<InlineProduct[]>([]);
   const [modalSearchQuery, setModalSearchQuery] = useState("");
-
-  const handleViewDetails = (products?: InlineProduct[]) => {
-    if (products && products.length > 0) {
-      setDetailProducts(products);
-    } else {
-      setDetailProducts([]);
-    }
-    setShowDetails(true);
-  };
 
   const handleViewMoreProducts = (products: InlineProduct[]) => {
     setModalProducts(products);
@@ -93,9 +81,10 @@ export default function ChatWorkspace({
     setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
-    if (inputText.trim() || attachedFiles.length > 0) {
-      onSend(inputText, attachedFiles);
+  const handleSubmit = (overrideText?: string) => {
+    const textToSubmit = overrideText !== undefined ? overrideText : inputText;
+    if (textToSubmit.trim() || attachedFiles.length > 0) {
+      onSend(textToSubmit, attachedFiles);
       setInputText("");
       setAttachedFiles([]);
     }
@@ -142,20 +131,17 @@ export default function ChatWorkspace({
         </button>
       </div>
 
-      {/* ── 2. Body: split-screen chat + products details panel ── */}
+      {/* ── 2. Body: split-screen chat ── */}
       <div className="flex-1 min-h-0 relative flex flex-row">
 
         {/* Left Chat Pane */}
-        <div className={`flex-1 overflow-y-auto min-h-0 flex flex-col relative ${
-          showDetails ? "md:w-1/2 md:border-r border-slate-100" : "w-full"
-        }`}>
+        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col relative w-full">
           {/* Messages */}
           <ChatMessageTimeline
             messages={messages}
             isGenerating={isGenerating}
             activeQueryText={activeQueryText}
             onSampleClick={handleSampleClick}
-            onViewDetailsClick={handleViewDetails}
             onViewMoreProducts={handleViewMoreProducts}
             selectedProductIds={selectedProducts.map(p => p.id)}
             onToggleSelectProduct={handleToggleSelectProduct}
@@ -165,28 +151,6 @@ export default function ChatWorkspace({
           {/* Bottom spacer so last message clears the gradient + input */}
           <div className="h-36 shrink-0" />
         </div>
-
-        {/* Mobile backdrop for details panel */}
-        {showDetails && (
-          <div
-            className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 transition-opacity duration-300"
-            onClick={() => setShowDetails(false)}
-          />
-        )}
-
-        {/* Right Split Panel Details Drawer */}
-        {showDetails && (
-          <div className="fixed inset-x-0 bottom-0 h-[80vh] md:static md:w-1/2 md:h-full bg-white border-t md:border-t-0 border-slate-200/80 md:border-l border-slate-100 rounded-t-[30px] md:rounded-none shadow-2xl md:shadow-none z-40 md:z-10 flex flex-col overflow-hidden animate-fadeIn">
-            {/* Drag indicator/handle on mobile */}
-            <div className="md:hidden w-full flex justify-center py-3.5 shrink-0 cursor-pointer select-none" onClick={() => setShowDetails(false)}>
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
-            </div>
-            <ProductDetailsDrawer
-              onClose={() => setShowDetails(false)}
-              products={detailProducts as unknown as ProductDetail[]}
-            />
-          </div>
-        )}
 
         {/* ── Gradient fade — messages dissolve upward into white ── */}
         <div
@@ -206,7 +170,6 @@ export default function ChatWorkspace({
           onStopGeneration={onStopGeneration}
           selectedProducts={selectedProducts}
           onToggleSelectProduct={handleToggleSelectProduct}
-          onShowDetails={() => setShowDetails(true)}
         />
         {/* ── end pinned input ── */}
 

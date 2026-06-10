@@ -22,6 +22,8 @@ interface SourcingContextType {
   history: HistoryItem[];
   setHistory: React.Dispatch<React.SetStateAction<HistoryItem[]>>;
 
+  activeUserId: string;
+  handleSwitchUser: (userId: string) => void;
   fetchHistory: () => Promise<void>;
   fetchSessionAndHydrate: (id: string) => Promise<void>;
   handleResetLocal: () => void;
@@ -31,6 +33,12 @@ interface SourcingContextType {
   handleSendMessage: (text: string, files: File[]) => Promise<void>;
   handleBuyProduct: (product: InlineProduct) => void;
   handleSuggestionClick: (suggestion?: string) => void;
+  country: string;
+  setCountry: (country: string) => void;
+  currency: string;
+  setCurrency: (currency: string) => void;
+  selectedProducts: InlineProduct[];
+  setSelectedProducts: React.Dispatch<React.SetStateAction<InlineProduct[]>>;
 }
 
 const SourcingContext = createContext<SourcingContextType | undefined>(undefined);
@@ -44,13 +52,37 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [activeUserId, setActiveUserId] = useState<string>("e17d0577-c93d-4c3e-9080-60b6bbfdf071"); // Kamal Silva default
+  const [country, setCountry] = useState("LK");
+  const [currency, setCurrency] = useState("USD");
+  const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
+
+  useEffect(() => {
+    const detectLocation = async () => {
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.country_code) {
+            setCountry(data.country_code);
+          }
+          if (data.currency) {
+            setCurrency(data.currency);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not auto-detect location/currency by IP:", err);
+      }
+    };
+    detectLocation();
+  }, []);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const router = useRouter();
 
   const fetchHistory = useCallback(async () => {
     try {
-      const res = await fetch("/api/session");
+      const res = await fetch(`/api/session?userId=${activeUserId}`);
       if (res.ok) {
         const data = await res.json();
         const items = data.map((session: { id: string; title: string; createdAt: string }) => ({
@@ -65,6 +97,21 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to load history sessions:", err);
     }
+  }, [activeUserId]);
+
+  const handleSwitchUser = useCallback((userId: string) => {
+    setActiveUserId(userId);
+    setIsChatting(false);
+    setMessages([]);
+    setActiveHistoryId(undefined);
+    setActiveQueryText("");
+    setIsGenerating(false);
+    setSelectedProducts([]);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    window.history.pushState(null, "", "/");
   }, []);
 
   const fetchSessionAndHydrate = useCallback(async (id: string) => {
@@ -80,7 +127,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const res = await fetch(`/api/session?id=${id}`);
+      const res = await fetch(`/api/session?id=${id}&userId=${activeUserId}`);
       if (res.ok) {
         const sessionData = await res.json();
         const mappedMessages: Message[] = sessionData.messages.map((m: { id: string; role: string; content: string; createdAt: string; products?: unknown; thoughtProcess?: unknown }) => {
@@ -172,6 +219,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setActiveHistoryId(undefined);
     setActiveQueryText("");
     setIsGenerating(false);
+    setSelectedProducts([]);
   }, []);
 
   // Synchronize state when browser Back/Forward navigation occurs
@@ -198,6 +246,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   const handleReset = () => {
     setIsMobileSidebarOpen(false);
+    setSelectedProducts([]);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -209,6 +258,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   const handleSelectHistory = (id: string) => {
     setIsMobileSidebarOpen(false);
+    setSelectedProducts([]);
     // Update path without unmounting the dashboard component tree
     window.history.pushState(null, "", `/c/${id}`);
     setActiveHistoryId(id);
@@ -240,8 +290,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       sender: "user",
       text: text || `Attached ${files.length} document(s) for review`,
       timestamp,
-      status: "sending"
+      status: "sending",
+      inlineProducts: selectedProducts.length > 0 ? [...selectedProducts] : undefined
     };
+
+    const selectedProductIds = selectedProducts.map(p => p.id);
+    setSelectedProducts([]);
 
     const updatedMessages = [...messages, newUserMessage];
     setMessages(updatedMessages);
@@ -255,7 +309,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         const sessionRes = await fetch("/api/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: text || "New Sourcing Task" })
+          body: JSON.stringify({ title: text || "New Sourcing Task", userId: activeUserId })
         });
         if (sessionRes.ok) {
           const newSession = await sessionRes.json();
@@ -281,7 +335,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: currentSessionId, message: text || "Uploaded design request" }),
+        body: JSON.stringify({
+          sessionId: currentSessionId,
+          message: text || "Uploaded design request",
+          userId: activeUserId,
+          country,
+          currency,
+          selectedProductIds
+        }),
         signal: abortController.signal
       });
 
@@ -516,6 +577,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         setMessages,
         history,
         setHistory,
+        activeUserId,
+        handleSwitchUser,
 
         fetchHistory,
         fetchSessionAndHydrate,
@@ -525,7 +588,13 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         handleStopGeneration,
         handleSendMessage,
         handleBuyProduct,
-        handleSuggestionClick
+        handleSuggestionClick,
+        country,
+        setCountry,
+        currency,
+        setCurrency,
+        selectedProducts,
+        setSelectedProducts
       }}
     >
       {children}

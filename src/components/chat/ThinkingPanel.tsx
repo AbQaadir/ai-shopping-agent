@@ -17,7 +17,6 @@ interface ThinkingPanelProps {
   isGenerating: boolean;
   hasText: boolean;
   inlineProducts?: InlineProduct[];
-  onViewDetails?: () => void;
   activeQueryText?: string;
 }
 
@@ -49,11 +48,6 @@ function getToolBadge(toolName: string): string | null {
   return toolMap[toolName] || null;
 }
 
-// Checks if the tool has a product details drawer
-function hasDetailView(badge: string | null): boolean {
-  return badge === "Product search" || badge === "SME filtering";
-}
-
 // Extracts quote strings or keywords array from content text
 function extractQueryFromContent(content: string, fallback: string): string {
   const match = content.match(/"([^"]+)"/);
@@ -67,13 +61,32 @@ function extractQueryFromContent(content: string, fallback: string): string {
   return fallback;
 }
 
+// Helper to extract clean query string or value from tool call arguments
+function getToolCallQuery(toolName: string, args: any): string | null {
+  if (!args) return null;
+  const params = args.params || args;
+  
+  if (toolName === "kapruka_search_products" || toolName === "kapruka_search_products_sme") {
+    return params.query || params.q || null;
+  }
+  if (toolName === "kapruka_check_delivery" || toolName === "kapruka_list_delivery_cities" || toolName === "kapruka_service_search") {
+    return params.city || params.query || null;
+  }
+  if (toolName === "kapruka_track_order") {
+    return params.order_id || params.order_number || null;
+  }
+  if (toolName === "kapruka_import_estimate") {
+    return params.url || null;
+  }
+  return null;
+}
+
 export default function ThinkingPanel({
   steps,
   activeToolCall,
   isGenerating,
   hasText,
   inlineProducts,
-  onViewDetails,
   activeQueryText = "",
 }: ThinkingPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(true);
@@ -167,18 +180,12 @@ export default function ThinkingPanel({
                           <Box size={13} className="text-[#402970] shrink-0" />
                           <span>{badge}</span>
                         </div>
-                        <span className="text-slate-800 font-semibold truncate pl-1">
-                          {query}
-                        </span>
+                        {query && (
+                          <span className="text-[11px] text-slate-400 font-normal truncate max-w-[200px] sm:max-w-[350px]">
+                            Query: <span className="font-semibold text-slate-600">&ldquo;{query}&rdquo;</span>
+                          </span>
+                        )}
                       </div>
-                      {hasDetailView(badge) && (
-                        <button
-                          onClick={onViewDetails}
-                          className="text-slate-600 hover:text-slate-900 font-bold text-[11px] underline decoration-slate-300 hover:decoration-slate-500 cursor-pointer whitespace-nowrap active:scale-95 pr-3 transition-colors select-none"
-                        >
-                          View details
-                        </button>
-                      )}
                     </div>
                   )}
                 </div>
@@ -191,27 +198,25 @@ export default function ThinkingPanel({
                 <p className="text-slate-600 text-[13px] font-medium leading-relaxed pr-2">
                   Running task {getToolBadge(activeToolCall.name) || "execution"}...
                 </p>
-                {getToolBadge(activeToolCall.name) && (
-                  <div className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-4 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)]">
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-600 truncate min-w-0">
-                      <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 shadow-xs shrink-0 select-none">
-                        <Box size={13} className="text-[#402970] shrink-0" />
-                        <span>{getToolBadge(activeToolCall.name)}</span>
+                {getToolBadge(activeToolCall.name) && (() => {
+                  const badge = getToolBadge(activeToolCall.name);
+                  const toolQuery = getToolCallQuery(activeToolCall.name, activeToolCall.args);
+                  return (
+                    <div className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-4 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)]">
+                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-600 truncate min-w-0">
+                        <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 shadow-xs shrink-0 select-none">
+                          <Box size={13} className="text-[#402970] shrink-0" />
+                          <span>{badge}</span>
+                        </div>
+                        {toolQuery && (
+                          <span className="text-[11px] text-slate-400 font-normal truncate max-w-[200px] sm:max-w-[350px]">
+                            Query: <span className="font-semibold text-slate-600">&ldquo;{toolQuery}&rdquo;</span>
+                          </span>
+                        )}
                       </div>
-                      <span className="text-slate-800 font-semibold truncate pl-1">
-                        {(activeToolCall.args as any)?.query || activeQueryText}
-                      </span>
                     </div>
-                    {hasDetailView(getToolBadge(activeToolCall.name)) && (
-                      <button
-                        onClick={onViewDetails}
-                        className="text-slate-600 hover:text-slate-900 font-bold text-[11px] underline decoration-slate-300 hover:decoration-slate-500 cursor-pointer whitespace-nowrap active:scale-95 pr-3 transition-colors select-none"
-                      >
-                        View details
-                      </button>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 

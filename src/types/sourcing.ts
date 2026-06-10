@@ -11,6 +11,7 @@ export interface InlineProduct {
   description?: string;
   url?: string;
   isSME?: boolean;
+  currency?: string;
   // legacy fields
   moq?: string;
   supplier?: string;

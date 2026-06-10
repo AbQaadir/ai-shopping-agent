@@ -16,7 +16,6 @@ interface ChatTimelineProps {
   isGenerating: boolean;
   activeQueryText?: string;
   onSampleClick?: (sampleText: string) => void;
-  onViewDetailsClick?: (products?: InlineProduct[]) => void;
   onViewMoreProducts?: (products: InlineProduct[]) => void;
   selectedProductIds?: string[];
   onToggleSelectProduct?: (product: InlineProduct) => void;
@@ -31,12 +30,21 @@ function formatTime(date: Date) {
 
 function renderFormattedText(text: string) {
   if (!text) return null;
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\[[^\]]+\]\([^)]+\))/g);
+  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
   return parts.map((part, idx) => {
     if (part.startsWith("**") && part.endsWith("**"))
       return <strong key={idx} className="font-extrabold text-slate-800">{part.slice(2, -2)}</strong>;
     if (part.startsWith("*") && part.endsWith("*"))
       return <strong key={idx} className="font-bold text-slate-800">{part.slice(1, -1)}</strong>;
+    if (part.startsWith("`") && part.endsWith("`"))
+      return (
+        <code
+          key={idx}
+          className="bg-slate-100 text-[#402970] font-mono text-[12px] px-1.5 py-0.5 rounded border border-slate-200/60 font-semibold"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
     if (part.startsWith("[") && part.includes("](")) {
       const match = part.match(/\[([^\]]+)\]\(([^)]+)\)/);
       if (match) {
@@ -62,7 +70,6 @@ export default function ChatTimeline({
   isGenerating,
   activeQueryText,
   onSampleClick,
-  onViewDetailsClick,
   onViewMoreProducts,
   selectedProductIds = [],
   onToggleSelectProduct,
@@ -90,25 +97,12 @@ export default function ChatTimeline({
             {icon}
             <span className="text-[14px] font-bold text-slate-800">{title}</span>
           </div>
-          {/* Right side: Mock layout switcher and Close button */}
+          {/* Right side: Close button */}
           <div className="flex items-center gap-3">
-            {/* Grid/List switch icons */}
-            <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50">
-              <button className="p-1 text-slate-600 bg-white rounded-md shadow-xs cursor-pointer">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
-              </button>
-              <button className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            </div>
             {/* Close button */}
             <button
               onClick={() => setClosedMessages(prev => ({ ...prev, [msgId]: true }))}
-              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              className="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
             >
               <X size={16} />
             </button>
@@ -138,8 +132,47 @@ export default function ChatTimeline({
 
                 {/* User message */}
                 {isUser ? (
-                  <div className="px-4 py-2.5 bg-slate-100 text-slate-800 rounded-full font-semibold shadow-sm text-sm">
-                    {msg.text}
+                  <div className="flex flex-col items-end gap-2 max-w-full">
+                    {/* Selected products cards */}
+                    {msg.inlineProducts && msg.inlineProducts.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-end select-none">
+                        {msg.inlineProducts.map((prod) => (
+                          <div
+                            key={prod.id}
+                            className="flex items-center gap-2 bg-slate-100 border border-slate-200/50 rounded-xl p-1.5 pr-3 max-w-[200px]"
+                          >
+                            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
+                              {prod.imageUrl ? (
+                                <img
+                                  src={prod.imageUrl}
+                                  alt={prod.name || prod.title || "Product"}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-sm select-none">{prod.image || "🛍️"}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[10px] font-semibold text-slate-700 leading-tight line-clamp-2 truncate-line-clamp break-all">
+                                {prod.name || prod.title || "Product"}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Text bubble */}
+                    <div className={`px-4 py-2.5 font-semibold shadow-xs text-sm ${
+                      msg.inlineProducts && msg.inlineProducts.length > 0
+                        ? "bg-orange-50 border border-orange-100 text-orange-700 rounded-2xl"
+                        : "bg-slate-100 text-slate-800 rounded-full border border-slate-200/20"
+                    }`}>
+                      {msg.text}
+                    </div>
                   </div>
                 ) : (
                   /* AI message */
@@ -173,17 +206,13 @@ export default function ChatTimeline({
                       <div className="space-y-4">
 
                         {/* ── AI Thinking Panel ── */}
-                        {((msg.thinkingSteps && msg.thinkingSteps.length > 0) || msg.activeToolCall || isGenerating) && (
+                        {((msg.thinkingSteps && msg.thinkingSteps.length > 0) || (isLastAIResponse && (msg.activeToolCall || isGenerating))) && (
                           <ThinkingPanel
                             steps={msg.thinkingSteps || []}
                             activeToolCall={msg.activeToolCall}
-                            isGenerating={isGenerating}
+                            isGenerating={isLastAIResponse}
                             hasText={!!msg.text}
                             inlineProducts={msg.inlineProducts}
-                            onViewDetails={() => {
-                              setClosedMessages(prev => ({ ...prev, [msg.id]: false }));
-                              onViewDetailsClick?.(msg.inlineProducts);
-                            }}
                             activeQueryText={activeQueryText}
                           />
                         )}
@@ -202,19 +231,202 @@ export default function ChatTimeline({
                                 }
                               }
 
-                              return lines.map((line, lineIdx) => {
-                                const isLastLine = lineIdx === lastNonEmptyIdx;
+                              const processedElements: React.ReactNode[] = [];
+                              let sourceElements: React.ReactNode[] = [];
+                              let isInsideSources = false;
+                              let isInsideCodeBlock = false;
+                              let codeBlockLines: string[] = [];
+
+                              let isInsideTable = false;
+                              let tableRows: string[][] = [];
+
+                              const parseTableRow = (lineStr: string): string[] => {
+                                const parts = lineStr.split("|");
+                                if (parts[0].trim() === "") parts.shift();
+                                if (parts[parts.length - 1]?.trim() === "") parts.pop();
+                                return parts.map(p => p.trim());
+                              };
+
+                              const isSeparatorRow = (cells: string[]): boolean => {
+                                return cells.length > 0 && cells.every(c => /^[:\-\s]+$/.test(c));
+                              };
+
+                              const renderTable = (rows: string[][], key: string | number) => {
+                                if (rows.length === 0) return null;
+                                const headerRow = rows[0];
+                                let bodyRows = rows.slice(1);
+                                let alignments: string[] = [];
+                                
+                                if (bodyRows.length > 0 && isSeparatorRow(bodyRows[0])) {
+                                  const separatorRow = bodyRows[0];
+                                  alignments = separatorRow.map(c => {
+                                    const t = c.trim();
+                                    if (t.startsWith(":") && t.endsWith(":")) return "text-center";
+                                    if (t.endsWith(":")) return "text-right";
+                                    return "text-left";
+                                  });
+                                  bodyRows = bodyRows.slice(1);
+                                }
+                                
+                                return (
+                                  <div key={key} className="overflow-x-auto my-4 border border-slate-200/80 rounded-xl shadow-xs w-full select-text">
+                                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                                      <thead className="bg-slate-50/80 select-none">
+                                        <tr>
+                                          {headerRow.map((cell, idx) => (
+                                            <th
+                                              key={idx}
+                                              className={`px-4 py-2.5 font-extrabold text-slate-700 uppercase tracking-wider border-b border-slate-200/60 ${alignments[idx] || "text-left"}`}
+                                            >
+                                              {renderFormattedText(cell)}
+                                            </th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white divide-y divide-slate-100 font-medium">
+                                        {bodyRows.map((row, rIdx) => (
+                                          <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors even:bg-slate-50/30">
+                                            {row.map((cell, cIdx) => (
+                                              <td
+                                                key={cIdx}
+                                                className={`px-4 py-2.5 text-slate-600 ${alignments[cIdx] || "text-left"}`}
+                                              >
+                                                {renderFormattedText(cell)}
+                                              </td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                );
+                              };
+
+                              for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+                                const line = lines[lineIdx];
                                 const trimmed = line.trim();
 
-                                if (trimmed === "") {
-                                  return <div key={lineIdx} className="h-2" />;
+                                const isTableRow = trimmed.startsWith("|");
+
+                                if (isInsideTable && !isTableRow) {
+                                  processedElements.push(renderTable(tableRows, `table-${lineIdx}`));
+                                  tableRows = [];
+                                  isInsideTable = false;
                                 }
 
-                                // Bullet point check: starting with *, -, or •
+                                if (isTableRow) {
+                                  if (!isInsideTable) {
+                                    isInsideTable = true;
+                                    tableRows = [parseTableRow(trimmed)];
+                                  } else {
+                                    tableRows.push(parseTableRow(trimmed));
+                                  }
+                                  continue;
+                                }
+
+                                // Fenced Code Blocks
+                                if (trimmed.startsWith("```")) {
+                                  if (isInsideCodeBlock) {
+                                    const codeContent = codeBlockLines.join("\n");
+                                    processedElements.push(
+                                      <pre key={`code-block-${lineIdx}`} className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
+                                        <code>{codeContent}</code>
+                                      </pre>
+                                    );
+                                    codeBlockLines = [];
+                                    isInsideCodeBlock = false;
+                                  } else {
+                                    isInsideCodeBlock = true;
+                                  }
+                                  continue;
+                                }
+
+                                if (isInsideCodeBlock) {
+                                  codeBlockLines.push(line);
+                                  continue;
+                                }
+
+                                // Sources Header
+                                if (trimmed === "**Sources:**" || trimmed === "Sources:") {
+                                  isInsideSources = true;
+                                  continue;
+                                }
+
+                                // Source Citation Item
+                                const sourceMatch = trimmed.match(/^\[(\d+)\]\s+\[([^\]]+)\]\(([^)]+)\)/);
+                                if (sourceMatch) {
+                                  const title = sourceMatch[2];
+                                  const url = sourceMatch[3];
+
+                                  sourceElements.push(
+                                    <React.Fragment key={`src-item-${lineIdx}`}>
+                                      {sourceElements.length > 0 && <span className="text-slate-400 select-none text-sm">,</span>}
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sky-600 hover:text-sky-800 underline font-semibold text-sm transition-colors"
+                                      >
+                                        {title}
+                                      </a>
+                                    </React.Fragment>
+                                  );
+                                  continue;
+                                }
+
+                                // Flush source items if the block ended
+                                if (isInsideSources && sourceElements.length > 0 && trimmed !== "") {
+                                  processedElements.push(
+                                    <p key={`src-container-${lineIdx}`} className="text-sm text-slate-500 font-medium mt-3.5 flex flex-wrap items-center gap-1">
+                                      <span className="font-bold text-slate-800 select-none">Sources:</span>
+                                      {sourceElements}
+                                    </p>
+                                  );
+                                  sourceElements = [];
+                                  isInsideSources = false;
+                                }
+
+                                // Empty Line
+                                if (trimmed === "") {
+                                  processedElements.push(<div key={lineIdx} className="h-2" />);
+                                  continue;
+                                }
+
+                                const isLastLine = lineIdx === lastNonEmptyIdx;
+
+                                // Headers (###, ##, #)
+                                const headerMatch = line.match(/^(\s*)(#{1,3})\s+(.*)/);
+                                if (headerMatch) {
+                                  const level = headerMatch[2].length;
+                                  const content = headerMatch[3];
+
+                                  if (level === 3) {
+                                    processedElements.push(
+                                      <h5 key={lineIdx} className="text-[14px] font-extrabold text-slate-800 mt-4 mb-1 select-none">
+                                        {renderFormattedText(content)}
+                                      </h5>
+                                    );
+                                  } else if (level === 2) {
+                                    processedElements.push(
+                                      <h4 key={lineIdx} className="text-[15px] font-extrabold text-slate-800 mt-5 mb-1.5 select-none">
+                                        {renderFormattedText(content)}
+                                      </h4>
+                                    );
+                                  } else {
+                                    processedElements.push(
+                                      <h3 key={lineIdx} className="text-[17px] font-extrabold text-slate-900 mt-6 mb-2 select-none">
+                                        {renderFormattedText(content)}
+                                      </h3>
+                                    );
+                                  }
+                                  continue;
+                                }
+
+                                // Bullet Points (*, -, or •)
                                 const bulletMatch = line.match(/^\s*([*\-•])\s+(.*)/);
                                 if (bulletMatch) {
                                   const content = bulletMatch[2];
-                                  return (
+                                  processedElements.push(
                                     <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
                                       <span className="text-[#402970] mt-1.5 shrink-0 select-none text-[8px]">●</span>
                                       <span className="flex-1">
@@ -225,14 +437,15 @@ export default function ChatTimeline({
                                       </span>
                                     </div>
                                   );
+                                  continue;
                                 }
 
-                                // Numbered list check: starting with 1. 2. etc.
+                                // Numbered Lists
                                 const numMatch = line.match(/^\s*(\d+)\.\s+(.*)/);
                                 if (numMatch) {
                                   const num = numMatch[1];
                                   const content = numMatch[2];
-                                  return (
+                                  processedElements.push(
                                     <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
                                       <span className="text-[#402970] font-bold text-xs mt-0.5 shrink-0 select-none">{num}.</span>
                                       <span className="flex-1">
@@ -243,10 +456,11 @@ export default function ChatTimeline({
                                       </span>
                                     </div>
                                   );
+                                  continue;
                                 }
 
-                                // Standard line
-                                return (
+                                // Standard Line
+                                processedElements.push(
                                   <p key={lineIdx}>
                                     {renderFormattedText(line)}
                                     {isLastAIResponse && isLastLine && (
@@ -254,7 +468,31 @@ export default function ChatTimeline({
                                     )}
                                   </p>
                                 );
-                              });
+                              }
+
+                              // Final flushes at end of message text loop
+                              if (isInsideTable && tableRows.length > 0) {
+                                processedElements.push(renderTable(tableRows, "table-end"));
+                              }
+
+                              if (isInsideCodeBlock && codeBlockLines.length > 0) {
+                                processedElements.push(
+                                  <pre key="code-block-end" className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
+                                    <code>{codeBlockLines.join("\n")}</code>
+                                  </pre>
+                                );
+                              }
+
+                              if (sourceElements.length > 0) {
+                                processedElements.push(
+                                  <p key="src-container-end" className="text-sm text-slate-500 font-medium mt-3.5 flex flex-wrap items-center gap-1">
+                                    <span className="font-bold text-slate-800 select-none">Sources:</span>
+                                    {sourceElements}
+                                  </p>
+                                );
+                              }
+
+                              return processedElements;
                             })()}
                           </div>
                         )}
@@ -264,11 +502,10 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Product search",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <ProductGrid
                               products={msg.inlineProducts}
                               header={msg.inlineProductsHeader}
-                              onViewMore={() => onViewMoreProducts?.(msg.inlineProducts || [])}
                               selectedIds={selectedProductIds}
                               onToggle={onToggleSelectProduct}
                               onBuy={onBuyProduct}
@@ -281,7 +518,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Delivery check",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <DeliveryCard delivery={msg.deliveryResult} />
                           )
                         }
@@ -291,7 +528,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Order tracking",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <TrackingCard tracking={msg.trackingResult} />
                           )
                         }
@@ -301,7 +538,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Import estimate",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <ImportEstimateCard estimate={msg.importEstimate} />
                           )
                         }
@@ -311,7 +548,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Service listing",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <ServiceListingCard listing={msg.serviceListing} onSampleClick={onSampleClick} />
                           )
                         }

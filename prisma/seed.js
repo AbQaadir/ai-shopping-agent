@@ -177,6 +177,9 @@ const productsData = [
 
 async function main() {
   console.log("Cleaning database...");
+  await prisma.orderItem.deleteMany({});
+  await prisma.order.deleteMany({});
+  await prisma.user.deleteMany({});
   await prisma.product.deleteMany({});
   await prisma.supplier.deleteMany({});
 
@@ -190,9 +193,10 @@ async function main() {
   }
 
   console.log("Seeding products...");
+  const createdProducts = [];
   for (const p of productsData) {
     const supplier = createdSuppliers[p.supplierIndex];
-    await prisma.product.create({
+    const product = await prisma.product.create({
       data: {
         title: p.title,
         priceRange: p.priceRange,
@@ -201,10 +205,96 @@ async function main() {
         supplierId: supplier.id
       }
     });
+    createdProducts.push(product);
   }
+
+  console.log("Seeding mock users...");
+  const userKamal = await prisma.user.create({
+    data: {
+      id: "e17d0577-c93d-4c3e-9080-60b6bbfdf071",
+      name: "Kamal Silva",
+      email: "kamal@example.com"
+    }
+  });
+
+  const userNimal = await prisma.user.create({
+    data: {
+      id: "b91d2a14-e58f-4ad1-97b0-cce218fd7d32",
+      name: "Nimal Perera",
+      email: "nimal@example.com"
+    }
+  });
+
+  console.log("Seeding mock orders...");
+  
+  // Order 1 for Kamal: Lava Stone Vase Only (ordered 8 days ago)
+  const date8DaysAgo = new Date();
+  date8DaysAgo.setDate(date8DaysAgo.getDate() - 8);
+
+  const orderKamal1 = await prisma.order.create({
+    data: {
+      userId: userKamal.id,
+      status: "completed",
+      totalLKR: 1100,
+      createdAt: date8DaysAgo,
+      items: {
+        create: {
+          productId: "EF_PC_HOME0V2762POD00077",
+          productName: "Lava Stone Vase Only",
+          quantity: 1,
+          priceLKR: 1100,
+          imageUrl: "https://static2.kapruka.com/product-image/width=330,quality=93,f=auto/https://partnercentral.kapruka.com/kapruka-pc/assets/images/product/pc01234/home0v2762p00077/home0v2762p00077_1.jpg"
+        }
+      }
+    }
+  });
+
+  // Order 2 for Kamal: Folding Moon Chair (ordered 20 days ago)
+  const date20DaysAgo = new Date();
+  date20DaysAgo.setDate(date20DaysAgo.getDate() - 20);
+
+  await prisma.order.create({
+    data: {
+      userId: userKamal.id,
+      status: "completed",
+      totalLKR: 7200,
+      createdAt: date20DaysAgo,
+      items: {
+        create: {
+          productId: createdProducts[0].id,
+          productName: createdProducts[0].title,
+          quantity: 2,
+          priceLKR: 3600,
+          imageUrl: "https://static2.kapruka.com/product-image/width=330,quality=93,f=auto/shops/flowershop/flowerImages/zooms/1777456272221_dsc03354.jpg" // placeholder style image
+        }
+      }
+    }
+  });
+
+  // Order 1 for Nimal: Heavy Duty Camping Quad Chair (ordered 15 days ago)
+  const date15DaysAgo = new Date();
+  date15DaysAgo.setDate(date15DaysAgo.getDate() - 15);
+
+  await prisma.order.create({
+    data: {
+      userId: userNimal.id,
+      status: "completed",
+      totalLKR: 8500,
+      createdAt: date15DaysAgo,
+      items: {
+        create: {
+          productId: createdProducts[7].id,
+          productName: createdProducts[7].title,
+          quantity: 1,
+          priceLKR: 8500
+        }
+      }
+    }
+  });
 
   console.log("Database seeded successfully!");
 }
+
 
 main()
   .catch((e) => {
