@@ -94,12 +94,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           }
           let thinkingSteps: { step: string; status: "running" | "completed"; content: string; durationMs?: number }[] = [];
           let followUpSamples: string[] = [];
+          let groundingSources: Array<{ title: string; uri: string }> = [];
           if (m.thoughtProcess) {
             try {
               const parsedProcess = typeof m.thoughtProcess === "string" ? JSON.parse(m.thoughtProcess) : m.thoughtProcess;
               if (parsedProcess && (parsedProcess as Record<string, unknown>).steps) {
                 thinkingSteps = (parsedProcess as { steps: typeof thinkingSteps }).steps;
                 followUpSamples = (parsedProcess as { followUpQuestions?: string[] }).followUpQuestions || [];
+                groundingSources = (parsedProcess as { groundingSources?: typeof groundingSources }).groundingSources || [];
               } else if (Array.isArray(parsedProcess)) {
                 thinkingSteps = parsedProcess;
               }
@@ -116,6 +118,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
             inlineProductsHeader: inlineProducts.length > 0 ? "Matched Sourcing Products" : undefined,
             inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
             showViewProductsButton: inlineProducts.length > 0,
+            groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
             followUpText: followUpSamples.length > 0 
               ? "Based on this session, you can continue with:" 
               : inlineProducts.length > 0 
@@ -311,6 +314,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       let trackingResult: TrackingResult | undefined;
       let importEstimate: ImportEstimate | undefined;
       let serviceListing: ServiceListing | undefined;
+      let groundingSources: Array<{ title: string; uri: string }> = [];
 
       while (true) {
         const { value, done } = await reader.read();
@@ -387,6 +391,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 fullResponseText += packet.content;
                 setMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: fullResponseText } : m));
 
+              } else if (packet.type === "grounding_sources") {
+                if (packet.result) {
+                  groundingSources = packet.result;
+                  setMessages(prev => prev.map(m =>
+                    m.id === aiMessageId ? { ...m, groundingSources } : m
+                  ));
+                }
+
               } else if (packet.type === "follow_ups") {
                 if (packet.questions) {
                   followUpQuestions = packet.questions;
@@ -423,6 +435,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         trackingResult,
         importEstimate,
         serviceListing,
+        groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
         followUpText: followUpQuestions.length > 0 ? "Continue with:" : undefined,
         followUpSamples: followUpQuestions.length > 0 ? followUpQuestions : undefined,
       };

@@ -8,6 +8,7 @@ import DeliveryCard from "./cards/DeliveryCard";
 import TrackingCard from "./cards/TrackingCard";
 import ImportEstimateCard from "./cards/ImportEstimateCard";
 import ServiceListingCard from "./cards/ServiceListingCard";
+import GroundingSourcesCard from "./cards/GroundingSourcesCard";
 import ProductGrid from "./ProductGrid";
 import ThinkingPanel from "./ThinkingPanel";
 
@@ -31,12 +32,28 @@ function formatTime(date: Date) {
 
 function renderFormattedText(text: string) {
   if (!text) return null;
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\[[^\]]+\]\([^)]+\))/g);
   return parts.map((part, idx) => {
     if (part.startsWith("**") && part.endsWith("**"))
       return <strong key={idx} className="font-extrabold text-slate-800">{part.slice(2, -2)}</strong>;
     if (part.startsWith("*") && part.endsWith("*"))
       return <strong key={idx} className="font-bold text-slate-800">{part.slice(1, -1)}</strong>;
+    if (part.startsWith("[") && part.includes("](")) {
+      const match = part.match(/\[([^\]]+)\]\(([^)]+)\)/);
+      if (match) {
+        return (
+          <a
+            key={idx}
+            href={match[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-600 hover:text-sky-800 underline font-bold transition-colors"
+          >
+            {match[1]}
+          </a>
+        );
+      }
+    }
     return part;
   });
 }
@@ -53,7 +70,7 @@ export default function ChatTimeline({
   onBuyProduct,
 }: ChatTimelineProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
-  
+
   // Local state to keep track of closed tool result cards per message ID
   const [closedMessages, setClosedMessages] = React.useState<Record<string, boolean>>({});
 
@@ -108,7 +125,7 @@ export default function ChatTimeline({
   }, [messages, isGenerating]);
 
   return (
-    <div 
+    <div
       className="flex-1 overflow-y-auto px-4 pt-6 space-y-6 flex flex-col items-center w-full"
       style={{ scrollbarGutter: "stable" }}
     >
@@ -243,6 +260,16 @@ export default function ChatTimeline({
                             "Service listing",
                             <Box size={16} className="text-[#f97316] shrink-0" />,
                             <ServiceListingCard listing={msg.serviceListing} onSampleClick={onSampleClick} />
+                          )
+                        }
+
+                        {/* ── Google Search Grounding Sources Card ── */}
+                        {msg.groundingSources && msg.groundingSources.length > 0 &&
+                          renderClosableToolCard(
+                            msg.id,
+                            "Search grounding",
+                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <GroundingSourcesCard sources={msg.groundingSources} />
                           )
                         }
 

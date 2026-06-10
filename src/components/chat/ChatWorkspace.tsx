@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { 
-  ChevronLeft, 
-  Share2, 
-  Check 
+import type { InlineProduct, Message } from "@/types/sourcing";
+import {
+  Check,
+  ChevronLeft,
+  Share2
 } from "lucide-react";
-import ChatMessageTimeline from "./ChatMessageTimeline";
-import ProductDetailsDrawer, { ProductDetail } from "./ProductDetailsDrawer";
-import ProductCatalogModal from "./ProductCatalogModal";
+import { useEffect, useState } from "react";
 import ChatInputArea from "./ChatInputArea";
-import type { Message, InlineProduct } from "@/types/sourcing";
+import ChatMessageTimeline from "./ChatMessageTimeline";
+import ProductCatalogModal from "./ProductCatalogModal";
+import ProductDetailsDrawer, { ProductDetail } from "./ProductDetailsDrawer";
 
 interface ChatWorkspaceProps {
   activeHistoryId?: string;
@@ -127,13 +127,13 @@ export default function ChatWorkspace({
           className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
         >
           <ChevronLeft size={14} />
-          Product search
+          Back  
         </button>
-        <button 
+        <button
           onClick={handleShareClick}
           className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer ${
-            isCopied 
-              ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-extrabold shadow-sm scale-95" 
+            isCopied
+              ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-extrabold shadow-sm scale-95"
               : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300"
           }`}
         >
@@ -144,7 +144,7 @@ export default function ChatWorkspace({
 
       {/* ── 2. Body: split-screen chat + products details panel ── */}
       <div className="flex-1 min-h-0 relative flex flex-row">
- 
+
         {/* Left Chat Pane */}
         <div className={`flex-1 overflow-y-auto min-h-0 flex flex-col relative ${
           showDetails ? "md:w-1/2 md:border-r border-slate-100" : "w-full"
@@ -161,19 +161,19 @@ export default function ChatWorkspace({
             onToggleSelectProduct={handleToggleSelectProduct}
             onBuyProduct={onBuyProduct}
           />
- 
+
           {/* Bottom spacer so last message clears the gradient + input */}
           <div className="h-36 shrink-0" />
         </div>
- 
+
         {/* Mobile backdrop for details panel */}
         {showDetails && (
-          <div 
+          <div
             className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 transition-opacity duration-300"
             onClick={() => setShowDetails(false)}
           />
         )}
- 
+
         {/* Right Split Panel Details Drawer */}
         {showDetails && (
           <div className="fixed inset-x-0 bottom-0 h-[80vh] md:static md:w-1/2 md:h-full bg-white border-t md:border-t-0 border-slate-200/80 md:border-l border-slate-100 rounded-t-[30px] md:rounded-none shadow-2xl md:shadow-none z-40 md:z-10 flex flex-col overflow-hidden animate-fadeIn">
@@ -181,19 +181,19 @@ export default function ChatWorkspace({
             <div className="md:hidden w-full flex justify-center py-3.5 shrink-0 cursor-pointer select-none" onClick={() => setShowDetails(false)}>
               <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
             </div>
-            <ProductDetailsDrawer 
-              onClose={() => setShowDetails(false)} 
+            <ProductDetailsDrawer
+              onClose={() => setShowDetails(false)}
               products={detailProducts as unknown as ProductDetail[]}
             />
           </div>
         )}
- 
+
         {/* ── Gradient fade — messages dissolve upward into white ── */}
         <div
           className="pointer-events-none absolute bottom-0 left-0 right-0 h-28 z-10"
           style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 55%)" }}
         />
- 
+
         {/* ── 3. Pinned input — floats above the gradient ── */}
         <ChatInputArea
           inputText={inputText}
@@ -209,10 +209,10 @@ export default function ChatWorkspace({
           onShowDetails={() => setShowDetails(true)}
         />
         {/* ── end pinned input ── */}
- 
+
       </div>
       {/* ── end body ── */}
- 
+
       {/* ── Product Search Modal (floating portal) ── */}
       <ProductCatalogModal
         isOpen={showProductModal}
@@ -223,7 +223,7 @@ export default function ChatWorkspace({
         onToggleSelectProduct={handleToggleSelectProduct}
         selectedProductIds={selectedProducts.map((p) => p.id)}
       />
- 
+
     </div>
   );
 }

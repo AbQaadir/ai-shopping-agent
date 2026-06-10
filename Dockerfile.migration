@@ -1,0 +1,17 @@
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Prisma and Prisma Client specifically for the migration environment
+RUN npm install prisma@5.22.0 @prisma/client@5.22.0
+
+# Copy the prisma schema, migrations, and seed script
+COPY prisma ./prisma
+
+# Generate the prisma client
+RUN npx prisma generate
+
+# Run migrations and seed
+CMD ["sh", "-c", "npx prisma migrate deploy && node prisma/seed.js"]

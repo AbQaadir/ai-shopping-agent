@@ -30,6 +30,7 @@ function getStepBadge(stepKey: string): string | null {
     tracking_order: "Order tracking",
     calculating_import: "Import calculator",
     finding_providers: "Service search",
+    google_search_query: "Google Search",
   };
   return badgeMap[stepKey] || null;
 }
@@ -43,8 +44,14 @@ function getToolBadge(toolName: string): string | null {
     kapruka_track_order: "Order tracking",
     kapruka_import_estimate: "Import calculator",
     kapruka_service_search: "Service search",
+    google_search: "Google Search",
   };
   return toolMap[toolName] || null;
+}
+
+// Checks if the tool has a product details drawer
+function hasDetailView(badge: string | null): boolean {
+  return badge === "Product search" || badge === "SME filtering";
 }
 
 // Extracts quote strings or keywords array from content text
@@ -165,12 +172,14 @@ export default function ThinkingPanel({
                           {query}
                         </span>
                       </div>
-                      <button
-                        onClick={onViewDetails}
-                        className="text-slate-600 hover:text-slate-900 font-bold text-[11px] underline decoration-slate-300 hover:decoration-slate-500 cursor-pointer whitespace-nowrap active:scale-95 pr-3 transition-colors select-none"
-                      >
-                        View details
-                      </button>
+                      {hasDetailView(badge) && (
+                        <button
+                          onClick={onViewDetails}
+                          className="text-slate-600 hover:text-slate-900 font-bold text-[11px] underline decoration-slate-300 hover:decoration-slate-500 cursor-pointer whitespace-nowrap active:scale-95 pr-3 transition-colors select-none"
+                        >
+                          View details
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -194,12 +203,14 @@ export default function ThinkingPanel({
                         {(activeToolCall.args as any)?.query || activeQueryText}
                       </span>
                     </div>
-                    <button
-                      onClick={onViewDetails}
-                      className="text-slate-600 hover:text-slate-900 font-bold text-[11px] underline decoration-slate-300 hover:decoration-slate-500 cursor-pointer whitespace-nowrap active:scale-95 pr-3 transition-colors select-none"
-                    >
-                      View details
-                    </button>
+                    {hasDetailView(getToolBadge(activeToolCall.name)) && (
+                      <button
+                        onClick={onViewDetails}
+                        className="text-slate-600 hover:text-slate-900 font-bold text-[11px] underline decoration-slate-300 hover:decoration-slate-500 cursor-pointer whitespace-nowrap active:scale-95 pr-3 transition-colors select-none"
+                      >
+                        View details
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
