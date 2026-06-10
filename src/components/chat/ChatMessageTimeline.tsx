@@ -190,18 +190,72 @@ export default function ChatTimeline({
 
                         {/* AI text response */}
                         {msg.text && (
-                          <div className="text-sm text-slate-600 leading-relaxed space-y-2.5">
-                            {msg.text.split("\n\n").map((para, pIdx, arr) => {
-                              const isLastPara = pIdx === arr.length - 1;
-                              return (
-                                <p key={pIdx}>
-                                  {renderFormattedText(para)}
-                                  {isLastAIResponse && isLastPara && (
-                                    <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
-                                  )}
-                                </p>
-                              );
-                            })}
+                          <div className="text-sm text-slate-600 leading-relaxed space-y-1.5">
+                            {(() => {
+                              const lines = msg.text.split("\n");
+                              // Find the last non-empty line index to append the cursor
+                              let lastNonEmptyIdx = -1;
+                              for (let i = lines.length - 1; i >= 0; i--) {
+                                if (lines[i].trim() !== "") {
+                                  lastNonEmptyIdx = i;
+                                  break;
+                                }
+                              }
+
+                              return lines.map((line, lineIdx) => {
+                                const isLastLine = lineIdx === lastNonEmptyIdx;
+                                const trimmed = line.trim();
+
+                                if (trimmed === "") {
+                                  return <div key={lineIdx} className="h-2" />;
+                                }
+
+                                // Bullet point check: starting with *, -, or •
+                                const bulletMatch = line.match(/^\s*([*\-•])\s+(.*)/);
+                                if (bulletMatch) {
+                                  const content = bulletMatch[2];
+                                  return (
+                                    <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
+                                      <span className="text-[#402970] mt-1.5 shrink-0 select-none text-[8px]">●</span>
+                                      <span className="flex-1">
+                                        {renderFormattedText(content)}
+                                        {isLastAIResponse && isLastLine && (
+                                          <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
+                                        )}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+
+                                // Numbered list check: starting with 1. 2. etc.
+                                const numMatch = line.match(/^\s*(\d+)\.\s+(.*)/);
+                                if (numMatch) {
+                                  const num = numMatch[1];
+                                  const content = numMatch[2];
+                                  return (
+                                    <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
+                                      <span className="text-[#402970] font-bold text-xs mt-0.5 shrink-0 select-none">{num}.</span>
+                                      <span className="flex-1">
+                                        {renderFormattedText(content)}
+                                        {isLastAIResponse && isLastLine && (
+                                          <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
+                                        )}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+
+                                // Standard line
+                                return (
+                                  <p key={lineIdx}>
+                                    {renderFormattedText(line)}
+                                    {isLastAIResponse && isLastLine && (
+                                      <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
+                                    )}
+                                  </p>
+                                );
+                              });
+                            })()}
                           </div>
                         )}
 

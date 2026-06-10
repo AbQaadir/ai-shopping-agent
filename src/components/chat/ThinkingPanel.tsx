@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { Loader2, Check, ChevronDown, Box, Sparkle } from "lucide-react";
 import type { InlineProduct } from "@/types/sourcing";
+import { Box, Check, ChevronDown, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 interface ThinkingStep {
   step: string;
@@ -106,7 +106,6 @@ export default function ThinkingPanel({
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="flex items-center gap-1.5 cursor-pointer text-[#858585] hover:text-slate-700 text-xs font-semibold py-1.5 transition-colors duration-200 select-none"
         >
-          <Sparkle size={13} className="text-[#402970] shrink-0" fill="#402970" />
           <span>Show thought process</span>
           <ChevronDown
             size={13}
@@ -147,18 +146,18 @@ export default function ThinkingPanel({
 
           {/* Timeline Connector and Content */}
           <div className="border-l border-slate-100 ml-2 pl-6 space-y-4">
-            
+
             {/* Render each dynamic step from the LLM */}
             {visibleSteps.map((step, idx) => {
               const badge = getStepBadge(step.step);
               const query = extractQueryFromContent(step.content, activeQueryText);
-              
+
               return (
                 <div key={idx} className="space-y-2.5 animate-fadeIn">
                   <p className="text-slate-600 text-[13px] font-medium leading-relaxed pr-2">
                     {step.content}
                   </p>
-                  
+
                   {badge && (
                     /* Tool Capsule Card */
                     <div className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-4 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all">
@@ -224,7 +223,7 @@ export default function ThinkingPanel({
                 <div className="h-3.5 bg-slate-100/80 rounded-full w-[75%]" />
               </div>
             )}
-            
+
           </div>
         </div>
       </div>
