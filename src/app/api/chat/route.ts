@@ -1,19 +1,5 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
-import { GoogleGenAI } from "@google/genai";
-import { NextRequest } from "next/server";
-import {
-  pillar1_searchProducts,
-  pillar2_checkDelivery,
-  pillar2_trackOrder,
-  pillar2_findCity,
-  pillar3_searchSMEProducts,
-  pillar4_estimateImportCost,
-  pillar5_detectServiceCategory,
-  pillar5_searchServiceProviders,
-  parseRequirements,
-  type KaprukaProduct,
-} from "@/lib/tools";
 import {
   extractCityFromMessage,
   extractDate,
@@ -23,11 +9,25 @@ import {
   Intent,
   ruleBasedIntent,
 } from "@/lib/nlp";
+import {
+  parseRequirements,
+  pillar1_searchProducts,
+  pillar2_checkDelivery,
+  pillar2_findCity,
+  pillar2_trackOrder,
+  pillar3_searchSMEProducts,
+  pillar4_estimateImportCost,
+  pillar5_detectServiceCategory,
+  pillar5_searchServiceProviders,
+  type KaprukaProduct,
+} from "@/lib/tools";
+import { GoogleGenAI } from "@google/genai";
+import { NextRequest } from "next/server";
 
 // ── System Prompts per Pillar ───────────────────────────────────────────────
 const SYSTEM_PROMPTS: Record<Intent, string> = {
-  product: `You are Kapuruka's AI shopping assistant for Sri Lanka. 
-The user wants to find or buy products. Live product results from Kapruka.com have been fetched and shown to the user. 
+  product: `You are Kapuruka's AI shopping assistant for Sri Lanka.
+The user wants to find or buy products. Live product results from Kapruka.com have been fetched and shown to the user.
 Summarise the best options in 2–3 sentences. Mention price ranges in LKR and highlight any local Sri Lankan brands.
 Do NOT fabricate product details — only reference what was returned by the search tool.
 If the user wants to buy a specific product, guide them to click the "Buy Now" button.`,
@@ -45,7 +45,7 @@ Always remind the user that this is an estimate and actual duties may vary. Keep
 
   service: `You are Kapuruka's home services booking assistant for Sri Lanka.
 You connect users with verified local technicians — electricians, plumbers, AC repair, cleaning, pest control, painting, and carpentry.
-If the user's city is known, verified providers in their area are shown. 
+If the user's city is known, verified providers in their area are shown.
 Be warm and helpful. Explain what each service provider specialises in. Suggest the top option based on rating.`,
 
   qa: `You are Kapuruka's customer support and informational assistant for Sri Lanka.
@@ -321,7 +321,7 @@ User message: "${message.substring(0, 300)}"`;
         // ── QA intent: no tool calls, just LLM response ───────────────────
         if (intent === "qa") {
           send({ type: "thought", step: "google_search_grounding", status: "running", content: "Launching Google Search for real-time information..." });
-          const step1 = { step: "google_search_grounding", status: "completed", content: "Identified as: Customer Support / Information query. Querying Google Search.", durationMs: 0 };
+          const step1 = { step: "google_search_grounding", status: "completed", content: "Identified as: Information query. Querying Google Search.", durationMs: 0 };
           steps.push(step1);
           send({ type: "thought", ...step1 });
         }
@@ -420,9 +420,11 @@ User message: "${message.substring(0, 300)}"`;
               }
             }
 
-            // Send grounding sources to client
+            // Append sources to the text if there are any search grounding sources
             if (groundingSourcesList.length > 0) {
-              send({ type: "grounding_sources", result: groundingSourcesList });
+              const sourcesText = "\n\n**Sources:**\n" + groundingSourcesList.map((c, i) => `[${i + 1}] [${c.title}](${c.uri})`).join("\n");
+              fullResponseText += sourcesText;
+              send({ type: "text", content: sourcesText });
             }
 
           } catch (err) {
@@ -444,7 +446,7 @@ User message: "${message.substring(0, 300)}"`;
 
         if (ai) {
           try {
-            const suggestPrompt = `Given this user query and AI response for a Sri Lankan e-commerce platform, generate exactly 3 short follow-up questions (max 8 words each). 
+            const suggestPrompt = `Given this user query and AI response for a Sri Lankan e-commerce platform, generate exactly 3 short follow-up questions (max 8 words each).
 Context pillar: ${intent}
 User: "${message.substring(0, 100)}"
 AI: "${fullResponseText.substring(0, 200)}"

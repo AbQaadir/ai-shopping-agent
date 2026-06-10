@@ -8,7 +8,6 @@ import DeliveryCard from "./cards/DeliveryCard";
 import TrackingCard from "./cards/TrackingCard";
 import ImportEstimateCard from "./cards/ImportEstimateCard";
 import ServiceListingCard from "./cards/ServiceListingCard";
-import GroundingSourcesCard from "./cards/GroundingSourcesCard";
 import ProductGrid from "./ProductGrid";
 import ThinkingPanel from "./ThinkingPanel";
 
@@ -260,16 +259,6 @@ export default function ChatTimeline({
                             "Service listing",
                             <Box size={16} className="text-[#f97316] shrink-0" />,
                             <ServiceListingCard listing={msg.serviceListing} onSampleClick={onSampleClick} />
-                          )
-                        }
-
-                        {/* ── Google Search Grounding Sources Card ── */}
-                        {msg.groundingSources && msg.groundingSources.length > 0 &&
-                          renderClosableToolCard(
-                            msg.id,
-                            "Search grounding",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
-                            <GroundingSourcesCard sources={msg.groundingSources} />
                           )
                         }
 
