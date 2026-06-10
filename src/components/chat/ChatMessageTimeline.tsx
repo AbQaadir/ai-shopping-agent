@@ -90,25 +90,12 @@ export default function ChatTimeline({
             {icon}
             <span className="text-[14px] font-bold text-slate-800">{title}</span>
           </div>
-          {/* Right side: Mock layout switcher and Close button */}
+          {/* Right side: Close button */}
           <div className="flex items-center gap-3">
-            {/* Grid/List switch icons */}
-            <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50">
-              <button className="p-1 text-slate-600 bg-white rounded-md shadow-xs cursor-pointer">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
-              </button>
-              <button className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            </div>
             {/* Close button */}
             <button
               onClick={() => setClosedMessages(prev => ({ ...prev, [msgId]: true }))}
-              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              className="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
             >
               <X size={16} />
             </button>
