@@ -315,6 +315,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       let importEstimate: ImportEstimate | undefined;
       let serviceListing: ServiceListing | undefined;
       let groundingSources: Array<{ title: string; uri: string }> = [];
+      let accumulatedSteps: Array<{ step: string; status: "running" | "completed"; content: string; durationMs?: number }> = [];
 
       while (true) {
         const { value, done } = await reader.read();
@@ -334,19 +335,21 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
               const packet = JSON.parse(dataStr);
 
               if (packet.type === "thought") {
-                setMessages(prev => prev.map(m => {
-                  if (m.id === aiMessageId) {
-                    const steps = m.thinkingSteps ? [...m.thinkingSteps] : [];
-                    const existingIdx = steps.findIndex(s => s.step === packet.step);
-                    if (existingIdx !== -1) {
-                      steps[existingIdx] = { step: packet.step, status: packet.status, content: packet.content, durationMs: packet.durationMs };
-                    } else {
-                      steps.push({ step: packet.step, status: packet.status, content: packet.content, durationMs: packet.durationMs });
-                    }
-                    return { ...m, thinkingSteps: steps };
-                  }
-                  return m;
-                }));
+                const existingIdx = accumulatedSteps.findIndex(s => s.step === packet.step);
+                const stepObj = {
+                  step: packet.step,
+                  status: packet.status as "running" | "completed",
+                  content: packet.content,
+                  durationMs: packet.durationMs
+                };
+                if (existingIdx !== -1) {
+                  accumulatedSteps[existingIdx] = stepObj;
+                } else {
+                  accumulatedSteps.push(stepObj);
+                }
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, thinkingSteps: [...accumulatedSteps] } : m
+                ));
 
               } else if (packet.type === "tool_call") {
                 setMessages(prev => prev.map(m =>
@@ -427,7 +430,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         sender: "ai",
         text: fullResponseText,
         timestamp: new Date(),
-        thinkingSteps: messages.find(m => m.id === aiMessageId)?.thinkingSteps || [],
+        thinkingSteps: accumulatedSteps,
         inlineProductsHeader: inlineProducts.length > 0 ? "Kapruka Products" : undefined,
         inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
         showViewProductsButton: inlineProducts.length > 0,
