@@ -38,7 +38,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     handleSuggestionClick,
   } = useSourcing();
 
-  const lastSessionIdRef = useRef<string | undefined>(undefined);
+  const lastSessionIdRef = useRef<string | undefined>("__initial__");
 
   // Initial load: Fetch the history list from PostgreSQL
   useEffect(() => {
@@ -110,7 +110,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
           <div className="flex-1 overflow-hidden flex flex-col">
             {isChatting ? (
               <ChatWorkspace
-                key={activeHistoryId}
+                activeHistoryId={activeHistoryId}
                 messages={messages}
                 isGenerating={isGenerating}
                 onSend={handleSendMessage}

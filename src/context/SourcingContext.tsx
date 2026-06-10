@@ -94,12 +94,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           }
           let thinkingSteps: { step: string; status: "running" | "completed"; content: string; durationMs?: number }[] = [];
           let followUpSamples: string[] = [];
+          let groundingSources: Array<{ title: string; uri: string }> = [];
           if (m.thoughtProcess) {
             try {
               const parsedProcess = typeof m.thoughtProcess === "string" ? JSON.parse(m.thoughtProcess) : m.thoughtProcess;
               if (parsedProcess && (parsedProcess as Record<string, unknown>).steps) {
                 thinkingSteps = (parsedProcess as { steps: typeof thinkingSteps }).steps;
                 followUpSamples = (parsedProcess as { followUpQuestions?: string[] }).followUpQuestions || [];
+                groundingSources = (parsedProcess as { groundingSources?: typeof groundingSources }).groundingSources || [];
               } else if (Array.isArray(parsedProcess)) {
                 thinkingSteps = parsedProcess;
               }
@@ -116,6 +118,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
             inlineProductsHeader: inlineProducts.length > 0 ? "Matched Sourcing Products" : undefined,
             inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
             showViewProductsButton: inlineProducts.length > 0,
+            groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
             followUpText: followUpSamples.length > 0 
               ? "Based on this session, you can continue with:" 
               : inlineProducts.length > 0 
@@ -171,19 +174,47 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setIsGenerating(false);
   }, []);
 
+  // Synchronize state when browser Back/Forward navigation occurs
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path.startsWith("/c/")) {
+        const id = path.split("/c/")[1];
+        if (id) {
+          setActiveHistoryId(id);
+          setIsChatting(true);
+          fetchSessionAndHydrate(id);
+        }
+      } else {
+        handleResetLocal();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [fetchSessionAndHydrate, handleResetLocal]);
+
   const handleReset = () => {
     setIsMobileSidebarOpen(false);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    router.push("/");
+    // Update path without unmounting the dashboard component tree
+    window.history.pushState(null, "", "/");
+    handleResetLocal();
   };
 
   const handleSelectHistory = (id: string) => {
     setIsMobileSidebarOpen(false);
-    router.push(`/c/${id}`);
+    // Update path without unmounting the dashboard component tree
+    window.history.pushState(null, "", `/c/${id}`);
+    setActiveHistoryId(id);
+    fetchSessionAndHydrate(id);
   };
+
 
   const handleStopGeneration = () => {
     if (abortControllerRef.current) {
@@ -283,6 +314,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       let trackingResult: TrackingResult | undefined;
       let importEstimate: ImportEstimate | undefined;
       let serviceListing: ServiceListing | undefined;
+      let groundingSources: Array<{ title: string; uri: string }> = [];
+      let accumulatedSteps: Array<{ step: string; status: "running" | "completed"; content: string; durationMs?: number }> = [];
 
       while (true) {
         const { value, done } = await reader.read();
@@ -302,19 +335,21 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
               const packet = JSON.parse(dataStr);
 
               if (packet.type === "thought") {
-                setMessages(prev => prev.map(m => {
-                  if (m.id === aiMessageId) {
-                    const steps = m.thinkingSteps ? [...m.thinkingSteps] : [];
-                    const existingIdx = steps.findIndex(s => s.step === packet.step);
-                    if (existingIdx !== -1) {
-                      steps[existingIdx] = { step: packet.step, status: packet.status, content: packet.content, durationMs: packet.durationMs };
-                    } else {
-                      steps.push({ step: packet.step, status: packet.status, content: packet.content, durationMs: packet.durationMs });
-                    }
-                    return { ...m, thinkingSteps: steps };
-                  }
-                  return m;
-                }));
+                const existingIdx = accumulatedSteps.findIndex(s => s.step === packet.step);
+                const stepObj = {
+                  step: packet.step,
+                  status: packet.status as "running" | "completed",
+                  content: packet.content,
+                  durationMs: packet.durationMs
+                };
+                if (existingIdx !== -1) {
+                  accumulatedSteps[existingIdx] = stepObj;
+                } else {
+                  accumulatedSteps.push(stepObj);
+                }
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, thinkingSteps: [...accumulatedSteps] } : m
+                ));
 
               } else if (packet.type === "tool_call") {
                 setMessages(prev => prev.map(m =>
@@ -359,6 +394,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 fullResponseText += packet.content;
                 setMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: fullResponseText } : m));
 
+              } else if (packet.type === "grounding_sources") {
+                if (packet.result) {
+                  groundingSources = packet.result;
+                  setMessages(prev => prev.map(m =>
+                    m.id === aiMessageId ? { ...m, groundingSources } : m
+                  ));
+                }
+
               } else if (packet.type === "follow_ups") {
                 if (packet.questions) {
                   followUpQuestions = packet.questions;
@@ -387,7 +430,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         sender: "ai",
         text: fullResponseText,
         timestamp: new Date(),
-        thinkingSteps: messages.find(m => m.id === aiMessageId)?.thinkingSteps || [],
+        thinkingSteps: accumulatedSteps,
         inlineProductsHeader: inlineProducts.length > 0 ? "Kapruka Products" : undefined,
         inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
         showViewProductsButton: inlineProducts.length > 0,
@@ -395,6 +438,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         trackingResult,
         importEstimate,
         serviceListing,
+        groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
         followUpText: followUpQuestions.length > 0 ? "Continue with:" : undefined,
         followUpSamples: followUpQuestions.length > 0 ? followUpQuestions : undefined,
       };

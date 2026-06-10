@@ -17,10 +17,10 @@ export default function SidebarHistoryItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all duration-150 flex items-center justify-between gap-2 cursor-pointer ${
+      className={`w-full text-left px-3.5 py-3 rounded-xl text-xs transition-all duration-150 flex items-center justify-between gap-2 cursor-pointer outline-none focus:outline-none focus:ring-0 ${
         isActive 
-          ? "bg-[#402970]/5 text-[#402970] font-semibold border-l-2 border-[#402970]" 
-          : "text-slate-500 hover:bg-slate-100/80 hover:text-slate-800"
+          ? "bg-white text-slate-800 font-bold shadow-xs border border-slate-100/80" 
+          : "text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 font-medium"
       }`}
       title={query}
     >

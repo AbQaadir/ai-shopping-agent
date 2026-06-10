@@ -59,6 +59,12 @@ body {
   100% { transform: translateX(100%); }
 }
 
+@keyframes progress-slide {
+  0% { left: -30%; width: 30%; }
+  50% { width: 40%; }
+  100% { left: 100%; width: 30%; }
+}
+
 @keyframes step-enter {
   from { opacity: 0; transform: translateX(-8px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -72,6 +78,7 @@ body {
   .animate-slideInDown  { animation: slideInDown  0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
   .animate-step-enter   { animation: step-enter   0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
   .animate-glow-pulse   { animation: glow-pulse   1.5s ease-in-out infinite; }
+  .animate-progress-slide { animation: progress-slide 1.5s infinite linear; }
   .animate-shimmer      { 
     background: linear-gradient(90deg, transparent 0%, rgba(64,41,112,0.08) 50%, transparent 100%);
     background-size: 200% 100%;
@@ -80,3 +87,12 @@ body {
   .scrollbar-none { scrollbar-width: none; }
   .scrollbar-none::-webkit-scrollbar { display: none; }
 }
+
+/* Disable focus rings/outlines on buttons and clickable elements to prevent blue outlines on click */
+button:focus,
+a:focus,
+[role="button"]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+

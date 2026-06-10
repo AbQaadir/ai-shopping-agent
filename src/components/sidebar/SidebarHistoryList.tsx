@@ -14,7 +14,7 @@ export default function SidebarHistoryList({
   onSelectHistory
 }: SidebarHistoryListProps) {
   return (
-    <div className="pl-4 pr-1 py-1 space-y-1 max-h-[400px] overflow-y-auto scrollbar-none animate-fadeIn border-l border-slate-100/80 ml-5">
+    <div className="pl-7 pr-1 py-1 space-y-1 max-h-[400px] overflow-y-auto scrollbar-none animate-fadeIn w-full flex flex-col items-start">
       {history.map((item, idx) => (
         <SidebarHistoryItem
           key={item.id}

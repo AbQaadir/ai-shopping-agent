@@ -129,6 +129,9 @@ export interface Message {
   // Checkout links
   checkoutLinks?: CheckoutLink[];
 
+  // Google Search Grounding sources
+  groundingSources?: Array<{ title: string; uri: string }>;
+
   // Follow-ups
   followUpText?: string;
   followUpSamples?: string[];

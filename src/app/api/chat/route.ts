@@ -1,19 +1,5 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { NextRequest } from "next/server";
-import {
-  pillar1_searchProducts,
-  pillar2_checkDelivery,
-  pillar2_trackOrder,
-  pillar2_findCity,
-  pillar3_searchSMEProducts,
-  pillar4_estimateImportCost,
-  pillar5_detectServiceCategory,
-  pillar5_searchServiceProviders,
-  parseRequirements,
-  type KaprukaProduct,
-} from "@/lib/tools";
 import {
   extractCityFromMessage,
   extractDate,
@@ -23,11 +9,25 @@ import {
   Intent,
   ruleBasedIntent,
 } from "@/lib/nlp";
+import {
+  parseRequirements,
+  pillar1_searchProducts,
+  pillar2_checkDelivery,
+  pillar2_findCity,
+  pillar2_trackOrder,
+  pillar3_searchSMEProducts,
+  pillar4_estimateImportCost,
+  pillar5_detectServiceCategory,
+  pillar5_searchServiceProviders,
+  type KaprukaProduct,
+} from "@/lib/tools";
+import { GoogleGenAI } from "@google/genai";
+import { NextRequest } from "next/server";
 
 // ── System Prompts per Pillar ───────────────────────────────────────────────
 const SYSTEM_PROMPTS: Record<Intent, string> = {
-  product: `You are Kapuruka's AI shopping assistant for Sri Lanka. 
-The user wants to find or buy products. Live product results from Kapruka.com have been fetched and shown to the user. 
+  product: `You are Kapuruka's AI shopping assistant for Sri Lanka.
+The user wants to find or buy products. Live product results from Kapruka.com have been fetched and shown to the user.
 Summarise the best options in 2–3 sentences. Mention price ranges in LKR and highlight any local Sri Lankan brands.
 Do NOT fabricate product details — only reference what was returned by the search tool.
 If the user wants to buy a specific product, guide them to click the "Buy Now" button.`,
@@ -45,12 +45,13 @@ Always remind the user that this is an estimate and actual duties may vary. Keep
 
   service: `You are Kapuruka's home services booking assistant for Sri Lanka.
 You connect users with verified local technicians — electricians, plumbers, AC repair, cleaning, pest control, painting, and carpentry.
-If the user's city is known, verified providers in their area are shown. 
+If the user's city is known, verified providers in their area are shown.
 Be warm and helpful. Explain what each service provider specialises in. Suggest the top option based on rating.`,
 
-  qa: `You are Kapuruka's customer support assistant for Sri Lanka.
-Answer questions about the platform: payment methods, delivery terms, return policy, seller information, and general help.
-Be concise and accurate. If you don't know something, say so honestly and suggest contacting support at support@kapruka.com.`,
+  qa: `You are Kapuruka's customer support and informational assistant for Sri Lanka.
+You have access to Google Search to retrieve live, real-time information about Kapruka, Sri Lankan e-commerce, and general queries.
+Answer the user's question accurately using search results. Provide clear, concise, and helpful responses in 2–3 sentences.
+Highlight key information and always reference your sources if appropriate.`,
 };
 
 // ── Main Chat POST Handler ─────────────────────────────────────────────────
@@ -87,21 +88,15 @@ export async function POST(req: NextRequest) {
 
     // 3. Determine intent ───────────────────────────────────────────────────
     const apiKey = config.gemini.apiKey;
-    let genAI: InstanceType<typeof GoogleGenerativeAI> | null = null;
-    let classifierModel: ReturnType<InstanceType<typeof GoogleGenerativeAI>["getGenerativeModel"]> | null = null;
-    let mainModel: ReturnType<InstanceType<typeof GoogleGenerativeAI>["getGenerativeModel"]> | null = null;
+    let ai: GoogleGenAI | null = null;
 
     // Start with rule-based, then refine with LLM
     let intent: Intent = ruleBasedIntent(message);
 
     if (apiKey) {
       try {
-        genAI = new GoogleGenerativeAI(apiKey);
+        ai = new GoogleGenAI({ apiKey });
         const fastModel = config.gemini.fastModel;
-        const reasoningModel = config.gemini.reasoningModel;
-
-        classifierModel = genAI.getGenerativeModel({ model: fastModel });
-        mainModel = genAI.getGenerativeModel({ model: reasoningModel });
 
         // LLM-based intent refinement
         const classifierPrompt = `Classify this Sri Lankan e-commerce user message into exactly ONE intent:
@@ -110,18 +105,21 @@ export async function POST(req: NextRequest) {
 - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order
 - "import": User pastes a URL from Amazon/Walmart/eBay, or asks about importing goods from abroad + customs/duties
 - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry)
-- "qa": General platform questions (payment, returns, policies, account help)
+- "qa": General platform questions (payment, returns, policies, account help) or general knowledge/informational queries that require web search grounding
 
 Respond ONLY with JSON: {"intent": "product"|"delivery"|"import"|"service"|"qa", "reason": "brief"}
 
 User message: "${message.substring(0, 300)}"`;
 
-        const result = await classifierModel.generateContent({
-          contents: [{ role: "user", parts: [{ text: classifierPrompt }] }],
-          generationConfig: { responseMimeType: "application/json" },
+        const result = await ai.models.generateContent({
+          model: fastModel,
+          contents: classifierPrompt,
+          config: {
+            responseMimeType: "application/json",
+          },
         });
 
-        const parsed = JSON.parse(result.response.text());
+        const parsed = JSON.parse(result.text || "{}");
         if (parsed?.intent && ["product", "delivery", "import", "service", "qa"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
           console.log(`[Intent] "${message.substring(0, 60)}" → ${intent} (${parsed.reason})`);
@@ -141,6 +139,7 @@ User message: "${message.substring(0, 300)}"`;
         const steps: Array<{ step: string; status: string; content: string; durationMs: number }> = [];
         let products: KaprukaProduct[] = [];
         let fullResponseText = "";
+        let groundingSourcesList: Array<{ title: string; uri: string }> = [];
 
         // ── Pillar 1 & 3: Product Search ───────────────────────────────────
         if (intent === "product" || intent === "service") {
@@ -321,8 +320,8 @@ User message: "${message.substring(0, 300)}"`;
 
         // ── QA intent: no tool calls, just LLM response ───────────────────
         if (intent === "qa") {
-          send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Customer Support knowledge base..." });
-          const step1 = { step: "intent_routing", status: "completed", content: "Identified as: Customer Support query. Consulting Kapruka platform policies.", durationMs: 0 };
+          send({ type: "thought", step: "google_search_grounding", status: "running", content: "Launching Google Search for real-time information..." });
+          const step1 = { step: "google_search_grounding", status: "completed", content: "Identified as: Information query. Querying Google Search.", durationMs: 0 };
           steps.push(step1);
           send({ type: "thought", ...step1 });
         }
@@ -330,7 +329,7 @@ User message: "${message.substring(0, 300)}"`;
         // ── LLM Response Generation ────────────────────────────────────────
         send({ type: "thought", step: "generating_response", status: "running", content: "Generating AI response..." });
 
-        if (mainModel) {
+        if (ai) {
           try {
             // Build chat history for context
             const chatHistory = await prisma.chatMessage.findMany({
@@ -365,20 +364,69 @@ User message: "${message.substring(0, 300)}"`;
               };
             }
 
-            const chatModel = genAI!.getGenerativeModel({
-              model: config.gemini.reasoningModel,
+            const streamConfig: any = {
               systemInstruction: SYSTEM_PROMPTS[intent],
-            });
+            };
 
-            const geminiStream = await chatModel.generateContentStream({
-              contents: geminiHistory,
-            });
-
-            for await (const chunk of geminiStream.stream) {
-              const text = chunk.text();
-              fullResponseText += text;
-              send({ type: "text", content: text });
+            // If intent is "qa", enable the Google Search grounding tool!
+            if (intent === "qa") {
+              streamConfig.tools = [{ googleSearch: {} }];
             }
+
+            const geminiStream = await ai.models.generateContentStream({
+              model: config.gemini.reasoningModel,
+              contents: geminiHistory,
+              config: streamConfig,
+            });
+
+            let webQueries: string[] = [];
+
+            for await (const chunk of geminiStream) {
+              const text = chunk.text;
+              if (text) {
+                fullResponseText += text;
+                send({ type: "text", content: text });
+              }
+
+              // Extract search queries if available
+              const metadata = chunk.candidates?.[0]?.groundingMetadata;
+              if (metadata?.webSearchQueries) {
+                for (const q of metadata.webSearchQueries) {
+                  if (!webQueries.includes(q)) {
+                    webQueries.push(q);
+                    const searchStep = {
+                      step: "google_search_query",
+                      status: "completed" as const,
+                      content: `Searched Google for: "${q}"`,
+                      durationMs: 0,
+                    };
+                    steps.push(searchStep);
+                    send({ type: "thought", ...searchStep });
+                  }
+                }
+              }
+
+              // Extract grounding sources (citations)
+              if (metadata?.groundingChunks) {
+                for (const c of metadata.groundingChunks) {
+                  const web = c.web;
+                  if (web?.uri) {
+                    const title = web.title || new URL(web.uri).hostname;
+                    if (!groundingSourcesList.some(gc => gc.uri === web.uri)) {
+                      groundingSourcesList.push({ title, uri: web.uri });
+                    }
+                  }
+                }
+              }
+            }
+
+            // Append sources to the text if there are any search grounding sources
+            if (groundingSourcesList.length > 0) {
+              const sourcesText = "\n\n**Sources:**\n" + groundingSourcesList.map((c, i) => `[${i + 1}] [${c.title}](${c.uri})`).join("\n");
+              fullResponseText += sourcesText;
+              send({ type: "text", content: sourcesText });
+            }
+
           } catch (err) {
             console.error("[LLM] Gemini stream error:", (err as Error).message);
           }
@@ -396,19 +444,22 @@ User message: "${message.substring(0, 300)}"`;
         // ── Follow-up Suggestions ──────────────────────────────────────────
         let followUpQuestions: string[] = [];
 
-        if (classifierModel) {
+        if (ai) {
           try {
-            const suggestPrompt = `Given this user query and AI response for a Sri Lankan e-commerce platform, generate exactly 3 short follow-up questions (max 8 words each). 
+            const suggestPrompt = `Given this user query and AI response for a Sri Lankan e-commerce platform, generate exactly 3 short follow-up questions (max 8 words each).
 Context pillar: ${intent}
 User: "${message.substring(0, 100)}"
 AI: "${fullResponseText.substring(0, 200)}"
 Respond ONLY as JSON array: ["question1", "question2", "question3"]`;
 
-            const sug = await classifierModel.generateContent({
-              contents: [{ role: "user", parts: [{ text: suggestPrompt }] }],
-              generationConfig: { responseMimeType: "application/json" },
+            const sug = await ai.models.generateContent({
+              model: config.gemini.fastModel,
+              contents: suggestPrompt,
+              config: {
+                responseMimeType: "application/json",
+              },
             });
-            const parsed = JSON.parse(sug.response.text());
+            const parsed = JSON.parse(sug.text || "[]");
             if (Array.isArray(parsed) && parsed.length >= 3) {
               followUpQuestions = parsed.slice(0, 3);
             }
@@ -429,7 +480,7 @@ Respond ONLY as JSON array: ["question1", "question2", "question3"]`;
             sessionId: sessionId,
             role: "assistant",
             content: fullResponseText,
-            thoughtProcess: JSON.stringify({ steps, intent, followUpQuestions }),
+            thoughtProcess: JSON.stringify({ steps, intent, followUpQuestions, groundingSources: groundingSourcesList.length > 0 ? groundingSourcesList : undefined }),
             products: products.length > 0 ? JSON.stringify(products) : undefined,
           },
         });
