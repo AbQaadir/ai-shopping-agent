@@ -76,11 +76,6 @@ export default function ProductCard({
         {/* Content */}
         <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
           <div className="space-y-1">
-            <div className="mb-1">
-              <span className="inline-block bg-[#fff7ed] text-[#f97316] text-[8px] font-extrabold px-1.5 py-0.5 rounded border border-[#ffedd5] leading-none">
-                Matches all 1/1 requirements
-              </span>
-            </div>
             <h5 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2">
               {displayName}
             </h5>
@@ -207,11 +202,6 @@ export default function ProductCard({
 
       {/* Card body */}
       <div className="p-2.5 flex flex-col flex-1">
-        <div className="mb-1.5">
-          <span className="inline-block bg-[#fff7ed] text-[#f97316] text-[8px] font-extrabold px-1.5 py-0.5 rounded border border-[#ffedd5] leading-none">
-            Matches all 1/1 requirements
-          </span>
-        </div>
         <h5 className="text-[11px] font-bold text-slate-800 leading-snug line-clamp-2 mb-2 flex-1">
           {displayName}
         </h5>
