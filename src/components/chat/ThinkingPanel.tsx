@@ -92,12 +92,12 @@ export default function ThinkingPanel({
         <div className="w-full">
           {/* Active Header */}
           <div className="flex items-center gap-2 text-slate-500 text-[13px] font-medium py-1.5 select-none">
-            <Loader2 size={13} className="text-[#f97316] animate-spin shrink-0" />
+            <Loader2 size={13} className="text-[#402970] animate-spin shrink-0" />
             <span>Working on your task</span>
           </div>
           {/* Linear Progress Bar */}
           <div className="w-full h-[2px] bg-slate-100/80 relative overflow-hidden rounded-full mt-1.5 mb-4">
-            <div className="absolute top-0 bottom-0 left-0 bg-[#f97316] rounded-full animate-progress-slide" style={{ width: "30%" }} />
+            <div className="absolute top-0 bottom-0 left-0 bg-[#402970] rounded-full animate-progress-slide" style={{ width: "30%" }} />
           </div>
         </div>
       ) : (
@@ -106,7 +106,7 @@ export default function ThinkingPanel({
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="flex items-center gap-1.5 cursor-pointer text-[#858585] hover:text-slate-700 text-xs font-semibold py-1.5 transition-colors duration-200 select-none"
         >
-          <Sparkle size={13} className="text-[#f97316] shrink-0" fill="#f97316" />
+          <Sparkle size={13} className="text-[#402970] shrink-0" fill="#402970" />
           <span>Show thought process</span>
           <ChevronDown
             size={13}
@@ -134,9 +134,9 @@ export default function ThinkingPanel({
           {/* Bullet Checklist Point */}
           <div className="flex items-center gap-2 pt-0.5">
             {isGenerating ? (
-              <div className="w-2.5 h-2.5 rounded-full bg-[#f97316] shrink-0 mx-1 animate-pulse" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#402970] shrink-0 mx-1 animate-pulse" />
             ) : (
-              <div className="w-4 h-4 rounded-full bg-[#f97316] flex items-center justify-center shrink-0">
+              <div className="w-4 h-4 rounded-full bg-[#402970] flex items-center justify-center shrink-0">
                 <Check size={10} className="text-white stroke-[3.5]" />
               </div>
             )}
