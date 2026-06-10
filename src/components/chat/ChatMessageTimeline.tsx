@@ -251,7 +251,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Product search",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <ProductGrid
                               products={msg.inlineProducts}
                               header={msg.inlineProductsHeader}
@@ -268,7 +268,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Delivery check",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <DeliveryCard delivery={msg.deliveryResult} />
                           )
                         }
@@ -278,7 +278,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Order tracking",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <TrackingCard tracking={msg.trackingResult} />
                           )
                         }
@@ -288,7 +288,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Import estimate",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <ImportEstimateCard estimate={msg.importEstimate} />
                           )
                         }
@@ -298,7 +298,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Service listing",
-                            <Box size={16} className="text-[#f97316] shrink-0" />,
+                            <Box size={16} className="text-[#402970] shrink-0" />,
                             <ServiceListingCard listing={msg.serviceListing} onSampleClick={onSampleClick} />
                           )
                         }
