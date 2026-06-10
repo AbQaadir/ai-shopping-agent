@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Globe, Menu, ShoppingCart, User } from "lucide-react";
 import LocationPopover from "./LocationPopover";
 import LanguagePopover from "./LanguagePopover";
+import { useSourcing } from "@/context/SourcingContext";
 
 interface GlobalHeaderProps {
   onNewSourcing: () => void;
@@ -14,6 +15,8 @@ interface GlobalHeaderProps {
 export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuToggle }: GlobalHeaderProps) {
   const [showLocationPopover, setShowLocationPopover] = useState(false);
   const [showLanguagePopover, setShowLanguagePopover] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const { activeUserId, handleSwitchUser } = useSourcing();
 
   return (
     <header className="w-full bg-white/70 backdrop-blur-md border-b border-slate-100 sticky top-0 z-10">
@@ -104,16 +107,84 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#402970]"></span>
           </a>
 
-          {/* Sign In */}
-          <button className="flex items-center gap-1 hover:text-[#402970] transition-colors py-1.5" title="Sign In">
-            <User size={16} className="text-slate-400" />
-            <span className="hidden md:inline">Sign in</span>
-          </button>
+          {/* User Profile Switcher */}
+          <div className="relative">
+            <button
+              onClick={() => setShowUserDropdown(!showUserDropdown)}
+              className="flex items-center gap-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/15 text-[#402970] font-bold px-4 py-2 rounded-full transition-all duration-200 text-xs cursor-pointer select-none"
+            >
+              <User size={14} className="stroke-[2.5]" />
+              <span>
+                {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
+                  ? "Kamal Silva"
+                  : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
+                  ? "Nimal Perera"
+                  : "Guest Profile"}
+              </span>
+            </button>
 
-          {/* Create Account */}
-          <button className="hidden sm:block bg-[#402970] hover:bg-[#33205a] active:scale-95 text-white font-semibold px-4 py-2 rounded-full shadow-md shadow-purple-500/10 transition-all duration-200 text-xs sm:text-sm">
-            Create account
-          </button>
+            {showUserDropdown && (
+              <>
+                <div
+                  className="fixed inset-0 z-20"
+                  onClick={() => setShowUserDropdown(false)}
+                />
+                <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-100 rounded-xl shadow-xl z-30 p-1 flex flex-col gap-0.5 animate-fadeIn">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 px-3 py-1.5 tracking-wider">
+                    Select Active User
+                  </span>
+                  <button
+                    onClick={() => {
+                      handleSwitchUser("e17d0577-c93d-4c3e-9080-60b6bbfdf071");
+                      setShowUserDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
+                        ? "bg-[#402970]/5 text-[#402970]"
+                        : "hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    Kamal Silva (Vase order)
+                    {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071" && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleSwitchUser("b91d2a14-e58f-4ad1-97b0-cce218fd7d32");
+                      setShowUserDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
+                        ? "bg-[#402970]/5 text-[#402970]"
+                        : "hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    Nimal Perera (Chair order)
+                    {activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32" && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleSwitchUser("guest");
+                      setShowUserDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      activeUserId === "guest"
+                        ? "bg-[#402970]/5 text-[#402970]"
+                        : "hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    Guest User (No orders)
+                    {activeUserId === "guest" && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
       </div>
