@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { sessionId, message } = body;
+    const { sessionId, message, userId } = body;
 
     if (!sessionId || !message) {
       return new Response(JSON.stringify({ error: "Missing sessionId or message" }), {
@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
           id: sessionId,
           title: message.substring(0, 60) || "New Chat",
           status: "active",
+          userId: userId && userId !== "guest" ? userId : null,
         },
       });
     }
@@ -140,6 +141,7 @@ User message: "${message.substring(0, 300)}"`;
         let products: KaprukaProduct[] = [];
         let fullResponseText = "";
         let groundingSourcesList: Array<{ title: string; uri: string }> = [];
+        let pastOrdersContext = "";
 
         // ── Pillar 1 & 3: Product Search ───────────────────────────────────
         if (intent === "product" || intent === "service") {
@@ -150,51 +152,127 @@ User message: "${message.substring(0, 300)}"`;
           // Step 1: Parse requirements
           send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
           const criteria = parseRequirements(message);
+          
+          const isReorderQuery = /reorder|ordered|bought|purchased|past order|history/.test(message.toLowerCase());
 
-          const step1 = {
-            step: "intent_routing",
-            status: "completed",
-            content: `Identified as: Product Search. Keywords: [${criteria.keywords.slice(0, 5).join(", ")}]${criteria.maxPrice ? `. Max price: Rs. ${criteria.maxPrice.toLocaleString()}` : ""}`,
-            durationMs: 0,
-          };
-          steps.push(step1);
-          send({ type: "thought", ...step1 });
+          if (isReorderQuery) {
+            const step1 = {
+              step: "intent_routing",
+              status: "completed",
+              content: `Identified as: Order History Lookup. User ID: ${userId || "guest"}`,
+              durationMs: 0,
+            };
+            steps.push(step1);
+            send({ type: "thought", ...step1 });
 
-          // Step 2: MCP product search
-          const t2 = Date.now();
-          const searchQuery = criteria.keywords.join(" ").trim() || message.trim();
+            send({ type: "thought", step: "searching_kapruka", status: "running", content: "Retrieving user's order history..." });
+            
+            if (userId && userId !== "guest") {
+              const userWithOrders = await prisma.user.findUnique({
+                where: { id: userId },
+                include: {
+                  orders: {
+                    include: {
+                      items: true
+                    },
+                    orderBy: { createdAt: "desc" }
+                  }
+                }
+              });
 
-          if (searchQuery) {
-            send({ type: "thought", step: "searching_kapruka", status: "running", content: `Searching Kapruka live catalog for "${searchQuery}"...` });
-            send({ type: "tool_call", name: "kapruka_search_products", args: { query: searchQuery, max_price: criteria.maxPrice } });
+              let orderProducts: KaprukaProduct[] = [];
+              if (userWithOrders && userWithOrders.orders.length > 0) {
+                pastOrdersContext = `\n\n[User's Past Orders] You have access to the user's transaction history. The user (${userWithOrders.name}) has placed the following orders in the past:\n`;
+                for (const order of userWithOrders.orders) {
+                  pastOrdersContext += `- Order Ref: ${order.id}, Date: ${order.createdAt.toISOString().split("T")[0]}, Status: ${order.status}, Total: LKR ${order.totalLKR}\n`;
+                  for (const item of order.items) {
+                    pastOrdersContext += `  * Item: ${item.productName} (ID: ${item.productId}), Qty: ${item.quantity}, Price: LKR ${item.priceLKR}\n`;
+                    orderProducts.push({
+                      id: item.productId,
+                      name: item.productName,
+                      price: item.priceLKR,
+                      currency: "LKR",
+                      inStock: true,
+                      imageUrl: item.imageUrl || undefined,
+                      url: `https://www.kapruka.com/buyonline/${item.productName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}/kid/${item.productId}`
+                    });
+                  }
+                }
 
-            products = await pillar1_searchProducts(searchQuery, {
-              maxPriceLKR: criteria.maxPrice,
-              smeFirst: false,
-            });
-            const dur2 = Date.now() - t2;
+                // Deduplicate orderProducts by id
+                const seenIds = new Set<string>();
+                products = orderProducts.filter(p => {
+                  if (seenIds.has(p.id)) return false;
+                  seenIds.add(p.id);
+                  return true;
+                });
+                
+                pastOrdersContext += `\nInstruction to AI: The user wants to reorder a previous purchase. Confirm the details of the item they are referring to (item name, price, order date) and recommend they click the 'Buy Now' button to reorder.`;
+              } else {
+                pastOrdersContext = `\n\n[User's Past Orders] The user (${userWithOrders?.name || "Unknown"}) has no past order history in the system. Explain this politely.`;
+              }
+            } else {
+              pastOrdersContext = `\n\n[User's Past Orders] The user is currently browsing as a Guest and has no associated order history. Politely prompt them to select a user profile from the header to view order history.`;
+            }
 
             const step2 = {
               step: "searching_kapruka",
               status: "completed",
               content: products.length > 0
-                ? `Found ${products.length} products from Kapruka live catalog.`
-                : "No matching products found in the catalog.",
-              durationMs: dur2,
-            };
-            steps.push(step2);
-            send({ type: "thought", ...step2 });
-            send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
-          } else {
-            const step2 = {
-              step: "searching_kapruka",
-              status: "completed",
-              content: "Search query is empty. Showing 0 products.",
+                ? `Retrieved ${products.length} product(s) from past order history.`
+                : "No past purchases found.",
               durationMs: 0,
             };
             steps.push(step2);
             send({ type: "thought", ...step2 });
-            send({ type: "tool_result", toolName: "kapruka_search_products", result: { products: [] } });
+            send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
+
+          } else {
+            // Standard product search
+            const step1 = {
+              step: "intent_routing",
+              status: "completed",
+              content: `Identified as: Product Search. Keywords: [${criteria.keywords.slice(0, 5).join(", ")}]${criteria.maxPrice ? `. Max price: Rs. ${criteria.maxPrice.toLocaleString()}` : ""}`,
+              durationMs: 0,
+            };
+            steps.push(step1);
+            send({ type: "thought", ...step1 });
+
+            const t2 = Date.now();
+            const searchQuery = criteria.keywords.join(" ").trim() || message.trim();
+
+            if (searchQuery) {
+              send({ type: "thought", step: "searching_kapruka", status: "running", content: `Searching Kapruka live catalog for "${searchQuery}"...` });
+              send({ type: "tool_call", name: "kapruka_search_products", args: { query: searchQuery, max_price: criteria.maxPrice } });
+
+              products = await pillar1_searchProducts(searchQuery, {
+                maxPriceLKR: criteria.maxPrice,
+                smeFirst: false,
+              });
+              const dur2 = Date.now() - t2;
+
+              const step2 = {
+                step: "searching_kapruka",
+                status: "completed",
+                content: products.length > 0
+                  ? `Found ${products.length} products from Kapruka live catalog.`
+                  : "No matching products found in the catalog.",
+                durationMs: dur2,
+              };
+              steps.push(step2);
+              send({ type: "thought", ...step2 });
+              send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
+            } else {
+              const step2 = {
+                step: "searching_kapruka",
+                status: "completed",
+                content: "Search query is empty. Showing 0 products.",
+                durationMs: 0,
+              };
+              steps.push(step2);
+              send({ type: "thought", ...step2 });
+              send({ type: "tool_result", toolName: "kapruka_search_products", result: { products: [] } });
+            }
           }
         }
 
@@ -348,6 +426,10 @@ User message: "${message.substring(0, 300)}"`;
               } else {
                 contextNote = `\n\n[Tool Results] NO products matching the query were found in the Kapruka live catalog. Explain to the user that no items were found, apologize politely, and ask if they would like to try searching for something else or adjusting their keywords. Do not list any products.`;
               }
+            }
+
+            if (pastOrdersContext) {
+              contextNote += pastOrdersContext;
             }
 
             const geminiHistory = chatHistory.map((m: { role: string; content: string }) => ({
@@ -552,3 +634,4 @@ function generateFallback(intent: Intent, message: string, products: KaprukaProd
       return "Kapruka accepts payments via Credit/Debit cards, bank transfers, and cash on delivery for select areas. For returns, you have 7 days from delivery. Contact support@kapruka.com for account help.";
   }
 }
+
