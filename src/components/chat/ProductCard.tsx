@@ -109,7 +109,6 @@ export default function ProductCard({
               <p className="text-[10px] text-slate-400 font-medium">{product.category}</p>
             )}
           </div>
-
           <div className="flex items-center justify-between pt-1.5">
             <div className="flex items-center gap-1.5">
               {product.isSME && (
@@ -127,20 +126,6 @@ export default function ProductCard({
                 {!outOfStock ? "In Stock" : "Out of Stock"}
               </span>
             </div>
-            {product.url && (
-              <a
-                href={product.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onBuy();
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 bg-[#402970] hover:bg-[#33205a] text-white text-[9px] font-bold rounded-lg transition-colors"
-              >
-                <ShoppingCart size={9} /> Buy Now
-              </a>
-            )}
           </div>
         </div>
       </div>
@@ -235,7 +220,6 @@ export default function ProductCard({
             )}
           </div>
 
-          {/* Stock + buy */}
           <div className="flex items-center justify-between">
             <span
               className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
@@ -244,20 +228,6 @@ export default function ProductCard({
             >
               {!outOfStock ? "In Stock" : "Out of Stock"}
             </span>
-            {product.url && (
-              <a
-                href={product.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onBuy();
-                }}
-                className="flex items-center gap-0.5 px-2 py-1 bg-[#402970] hover:bg-[#33205a] text-white text-[8px] font-bold rounded-lg transition-all opacity-0 group-hover:opacity-100 duration-150"
-              >
-                <ShoppingCart size={8} /> Buy
-              </a>
-            )}
           </div>
         </div>
       </div>

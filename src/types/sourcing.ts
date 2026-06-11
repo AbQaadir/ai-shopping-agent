@@ -129,6 +129,12 @@ export interface Message {
 
   // Checkout links
   checkoutLinks?: CheckoutLink[];
+  checkoutFormProduct?: InlineProduct;
+
+  // Conversational order flow (new multi-step agent)
+  orderFlowProduct?: InlineProduct;
+  orderFlowStockStatus?: "in_stock" | "out_of_stock" | "limited";
+  orderFlowStockQty?: number;
 
   // Google Search Grounding sources
   groundingSources?: Array<{ title: string; uri: string }>;

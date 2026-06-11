@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box } from "lucide-react";
+import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink } from "lucide-react";
 import type { Message, InlineProduct } from "@/types/sourcing";
 
 import DeliveryCard from "./cards/DeliveryCard";
 import TrackingCard from "./cards/TrackingCard";
 import ImportEstimateCard from "./cards/ImportEstimateCard";
 import ServiceListingCard from "./cards/ServiceListingCard";
+import CheckoutCard from "./cards/CheckoutCard";
+import OrderFlowCard from "./cards/OrderFlowCard";
 import ProductGrid from "./ProductGrid";
 import ThinkingPanel from "./ThinkingPanel";
 
@@ -168,7 +170,7 @@ export default function ChatTimeline({
                     {/* Text bubble */}
                     <div className={`px-4 py-2.5 font-semibold shadow-xs text-sm ${
                       msg.inlineProducts && msg.inlineProducts.length > 0
-                        ? "bg-orange-50 border border-orange-100 text-orange-700 rounded-2xl"
+                        ? "bg-[#402970]/5 border border-[#402970]/10 text-[#402970] rounded-2xl"
                         : "bg-slate-100 text-slate-800 rounded-full border border-slate-200/20"
                     }`}>
                       {msg.text}
@@ -501,7 +503,7 @@ export default function ChatTimeline({
                         {msg.inlineProducts && msg.inlineProducts.length > 0 &&
                           renderClosableToolCard(
                             msg.id,
-                            "Product search",
+                            msg.inlineProductsHeader || "Product search",
                             <Box size={16} className="text-[#402970] shrink-0" />,
                             <ProductGrid
                               products={msg.inlineProducts}
@@ -552,6 +554,51 @@ export default function ChatTimeline({
                             <ServiceListingCard listing={msg.serviceListing} onSampleClick={onSampleClick} />
                           )
                         }
+
+                        {/* ── Conversational Checkout Card ── */}
+                        {msg.checkoutFormProduct && (
+                          <CheckoutCard product={msg.checkoutFormProduct} />
+                        )}
+
+                        {/* ── New Conversational Order Flow Card ── */}
+                        {msg.orderFlowProduct && (
+                          <OrderFlowCard
+                            product={msg.orderFlowProduct}
+                            stockStatus={msg.orderFlowStockStatus}
+                            stockQty={msg.orderFlowStockQty}
+                          />
+                        )}
+
+                        {/* ── Payment Checkout Links ── */}
+                        {msg.checkoutLinks && msg.checkoutLinks.length > 0 && (
+                          <div className="flex flex-col gap-2.5 max-w-sm w-full bg-[#402970]/5 border border-[#402970]/10 rounded-2xl p-4 shadow-sm select-none animate-fadeIn">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="p-1.5 bg-[#402970]/10 text-[#402970] rounded-lg">
+                                <Box size={16} />
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-800">Secure Checkout Link</h4>
+                                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Expires in 60 minutes</p>
+                              </div>
+                            </div>
+                            {msg.checkoutLinks.map((link) => (
+                              <div key={link.checkoutUrl} className="flex flex-col gap-2 mt-1">
+                                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                                  <span className="truncate max-w-[200px]">{link.productTitle}</span>
+                                  <span className="text-[#402970] font-bold">Rs. {link.priceLKR.toLocaleString()}</span>
+                                </div>
+                                <a
+                                  href={link.checkoutUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full py-2 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-98"
+                                >
+                                  Pay Now Rs. {link.priceLKR.toLocaleString()} <ExternalLink size={12} />
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Follow-up suggestions */}
                         {msg.followUpSamples && msg.followUpSamples.length > 0 && (

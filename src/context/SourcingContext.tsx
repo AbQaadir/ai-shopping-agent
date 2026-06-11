@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing } from "@/types/sourcing";
+import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing, CheckoutLink } from "@/types/sourcing";
 
 interface SourcingContextType {
   isSidebarCollapsed: boolean;
@@ -142,6 +142,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           let thinkingSteps: { step: string; status: "running" | "completed"; content: string; durationMs?: number }[] = [];
           let followUpSamples: string[] = [];
           let groundingSources: Array<{ title: string; uri: string }> = [];
+          let checkoutFormProduct: InlineProduct | undefined = undefined;
+          let checkoutLinks: CheckoutLink[] | undefined = undefined;
+          let orderFlowProduct: InlineProduct | undefined = undefined;
+          let orderFlowStockStatus: "in_stock" | "out_of_stock" | "limited" | undefined = undefined;
+          let orderFlowStockQty: number | undefined = undefined;
+          let isComparison = false;
           if (m.thoughtProcess) {
             try {
               const parsedProcess = typeof m.thoughtProcess === "string" ? JSON.parse(m.thoughtProcess) : m.thoughtProcess;
@@ -149,6 +155,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 thinkingSteps = (parsedProcess as { steps: typeof thinkingSteps }).steps;
                 followUpSamples = (parsedProcess as { followUpQuestions?: string[] }).followUpQuestions || [];
                 groundingSources = (parsedProcess as { groundingSources?: typeof groundingSources }).groundingSources || [];
+                checkoutFormProduct = (parsedProcess as { checkoutFormProduct?: InlineProduct }).checkoutFormProduct;
+                checkoutLinks = (parsedProcess as { checkoutLinks?: CheckoutLink[] }).checkoutLinks;
+                orderFlowProduct = (parsedProcess as { orderFlowProduct?: InlineProduct }).orderFlowProduct;
+                orderFlowStockStatus = (parsedProcess as { orderFlowStockStatus?: "in_stock" | "out_of_stock" | "limited" }).orderFlowStockStatus;
+                orderFlowStockQty = (parsedProcess as { orderFlowStockQty?: number }).orderFlowStockQty;
+                isComparison = !!parsedProcess.isComparison;
               } else if (Array.isArray(parsedProcess)) {
                 thinkingSteps = parsedProcess;
               }
@@ -162,10 +174,17 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
             text: m.content,
             timestamp: new Date(m.createdAt),
             thinkingSteps: thinkingSteps.length > 0 ? thinkingSteps : undefined,
-            inlineProductsHeader: inlineProducts.length > 0 ? "Matched Sourcing Products" : undefined,
+            inlineProductsHeader: inlineProducts.length > 0 
+              ? (isComparison ? "Compared Products" : "Matched Sourcing Products") 
+              : undefined,
             inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
             showViewProductsButton: inlineProducts.length > 0,
             groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
+            checkoutFormProduct,
+            checkoutLinks,
+            orderFlowProduct,
+            orderFlowStockStatus,
+            orderFlowStockQty,
             followUpText: followUpSamples.length > 0 
               ? "Based on this session, you can continue with:" 
               : inlineProducts.length > 0 
@@ -295,6 +314,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     };
 
     const selectedProductIds = selectedProducts.map(p => p.id);
+    const isComparisonQuery = selectedProductIds.length > 0;
     setSelectedProducts([]);
 
     const updatedMessages = [...messages, newUserMessage];
@@ -377,6 +397,10 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       let serviceListing: ServiceListing | undefined;
       let groundingSources: Array<{ title: string; uri: string }> = [];
       let accumulatedSteps: Array<{ step: string; status: "running" | "completed"; content: string; durationMs?: number }> = [];
+      let checkoutFormProduct: InlineProduct | undefined = undefined;
+      let orderFlowProduct: InlineProduct | undefined = undefined;
+      let orderFlowStockStatus: "in_stock" | "out_of_stock" | "limited" | undefined = undefined;
+      let orderFlowStockQty: number | undefined = undefined;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -422,7 +446,13 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   inlineProducts = packet.result.products;
                   setMessages(prev => prev.map(m =>
                     m.id === aiMessageId
-                      ? { ...m, activeToolCall: null, inlineProductsHeader: "Kapruka Products", inlineProducts, showViewProductsButton: true }
+                      ? { 
+                          ...m, 
+                          activeToolCall: null, 
+                          inlineProductsHeader: isComparisonQuery ? "Compared Products" : "Kapruka Products", 
+                          inlineProducts, 
+                          showViewProductsButton: true 
+                        }
                       : m
                   ));
                 }
@@ -463,6 +493,20 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   ));
                 }
 
+              } else if (packet.type === "checkout_form") {
+                checkoutFormProduct = packet.product as InlineProduct;
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, activeToolCall: null, checkoutFormProduct } : m
+                ));
+              } else if (packet.type === "order_flow") {
+                orderFlowProduct = packet.product as InlineProduct;
+                orderFlowStockStatus = packet.stockStatus as "in_stock" | "out_of_stock" | "limited" | undefined;
+                orderFlowStockQty = packet.stockQty as number | undefined;
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId
+                    ? { ...m, activeToolCall: null, orderFlowProduct, orderFlowStockStatus, orderFlowStockQty }
+                    : m
+                ));
               } else if (packet.type === "follow_ups") {
                 if (packet.questions) {
                   followUpQuestions = packet.questions;
@@ -502,6 +546,10 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
         followUpText: followUpQuestions.length > 0 ? "Continue with:" : undefined,
         followUpSamples: followUpQuestions.length > 0 ? followUpQuestions : undefined,
+        checkoutFormProduct,
+        orderFlowProduct,
+        orderFlowStockStatus,
+        orderFlowStockQty,
       };
 
       setMessages(prev => prev.map(m => m.id === aiMessageId ? finalMappedAi : m));
@@ -552,11 +600,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const handleBuyProduct = (product: InlineProduct) => {
-    if (product.url) {
-      window.open(product.url, "_blank", "noopener,noreferrer");
-    }
-  };
+  const handleBuyProduct = useCallback((product: InlineProduct) => {
+    setSelectedProducts([product]);
+    setTimeout(() => {
+      handleSendMessage("order this", []);
+    }, 50);
+  }, [handleSendMessage]);
 
   return (
     <SourcingContext.Provider

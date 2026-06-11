@@ -174,20 +174,6 @@ function ModalGridCard({
             >
               {!outOfStock ? "In Stock" : "Out of Stock"}
             </span>
-            {product.url && (
-              <a
-                href={product.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onBuy();
-                }}
-                className="flex items-center gap-0.5 px-2.5 py-1.5 bg-[#402970] hover:bg-[#33205a] text-white text-[9px] font-bold rounded-lg transition-all opacity-0 group-hover:opacity-100 duration-150"
-              >
-                <ShoppingCart size={9} /> Buy
-              </a>
-            )}
           </div>
         </div>
       </div>
@@ -313,21 +299,6 @@ function ModalListRow({
               {!outOfStock ? "In Stock" : "Out of Stock"}
             </span>
           </div>
-
-          {product.url && (
-            <a
-              href={product.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                onBuy();
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#402970] hover:bg-[#33205a] text-white text-[10px] font-bold rounded-xl transition-all"
-            >
-              <ShoppingCart size={11} /> Buy Now
-            </a>
-          )}
         </div>
       </div>
     </div>
@@ -471,7 +442,7 @@ export default function ProductCatalogModal({
         {/* ── Product grid/list area ── */}
         <div className="flex-1 overflow-y-auto px-5 py-5 scrollbar-none">
           {viewMode === "grid" ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               {paginatedProducts.map((prod) => (
                 <ModalGridCard
                   key={prod.id}
