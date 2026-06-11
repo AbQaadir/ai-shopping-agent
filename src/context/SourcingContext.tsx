@@ -298,6 +298,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       abortControllerRef.current.abort();
     }
 
+    let aiMessageId = "";
+
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
@@ -350,7 +352,20 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      setMessages(prev => prev.map(m => m.id === userMessageId ? { ...m, status: "sent" as const } : m));
+      aiMessageId = `ai-msg-${Date.now()}`;
+      const newAiMessage: Message = {
+        id: aiMessageId,
+        sender: "ai",
+        text: "",
+        timestamp: new Date(),
+        thinkingSteps: [],
+        activeToolCall: null,
+      };
+
+      setMessages(prev => {
+        const updated = prev.map(m => m.id === userMessageId ? { ...m, status: "sent" as const } : m);
+        return [...updated, newAiMessage];
+      });
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -375,17 +390,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       if (!reader) {
         throw new Error("No stream reader available");
       }
-
-      const aiMessageId = `ai-msg-${Date.now()}`;
-      const newAiMessage: Message = {
-        id: aiMessageId,
-        sender: "ai",
-        text: "",
-        timestamp: new Date(),
-        thinkingSteps: [],
-        activeToolCall: null,
-      };
-      setMessages(prev => [...prev, newAiMessage]);
 
       let buffer = "";
       let fullResponseText = "";
@@ -570,6 +574,16 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       } else {
         console.error("Failed to stream message response:", err);
         setIsGenerating(false);
+        if (aiMessageId) {
+          setMessages(prev => prev.map(m =>
+            m.id === aiMessageId
+              ? {
+                  ...m,
+                  text: "Sorry, I encountered an error while processing your request. Please check your connection and try again."
+                }
+              : m
+          ));
+        }
       }
     }
   };
