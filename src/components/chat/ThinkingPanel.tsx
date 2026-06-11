@@ -166,7 +166,7 @@ export default function ThinkingPanel({
               const query = extractQueryFromContent(step.content, activeQueryText);
 
               return (
-                <div key={idx} className="space-y-2.5 animate-fadeIn">
+                <div key={idx} className="space-y-2.5 animate-step-enter">
                   <p className="text-slate-600 text-[13px] font-medium leading-relaxed pr-2">
                     {step.content}
                   </p>
@@ -194,7 +194,7 @@ export default function ThinkingPanel({
 
             {/* Active running tool call (if not yet recorded as a completed step) */}
             {isGenerating && activeToolCall && !steps.some(s => getStepBadge(s.step) === getToolBadge(activeToolCall.name)) && (
-              <div className="space-y-2.5 animate-fadeIn">
+              <div className="space-y-2.5 animate-step-enter">
                 <p className="text-slate-600 text-[13px] font-medium leading-relaxed pr-2">
                   Running task {getToolBadge(activeToolCall.name) || "execution"}...
                 </p>
