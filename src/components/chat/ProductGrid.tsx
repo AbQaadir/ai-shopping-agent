@@ -77,7 +77,7 @@ export default function ProductGrid({
 
       {/* ── Product display ── */}
       {viewMode === "grid" ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 select-none transition-all duration-300">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 select-none transition-all duration-300">
           {paginatedProducts.map((prod) => (
             <ProductCard
               key={prod.id}

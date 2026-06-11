@@ -50,7 +50,7 @@ export default function ChatInputArea({
       <div className="max-w-3xl mx-auto w-full">
         <div className={`w-full bg-white rounded-2xl p-3 flex flex-col gap-2 transition-all duration-300 border ${
           isFocused || selectedProducts.length > 0
-            ? "border-orange-500 shadow-[0_4px_20px_rgba(249,115,22,0.12)]" 
+            ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]" 
             : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
         }`}>
 
@@ -104,13 +104,19 @@ export default function ChatInputArea({
                   <>
                     <button
                       onClick={() => onSubmit("Chat now")}
-                      className="px-3.5 py-1.5 bg-orange-50 border border-orange-100 hover:bg-orange-100/80 text-orange-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                      className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Chat now →
                     </button>
                     <button
+                      onClick={() => onSubmit("Order this")}
+                      className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                    >
+                      Order this →
+                    </button>
+                    <button
                       onClick={() => onSubmit("Send inquiry")}
-                      className="px-3.5 py-1.5 bg-orange-50 border border-orange-100 hover:bg-orange-100/80 text-orange-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                      className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Send inquiry →
                     </button>
@@ -119,13 +125,13 @@ export default function ChatInputArea({
                   <>
                     <button
                       onClick={() => onSubmit("Compare")}
-                      className="px-3.5 py-1.5 bg-orange-50 border border-orange-100 hover:bg-orange-100/80 text-orange-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                      className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Compare →
                     </button>
                     <button
                       onClick={() => onSubmit("Get quotes")}
-                      className="px-3.5 py-1.5 bg-orange-50 border border-orange-100 hover:bg-orange-100/80 text-orange-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                      className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Get quotes →
                     </button>
