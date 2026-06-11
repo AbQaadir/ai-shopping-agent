@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { Paperclip, ArrowUp, X } from "lucide-react";
-import PillarSuggestionGrid from "./PillarSuggestionGrid";
+import { Paperclip, ArrowUp, X, Menu } from "lucide-react";
+import { useSourcing } from "@/context/SourcingContext";
 
 interface LandingWorkspaceProps {
   onSend: (text: string, files: File[]) => void;
@@ -10,6 +10,7 @@ interface LandingWorkspaceProps {
 }
 
 export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingWorkspaceProps) {
+  const { setIsMobileSidebarOpen } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isFocused, setIsFocused] = useState(false);
@@ -35,7 +36,25 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   };
  
   return (
-    <div className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center gap-6 sm:gap-10 relative overflow-hidden animate-fadeIn">
+    <div className="flex-1 w-full flex flex-col overflow-hidden h-full">
+      {/* Mobile-only minimal header */}
+      <div className="md:hidden w-full h-14 border-b border-slate-100 flex items-center justify-between px-4 bg-white shrink-0 select-none">
+        <button
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
+          title="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+        <img
+          src="/kapuruka-logo.jpg"
+          alt="Kapuruka"
+          className="h-7 w-auto object-contain rounded-md"
+        />
+        <div className="w-9" />
+      </div>
+
+      <div className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center gap-6 sm:gap-10 relative overflow-y-auto animate-fadeIn">
  
       {/* Background glow */}
       <div className="absolute top-[10%] sm:top-[15%] left-1/2 -translate-x-1/2 w-[320px] sm:w-[700px] h-[180px] sm:h-[350px] bg-gradient-to-tr from-[#402970]/8 to-purple-400/8 rounded-full blur-[80px] sm:blur-[120px] pointer-events-none -z-10" />
@@ -101,16 +120,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         </div>
       </div>
  
-      {/* 5-Pillar Cards */}
-      <PillarSuggestionGrid onSuggestionClick={onSuggestionClick} />
- 
-      {/* Trust badges */}
-      <div className="flex items-center justify-center gap-3 sm:gap-6 flex-wrap text-[9px] sm:text-[10px] font-semibold text-slate-400 px-4">
-        <span className="flex items-center gap-1">✅ Live Catalog</span>
-        <span className="flex items-center gap-1">🚚 Grasshoppers</span>
-        <span className="flex items-center gap-1">🔒 Secure Checkout</span>
-        <span className="flex items-center gap-1">🇱🇰 Local SME Brands</span>
-      </div>
+
     </div>
+  </div>
   );
 }

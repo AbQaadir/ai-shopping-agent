@@ -6,9 +6,10 @@ import { useSourcing } from "@/context/SourcingContext";
 
 interface LanguagePopoverProps {
   onClose?: () => void;
+  align?: "bottom" | "right";
 }
 
-export default function LanguagePopover({ onClose }: LanguagePopoverProps) {
+export default function LanguagePopover({ onClose, align = "bottom" }: LanguagePopoverProps) {
   const { currency, setCurrency } = useSourcing();
   const [selectedCurrency, setSelectedCurrency] = useState(currency.toUpperCase());
 
@@ -18,9 +19,17 @@ export default function LanguagePopover({ onClose }: LanguagePopoverProps) {
   };
 
   return (
-    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-[320px] bg-white border border-slate-100 rounded-2xl shadow-xl p-5 z-50 animate-fadeIn text-left">
-      {/* Arrow indicator pointing up */}
-      <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-t border-l border-slate-100 rotate-45"></div>
+    <div className={`absolute w-[320px] bg-white border border-slate-100 rounded-2xl shadow-xl p-5 z-50 animate-fadeIn text-left ${
+      align === "right" 
+        ? "bottom-0 left-full ml-3" 
+        : "top-full left-1/2 -translate-x-1/2 mt-1"
+    }`}>
+      {/* Arrow indicator pointing up or left */}
+      {align === "right" ? (
+        <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 bg-white border-b border-l border-slate-100 rotate-45"></div>
+      ) : (
+        <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-t border-l border-slate-100 rotate-45"></div>
+      )}
 
       <div className="space-y-4 relative">
         <h4 className="font-extrabold text-slate-800 text-sm">Set language and currency</h4>

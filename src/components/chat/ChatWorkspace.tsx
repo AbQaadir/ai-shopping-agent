@@ -4,7 +4,8 @@ import type { InlineProduct, Message } from "@/types/sourcing";
 import {
   Check,
   ChevronLeft,
-  Share2
+  Share2,
+  Menu
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSourcing } from "@/context/SourcingContext";
@@ -33,7 +34,7 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
-  const { selectedProducts, setSelectedProducts } = useSourcing();
+  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isCopied, setIsCopied] = useState(false);
@@ -111,13 +112,24 @@ export default function ChatWorkspace({
 
       {/* ── 1. Thin top bar ── */}
       <div className="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-white shrink-0 select-none">
-        <button
-          onClick={onBackToLanding}
-          className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ChevronLeft size={14} />
-          Back  
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Mobile menu trigger */}
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="md:hidden p-1.5 -ml-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer outline-none"
+            title="Open menu"
+          >
+            <Menu size={16} />
+          </button>
+          
+          <button
+            onClick={onBackToLanding}
+            className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+          >
+            <ChevronLeft size={14} />
+            Back  
+          </button>
+        </div>
         <button
           onClick={handleShareClick}
           className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer ${
