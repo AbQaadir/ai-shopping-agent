@@ -48,7 +48,7 @@ export default function ChatInputArea({
   return (
     <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 select-none z-20">
       <div className="max-w-3xl mx-auto w-full">
-        <div className={`w-full bg-white rounded-2xl p-3 flex flex-col gap-2 transition-all duration-300 border ${
+        <div className={`w-full bg-white rounded-2xl py-2.5 px-3 flex flex-col gap-2 transition-all duration-300 border ${
           isFocused || selectedProducts.length > 0
             ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]" 
             : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
@@ -150,7 +150,7 @@ export default function ChatInputArea({
             onBlur={() => setIsFocused(false)}
             placeholder="ask follow-up..."
             rows={2}
-            className="w-full resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm px-1 leading-relaxed min-h-[44px]"
+            className="w-full resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm px-1 leading-relaxed min-h-[39px]"
           />
 
           {/* Attached files */}

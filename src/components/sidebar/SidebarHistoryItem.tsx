@@ -19,8 +19,8 @@ export default function SidebarHistoryItem({
       onClick={onClick}
       className={`w-full text-left px-3.5 py-3 rounded-xl text-xs transition-all duration-150 flex items-center justify-between gap-2 cursor-pointer outline-none focus:outline-none focus:ring-0 ${
         isActive 
-          ? "bg-white text-slate-800 font-bold shadow-xs border border-slate-100/80" 
-          : "text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 font-medium"
+          ? "bg-white text-[#402970] font-bold shadow-xs border border-slate-150" 
+          : "text-slate-500 hover:bg-[#402970]/5 hover:text-[#402970] font-medium"
       }`}
       title={query}
     >

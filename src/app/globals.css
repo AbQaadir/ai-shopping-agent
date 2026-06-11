@@ -84,8 +84,8 @@ body {
     background-size: 200% 100%;
     animation: shimmer 1.8s ease-in-out infinite;
   }
-  .scrollbar-none { scrollbar-width: none; }
-  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { scrollbar-width: none !important; }
+  .scrollbar-none::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
 }
 
 /* Disable focus rings/outlines on buttons and clickable elements to prevent blue outlines on click */
@@ -121,9 +121,14 @@ a:focus,
   background-clip: padding-box;
 }
 
-/* Firefox scrollbar compatibility */
+/* Firefox scrollbar compatibility & Global Font Alignment */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  font-family: var(--font-plus-jakarta-sans), system-ui, -apple-system, sans-serif !important;
+}
+
+button, input, select, textarea {
+  font-family: var(--font-plus-jakarta-sans), system-ui, -apple-system, sans-serif !important;
 }
 
