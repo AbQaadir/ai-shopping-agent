@@ -149,8 +149,13 @@ Analyze the user query in the context of the recent conversation history, and pe
 
 3. Extract a clean search keyword/phrase ("searchQuery") to search the catalog:
    - If the intent is "product" or "service", extract a clean, focused search term that directly refers to the specific product/object/service the user is trying to find.
-   - Conversational filler words, request/action verbs ("find", "show me", "search for", "buy"), question words, and unrelated details (like prices, shipping speeds, recipient names, mother, mother's day, birthday, etc.) MUST be completely removed.
-   - The search query should make sense for a search engine in an e-commerce platform (e.g. "chocolate cake", "black running shoes", "perfume"). 
+   - Conversational filler words, request/action verbs ("find", "show me", "search for", "buy", "purchase", "order", "shop", "want to"), quantifiers/determiners ("some", "any", "a", "an", "the", "many", "few"), question words, and unrelated details (like prices, shipping speeds, recipient names, mother, birthday, etc.) MUST be completely removed.
+   - The search query should make sense for a search engine in an e-commerce platform. It must ONLY contain the core target product/object/service name nouns.
+   - Extraction Examples:
+     * "I want to buy some flower vase" -> "flower vase" (NOT "buy some flower vase")
+     * "Can you find a nice chocolate cake for my mother's birthday under 5000 rupees?" -> "chocolate cake"
+     * "Show me blue running shoes for men" -> "blue running shoes"
+     * "need AC repair in Colombo" -> "ac repair"
    - If not a product/service intent, or if no product query is relevant, set "searchQuery" to "".
 
 Respond ONLY with JSON matching this structure:

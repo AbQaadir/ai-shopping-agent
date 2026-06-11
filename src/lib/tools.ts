@@ -609,7 +609,11 @@ export function parseRequirements(message: string): SourcingCriteria {
     "find", "show", "me", "want", "need", "get", "the", "and", "for", "with", 
     "under", "below", "above", "max", "maximum", "min", "minimum", "less", "than", 
     "please", "search", "list", "rs", "lkr", "rupee", "rupees", "usd", "dollar", 
-    "dollars", "price", "budget", "cost", "cheap", "expensive", "about", "around"
+    "dollars", "price", "budget", "cost", "cheap", "expensive", "about", "around",
+    "buy", "purchase", "order", "shop", "shopping", "sourcing", "some", "any", 
+    "many", "few", "several", "lot", "lots", "can", "could", "would", "should",
+    "like", "have", "has", "had", "go", "going", "item", "items", "product", "products",
+    "you", "we"
   ]);
 
   // Strip punctuation and split into words
