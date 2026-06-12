@@ -23,10 +23,11 @@ import { useEffect, useRef, useState } from "react";
 interface OrderStepBubbleProps {
   step: OrderFlowStepData;
   onAction: (userMessage: string) => void;
+  isActive?: boolean;
 }
 
 // ── Quantity Ask Variant ───────────────────────────────────────────────────
-function QtyAskBubble({ step, onAction }: OrderStepBubbleProps) {
+function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const [qty, setQty] = useState(1);
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
@@ -34,7 +35,7 @@ function QtyAskBubble({ step, onAction }: OrderStepBubbleProps) {
   const hasError = !!step.errorMessage;
 
   const handleConfirm = () => {
-    if (submittedRef.current) return;
+    if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
     setSubmitted(true);
     onAction(`I'd like to order ${qty} unit${qty > 1 ? "s" : ""}`);
@@ -103,7 +104,7 @@ function QtyAskBubble({ step, onAction }: OrderStepBubbleProps) {
           <div className="flex items-center gap-2 border border-slate-200 bg-slate-50/50 rounded-xl p-1 shrink-0">
             <button
               onClick={() => setQty(Math.max(1, qty - 1))}
-              disabled={qty <= 1 || submitted}
+              disabled={qty <= 1 || submitted || !isActive}
               className="p-2 hover:bg-white rounded-lg text-slate-500 disabled:opacity-30 transition-all cursor-pointer hover:shadow-xs active:scale-95"
             >
               <Minus size={12} />
@@ -111,7 +112,7 @@ function QtyAskBubble({ step, onAction }: OrderStepBubbleProps) {
             <span className="text-xs font-extrabold text-slate-800 w-8 text-center">{qty}</span>
             <button
               onClick={() => setQty(Math.min(maxQty, qty + 1))}
-              disabled={qty >= maxQty || submitted}
+              disabled={qty >= maxQty || submitted || !isActive}
               className="p-2 hover:bg-white rounded-lg text-slate-500 disabled:opacity-30 transition-all cursor-pointer hover:shadow-xs active:scale-95"
             >
               <Plus size={12} />
@@ -133,12 +134,12 @@ function QtyAskBubble({ step, onAction }: OrderStepBubbleProps) {
       {/* Action CTA */}
       <button
         onClick={handleConfirm}
-        disabled={submitted}
+        disabled={submitted || !isActive}
         className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all duration-150 disabled:opacity-50 cursor-pointer"
       >
-        {submitted ? (
+        {submitted || !isActive ? (
           <>
-            <Loader2 size={13} className="animate-spin" /> Confirming quantity...
+            <CheckCircle size={13} /> {submitted ? "Confirming quantity..." : "Quantity Confirmed"}
           </>
         ) : (
           <>
@@ -151,20 +152,20 @@ function QtyAskBubble({ step, onAction }: OrderStepBubbleProps) {
 }
 
 // ── Delivery Ask Variant ───────────────────────────────────────────────────
-function DeliveryAskBubble({ step, onAction }: OrderStepBubbleProps) {
+function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const addr = step.savedAddress;
   const hasAddr = !!(addr?.address && addr?.city);
 
   const handleSaved = () => {
-    if (submittedRef.current) return;
+    if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
     setSubmitted(true);
     onAction("Yes, deliver to my saved address");
   };
   const handleNew = () => {
-    if (submittedRef.current) return;
+    if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
     setSubmitted(true);
     onAction("I want to use a new delivery address");
@@ -219,7 +220,7 @@ function DeliveryAskBubble({ step, onAction }: OrderStepBubbleProps) {
         {hasAddr && (
           <button
             onClick={handleSaved}
-            disabled={submitted}
+            disabled={submitted || !isActive}
             className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
           >
             <CheckCircle size={13} /> Yes, deliver here
@@ -227,7 +228,7 @@ function DeliveryAskBubble({ step, onAction }: OrderStepBubbleProps) {
         )}
         <button
           onClick={handleNew}
-          disabled={submitted}
+          disabled={submitted || !isActive}
           className={`w-full py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer ${
             !hasAddr ? "sm:col-span-2" : ""
           }`}
@@ -241,7 +242,7 @@ function DeliveryAskBubble({ step, onAction }: OrderStepBubbleProps) {
 }
 
 // ── Map Open Variant ───────────────────────────────────────────────────────
-function MapOpenBubble({ step, onAction }: OrderStepBubbleProps) {
+function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const [useGoogleMaps, setUseGoogleMaps] = useState(false);
   const [mapsLoadFailed, setMapsLoadFailed] = useState(false);
   const [confirmedAddress, setConfirmedAddress] = useState("");
@@ -287,12 +288,12 @@ function MapOpenBubble({ step, onAction }: OrderStepBubbleProps) {
         const el = document.createElement("div");
         el.style.cssText =
           "width:24px;height:24px;background:#402970;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:grab";
-        marker = new MarkerClass({ position: center, map, content: el, gmpDraggable: true });
+        marker = new MarkerClass({ position: center, map, content: el, gmpDraggable: isActive });
       } else {
         marker = new MarkerClass({
           position: center,
           map,
-          draggable: true,
+          draggable: isActive,
           icon: { url: "https://maps.google.com/mapfiles/ms/icons/purple-dot.png" },
         });
       }
@@ -320,8 +321,10 @@ function MapOpenBubble({ step, onAction }: OrderStepBubbleProps) {
 
       setConfirmedAddress(geo.formattedAddress);
       updateAddr(center);
-      map.addListener("click", (e: any) => updateAddr(e.latLng));
-      isAdvanced ? marker.addListener("gmp-dragend", () => updateAddr(marker.position)) : marker.addListener("dragend", (e: any) => updateAddr(e.latLng));
+      if (isActive) {
+        map.addListener("click", (e: any) => updateAddr(e.latLng));
+        isAdvanced ? marker.addListener("gmp-dragend", () => updateAddr(marker.position)) : marker.addListener("dragend", (e: any) => updateAddr(e.latLng));
+      }
     } catch (err) {
       console.error("Maps init error:", err);
       setMapsLoadFailed(true);
@@ -425,7 +428,7 @@ function MapOpenBubble({ step, onAction }: OrderStepBubbleProps) {
                   placeholder="e.g. 123 Galle Road, near Temple"
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
-                  disabled={submitted}
+                  disabled={submitted || !isActive}
                   className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50"
                 />
               </div>
@@ -436,7 +439,7 @@ function MapOpenBubble({ step, onAction }: OrderStepBubbleProps) {
                   placeholder="e.g. Colombo 3"
                   value={manualCity}
                   onChange={(e) => setManualCity(e.target.value)}
-                  disabled={submitted}
+                  disabled={submitted || !isActive}
                   className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50"
                 />
               </div>
@@ -472,12 +475,12 @@ function MapOpenBubble({ step, onAction }: OrderStepBubbleProps) {
 
         <button
           onClick={handleConfirmLocation}
-          disabled={submitted || !canConfirm}
+          disabled={submitted || !canConfirm || !isActive}
           className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
         >
-          {submitted ? (
+          {submitted || !isActive ? (
             <>
-              <Loader2 size={13} className="animate-spin" /> Confirming location...
+              <CheckCircle size={13} /> Location Confirmed
             </>
           ) : (
             <>
@@ -491,13 +494,13 @@ function MapOpenBubble({ step, onAction }: OrderStepBubbleProps) {
 }
 
 // ── Payment Ask Variant ────────────────────────────────────────────────────
-function PaymentAskBubble({ step, onAction }: OrderStepBubbleProps) {
+function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const totalLKR = (step.product?.price || 0) * (step.confirmedQuantity || 1);
 
   const handle = (method: "cod" | "card") => {
-    if (submittedRef.current) return;
+    if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
     setSubmitted(true);
     onAction(method === "cod" ? "I'll pay cash on delivery" : "I want to pay by card online");
@@ -530,7 +533,7 @@ function PaymentAskBubble({ step, onAction }: OrderStepBubbleProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
             onClick={() => handle("cod")}
-            disabled={submitted}
+            disabled={submitted || !isActive}
             className="group flex flex-col justify-between p-5 border-2 border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 rounded-2xl text-left transition-all duration-200 cursor-pointer disabled:opacity-50 active:scale-[0.98] h-36"
           >
             <div className="w-10 h-10 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-100 transition-colors">
@@ -546,7 +549,7 @@ function PaymentAskBubble({ step, onAction }: OrderStepBubbleProps) {
 
           <button
             onClick={() => handle("card")}
-            disabled={submitted}
+            disabled={submitted || !isActive}
             className="group flex flex-col justify-between p-5 border-2 border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 rounded-2xl text-left transition-all duration-200 cursor-pointer disabled:opacity-50 active:scale-[0.98] h-36"
           >
             <div className="w-10 h-10 bg-[#402970]/10 border border-[#402970]/10 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#402970]/20 transition-colors">
@@ -566,7 +569,7 @@ function PaymentAskBubble({ step, onAction }: OrderStepBubbleProps) {
 }
 
 // ── Confirmed Variant ──────────────────────────────────────────────────────
-function ConfirmedBubble({ step, onAction }: OrderStepBubbleProps) {
+function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const addr = step.confirmedAddress;
   const totalLKR = (step.product?.price || 0) * (step.confirmedQuantity || 1);
   const orderFailed = !step.orderId && step.paymentMethod === "card" && !step.checkoutUrl;
@@ -608,7 +611,8 @@ function ConfirmedBubble({ step, onAction }: OrderStepBubbleProps) {
             </p>
             <button
               onClick={() => onAction("I want to retry placing my order")}
-              className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+              disabled={!isActive}
+              className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw size={13} /> Retry Order Submission
             </button>
@@ -716,18 +720,18 @@ function OutOfStockBubble({ step }: { step: OrderFlowStepData }) {
 }
 
 // ── Main Export ────────────────────────────────────────────────────────────
-export default function OrderStepBubble({ step, onAction }: OrderStepBubbleProps) {
+export default function OrderStepBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   switch (step.phase) {
     case "qty_ask":
-      return <QtyAskBubble step={step} onAction={onAction} />;
+      return <QtyAskBubble step={step} onAction={onAction} isActive={isActive} />;
     case "delivery_ask":
-      return <DeliveryAskBubble step={step} onAction={onAction} />;
+      return <DeliveryAskBubble step={step} onAction={onAction} isActive={isActive} />;
     case "map_open":
-      return <MapOpenBubble step={step} onAction={onAction} />;
+      return <MapOpenBubble step={step} onAction={onAction} isActive={isActive} />;
     case "payment_ask":
-      return <PaymentAskBubble step={step} onAction={onAction} />;
+      return <PaymentAskBubble step={step} onAction={onAction} isActive={isActive} />;
     case "confirmed":
-      return <ConfirmedBubble step={step} onAction={onAction} />;
+      return <ConfirmedBubble step={step} onAction={onAction} isActive={isActive} />;
     case "out_of_stock":
       return <OutOfStockBubble step={step} />;
     default:

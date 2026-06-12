@@ -408,10 +408,10 @@ RULES:
             send({ type: "order_flow_step", ...das });
             const firstName = savedAddr?.name?.split(" ")[0] || "";
             const t = await llmGenerate(
-              `Customer confirmed qty: ${extractedQty}. ${hasSavedAddress ? `They have a saved address (${savedAddr?.address}, ${savedAddr?.city}). Ask if they want delivery there or a new address.` : "Ask where to deliver."} 1-2 sentences.`
+              `Customer confirmed qty: ${extractedQty} units of "${product.name || product.title}". ${hasSavedAddress ? `They have a saved address (${savedAddr?.address}, ${savedAddr?.city}). Ask if they want delivery there or a new address.` : "Ask where to deliver."} 1-2 sentences.`
             ) || (hasSavedAddress
-              ? `Perfect! ${extractedQty} unit${extractedQty > 1 ? "s" : ""} confirmed. Should we deliver to ${firstName ? firstName + "'s" : "your"} saved address, or would you like a new one?`
-              : `Got it — ${extractedQty} unit${extractedQty > 1 ? "s" : ""} locked in! Where should we deliver your order?`);
+              ? `Perfect! ${extractedQty} unit${extractedQty > 1 ? "s" : ""} of **${product.name || product.title}** confirmed. Should we deliver to ${firstName ? firstName + "'s" : "your"} saved address, or would you like a new one?`
+              : `Got it — ${extractedQty} unit${extractedQty > 1 ? "s" : ""} of **${product.name || product.title}** locked in! Where should we deliver your order?`);
             await streamWords(t); await saveOrderMessage(t, das); controller.close(); return;
           }
 
