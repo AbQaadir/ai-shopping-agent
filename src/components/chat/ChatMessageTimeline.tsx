@@ -10,6 +10,7 @@ import ImportEstimateCard from "./cards/ImportEstimateCard";
 import ServiceListingCard from "./cards/ServiceListingCard";
 import CheckoutCard from "./cards/CheckoutCard";
 import OrderFlowCard from "./cards/OrderFlowCard";
+import OrderStepBubble from "./cards/OrderStepBubble";
 import ProductGrid from "./ProductGrid";
 import ThinkingPanel from "./ThinkingPanel";
 
@@ -18,6 +19,7 @@ interface ChatTimelineProps {
   isGenerating: boolean;
   activeQueryText?: string;
   onSampleClick?: (sampleText: string) => void;
+  onDirectSend?: (text: string) => void;
   onViewMoreProducts?: (products: InlineProduct[]) => void;
   selectedProductIds?: string[];
   onToggleSelectProduct?: (product: InlineProduct) => void;
@@ -72,6 +74,7 @@ export default function ChatTimeline({
   isGenerating,
   activeQueryText,
   onSampleClick,
+  onDirectSend,
   onViewMoreProducts,
   selectedProductIds = [],
   onToggleSelectProduct,
@@ -121,7 +124,7 @@ export default function ChatTimeline({
 
   return (
     <div
-      className="flex-1 overflow-y-auto px-4 pt-6 space-y-6 flex flex-col items-center w-full"
+      className="flex-1 overflow-y-auto px-4 pt-16 space-y-6 flex flex-col items-center w-full"
       style={{ scrollbarGutter: "stable" }}
     >
       <div className="w-full max-w-3xl space-y-6 flex flex-col">
@@ -560,8 +563,16 @@ export default function ChatTimeline({
                           <CheckoutCard product={msg.checkoutFormProduct} />
                         )}
 
-                        {/* ── New Conversational Order Flow Card ── */}
-                        {msg.orderFlowProduct && (
+                        {/* ── Conversational Order Flow Step Bubble (NEW) ── */}
+                        {msg.orderFlowStep && (
+                          <OrderStepBubble
+                            step={msg.orderFlowStep}
+                            onAction={(text) => onDirectSend?.(text) ?? onSampleClick?.(text)}
+                          />
+                        )}
+
+                        {/* ── Legacy Order Flow Card (backward compat) ── */}
+                        {!msg.orderFlowStep && msg.orderFlowProduct && (
                           <OrderFlowCard
                             product={msg.orderFlowProduct}
                             stockStatus={msg.orderFlowStockStatus}
