@@ -545,6 +545,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 orderFlowStep = {
                   phase: packet.phase,
                   product: packet.product,
+                  cartItems: packet.cartItems,
                   stockStatus: packet.stockStatus,
                   stockQty: packet.stockQty,
                   savedAddress: packet.savedAddress,
