@@ -6,6 +6,24 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("id");
     const userId = searchParams.get("userId");
+    const cartOnly = searchParams.get("cartOnly") === "true";
+
+    if (cartOnly && userId) {
+      const sessions = await (prisma.chatSession as any).findMany({
+        where: {
+          userId: userId === "guest" ? null : userId,
+          cart: { not: null },
+        },
+        select: {
+          id: true,
+          title: true,
+          cart: true,
+          createdAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      return NextResponse.json(sessions);
+    }
 
     if (sessionId) {
       // Fetch a specific session with its messages
@@ -34,6 +52,27 @@ export async function GET(req: NextRequest) {
     }
   } catch (error: any) {
     console.error("Session GET error:", error);
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const { sessionId, cart } = body;
+
+    if (!sessionId) {
+      return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+    }
+
+    const updatedSession = await (prisma.chatSession as any).update({
+      where: { id: sessionId },
+      data: { cart },
+    });
+
+    return NextResponse.json(updatedSession);
+  } catch (error: any) {
+    console.error("Session PATCH error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }

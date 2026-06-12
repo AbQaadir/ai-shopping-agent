@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import GlobalSidebar from "@/components/sidebar/GlobalSidebar";
 import LandingWorkspace from "@/components/landing/LandingWorkspace";
 import ChatWorkspace from "@/components/chat/ChatWorkspace";
+import GlobalCartWorkspace from "@/components/chat/GlobalCartWorkspace";
 import { Headset } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
 
@@ -25,6 +26,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     isGenerating,
     messages,
     history,
+    isViewingCart,
 
     fetchHistory,
     fetchSessionAndHydrate,
@@ -89,18 +91,22 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         />
 
         {/* Mobile Sidebar Backdrop Overlay */}
-        {isMobileSidebarOpen && (
-          <div 
-            className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 transition-opacity duration-300"
-            onClick={() => setIsMobileSidebarOpen(false)}
-          />
-        )}
+        <div 
+          className={`md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 transition-all duration-300 ${
+            isMobileSidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          }`}
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
 
         {/* Sourcing Workspace */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Dynamic Inner Panel Layout */}
           <div className="flex-1 overflow-hidden flex flex-col">
-            {isChatting ? (
+            {isViewingCart ? (
+              <GlobalCartWorkspace
+                onSelectHistory={handleSelectHistory}
+              />
+            ) : isChatting ? (
               <ChatWorkspace
                 activeHistoryId={activeHistoryId}
                 messages={messages}
@@ -121,7 +127,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         </div>
 
         {/* Floating Contact Support Bubble (bottom right on landing) */}
-        {!isChatting && (
+        {!isChatting && !isViewingCart && (
           <button 
             onClick={() => alert("Contact support at support@kapuruka.com")}
             className="fixed bottom-6 right-6 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-full px-5 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-20 font-semibold text-xs active:scale-95"

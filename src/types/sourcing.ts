@@ -25,6 +25,17 @@ export interface InlineProduct {
 
 // ── Conversational Order Flow Types ───────────────────────────────────────────
 
+export interface CartItem {
+  id: string;
+  supplierId?: string;
+  name: string;
+  price: number;
+  quantity: number;
+  imageUrl?: string;
+  inStock?: boolean;
+  stockQty?: number;
+}
+
 export type OrderFlowPhase =
   | "qty_ask"           // AI asked quantity — show quantity picker widget
   | "delivery_ask"      // AI asked delivery location — show saved address + buttons
@@ -51,6 +62,7 @@ export interface GeocodedLocation {
 export interface OrderFlowStepData {
   phase: OrderFlowPhase;
   product?: InlineProduct;
+  cartItems?: CartItem[];
   stockStatus?: "in_stock" | "out_of_stock" | "limited";
   stockQty?: number;              // estimated available quantity
   savedAddress?: SavedAddress;    // user's default saved address

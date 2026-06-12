@@ -5,13 +5,15 @@ import {
   Check,
   ChevronLeft,
   Share2,
-  Menu
+  Menu,
+  ShoppingCart
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSourcing } from "@/context/SourcingContext";
 import ChatInputArea from "./ChatInputArea";
 import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductCatalogModal from "./ProductCatalogModal";
+import CartDrawer from "./CartDrawer";
 
 interface ChatWorkspaceProps {
   activeHistoryId?: string;
@@ -34,10 +36,11 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
-  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen } = useSourcing();
+  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isCopied, setIsCopied] = useState(false);
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
 
   // Reset internal states when activeHistoryId changes to avoid unmounting ChatWorkspace
   useEffect(() => {
@@ -130,11 +133,26 @@ export default function ChatWorkspace({
         </button>
       </div>
 
-      {/* Floating share button */}
-      <div className="absolute top-4 right-6 z-20 select-none">
+      {/* Floating control buttons */}
+      <div className="absolute top-4 right-6 z-20 select-none flex items-center gap-3">
+        {/* Floating cart button */}
+        <button
+          onClick={() => setIsCartDrawerOpen(true)}
+          className="relative flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350 transition-all duration-200 cursor-pointer shadow-xs outline-none"
+        >
+          <ShoppingCart size={13} />
+          <span>Cart</span>
+          {cartItems.length > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#402970] text-white flex items-center justify-center text-[9px] font-extrabold shadow-sm animate-pulse">
+              {cartItems.reduce((acc, i) => acc + i.quantity, 0)}
+            </span>
+          )}
+        </button>
+
+        {/* Floating share button */}
         <button
           onClick={handleShareClick}
-          className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs ${
+          className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none ${
             isCopied
               ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-extrabold scale-95"
               : "bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350"
@@ -200,6 +218,12 @@ export default function ChatWorkspace({
         onBuyProduct={onBuyProduct}
         onToggleSelectProduct={handleToggleSelectProduct}
         selectedProductIds={selectedProducts.map((p) => p.id)}
+      />
+
+      {/* Cart drawer overlay */}
+      <CartDrawer
+        isOpen={isCartDrawerOpen}
+        onClose={() => setIsCartDrawerOpen(false)}
       />
 
     </div>

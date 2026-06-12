@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { Paperclip, ArrowUp, X, Menu } from "lucide-react";
+import { Paperclip, ArrowUp, X, Menu, ShoppingCart } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
 
 interface LandingWorkspaceProps {
@@ -10,7 +10,7 @@ interface LandingWorkspaceProps {
 }
 
 export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingWorkspaceProps) {
-  const { setIsMobileSidebarOpen } = useSourcing();
+  const { setIsMobileSidebarOpen, setIsViewingCart } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isFocused, setIsFocused] = useState(false);
@@ -36,7 +36,33 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   };
  
   return (
-    <div className="flex-1 w-full flex flex-col overflow-hidden h-full">
+    <div className="flex-1 w-full flex flex-col overflow-hidden h-full relative">
+      {/* Desktop Floating Logo (Top-Left) */}
+      <div className="hidden md:flex absolute top-6 left-6 items-center z-20">
+        <div className="border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden flex items-center justify-center transition-all duration-300 hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 select-none bg-white">
+          <img
+            src="/kapuruka-logo.jpg"
+            alt="Kapuruka.com Logo"
+            className="h-12 w-auto object-contain"
+          />
+        </div>
+      </div>
+
+      {/* Desktop Floating Global Cart (Top-Right) */}
+      <div className="hidden md:flex absolute top-6 right-6 items-center z-20">
+        <button
+          onClick={() => setIsViewingCart(true)}
+          className="bg-white/85 backdrop-blur-md border border-slate-100/80 text-[#402970] shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3.5 flex items-center gap-3.5 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-slate-200/80 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
+          title="Global Shopping Cart"
+        >
+          <div className="relative">
+            <ShoppingCart size={19} className="text-slate-650 group-hover:text-[#402970] transition-colors" />
+            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#402970]" />
+          </div>
+          <span className="text-slate-700 group-hover:text-[#402970] transition-colors">Global Cart</span>
+        </button>
+      </div>
+
       {/* Mobile-only minimal header */}
       <div className="md:hidden w-full h-14 border-b border-slate-100 flex items-center justify-between px-4 bg-white shrink-0 select-none">
         <button
@@ -51,7 +77,14 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           alt="Kapuruka"
           className="h-7 w-auto object-contain rounded-md"
         />
-        <div className="w-9" />
+        <button
+          onClick={() => setIsViewingCart(true)}
+          className="p-2 -mr-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none relative"
+          title="Open global cart"
+        >
+          <ShoppingCart size={20} />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#402970]" />
+        </button>
       </div>
 
       <div className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center gap-6 sm:gap-10 relative overflow-y-auto animate-fadeIn">

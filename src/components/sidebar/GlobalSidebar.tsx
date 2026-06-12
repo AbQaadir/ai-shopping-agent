@@ -7,9 +7,8 @@ import {
   History,
   Headset,
   X,
-  Plus,
+  SquarePen,
   Globe,
-  ShoppingCart,
   ChevronUp
 } from "lucide-react";
 import SidebarHistoryList from "./SidebarHistoryList";
@@ -65,13 +64,13 @@ export default function GlobalSidebar({
           </button>
         )}
 
-        {/* Logo and Brand when expanded */}
+        {/* Logo when expanded */}
         {!isCollapsed && (
           <div className="flex items-center select-none pl-1">
             <img
-              src="/kapuruka-logo.jpg"
-              alt="Kapuruka.com Logo"
-              className="h-10 w-auto object-contain rounded-md animate-fadeIn"
+              src="/image.png"
+              alt="Kapuruka Logo"
+              className="h-8 w-auto object-contain rounded-md animate-fadeIn"
             />
           </div>
         )}
@@ -79,7 +78,9 @@ export default function GlobalSidebar({
         {/* Desktop collapse button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden md:block p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer outline-none"
+          className={`hidden md:block p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer outline-none ${
+            isCollapsed ? "" : "ml-auto"
+          }`}
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}
@@ -91,7 +92,7 @@ export default function GlobalSidebar({
         {/* New Chat Option */}
         <button
           onClick={onReset}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer relative outline-none group ${
+          className={`w-full flex items-center rounded-xl text-sm transition-all duration-200 cursor-pointer relative outline-none group ${
             isCollapsed
               ? activeHistoryId === undefined
                 ? "text-[#402970] font-bold"
@@ -99,11 +100,15 @@ export default function GlobalSidebar({
               : activeHistoryId === undefined
                 ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold"
                 : "text-slate-700 hover:bg-[#402970]/5 hover:text-[#402970] font-semibold"
-          } ${isCollapsed ? "justify-center" : ""}`}
+          } ${isCollapsed ? "justify-center gap-0 px-3 py-3" : "gap-3 px-3 py-3"}`}
           title="New chat"
         >
-          <Plus size={19} className={activeHistoryId === undefined ? "text-[#402970] shrink-0" : "text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"} />
-          {!isCollapsed && <span>New chat</span>}
+          <SquarePen size={19} className={activeHistoryId === undefined ? "text-[#402970] shrink-0" : "text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"} />
+          <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap ${
+            isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+          }`}>
+            New chat
+          </span>
           {isCollapsed && activeHistoryId === undefined && (
             <span className="absolute -right-3 top-1/2 -translate-y-1/2 w-[4px] h-8 bg-[#402970] rounded-l-full" />
           )}
@@ -112,12 +117,18 @@ export default function GlobalSidebar({
         {/* History Section Header */}
         <div className="space-y-1 pt-2">
           <div
-            className={`w-full flex items-center justify-between px-3 py-3 text-slate-800 font-bold text-sm select-none ${isCollapsed ? "justify-center" : ""}`}
+            className={`w-full flex items-center px-3 py-3 text-slate-800 font-bold text-sm select-none ${
+              isCollapsed ? "justify-center gap-0" : "justify-between gap-3"
+            }`}
             title="History"
           >
-            <div className="flex items-center gap-3">
+            <div className={`flex items-center ${isCollapsed ? "gap-0" : "gap-3"}`}>
               <History size={19} className="text-[#402970]/80 shrink-0" />
-              {!isCollapsed && <span className="font-extrabold text-[13px] text-slate-800 tracking-wide">History</span>}
+              <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap font-extrabold text-[13px] text-slate-800 tracking-wide ${
+                isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+              }`}>
+                History
+              </span>
             </div>
           </div>
 
@@ -134,20 +145,6 @@ export default function GlobalSidebar({
 
       {/* Bottom Section - System/User Actions */}
       <div className="p-3 border-t border-slate-100/50 space-y-1 shrink-0">
-        {/* Cart */}
-        <a
-          href="#"
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-[#402970]/5 hover:text-[#402970] text-sm font-semibold transition-all duration-200 cursor-pointer relative group ${
-            isCollapsed ? "justify-center" : ""
-          }`}
-          title="Shopping Cart"
-        >
-          <div className="relative">
-            <ShoppingCart size={19} className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0" />
-            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#402970]"></span>
-          </div>
-          {!isCollapsed && <span>Cart</span>}
-        </a>
 
 
 
@@ -155,17 +152,17 @@ export default function GlobalSidebar({
         <div className="relative">
           <button
             onClick={() => setShowLanguagePopover(!showLanguagePopover)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-[#402970]/5 hover:text-[#402970] text-sm font-semibold transition-all duration-200 cursor-pointer outline-none group ${
-              isCollapsed ? "justify-center" : ""
+            className={`w-full flex items-center rounded-xl text-slate-700 hover:bg-[#402970]/5 hover:text-[#402970] text-sm font-semibold transition-all duration-200 cursor-pointer outline-none group ${
+              isCollapsed ? "justify-center gap-0 px-3 py-2.5" : "gap-3 px-3 py-2.5"
             }`}
             title={`Language & Currency: English-${currency}`}
           >
             <Globe size={19} className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0" />
-            {!isCollapsed && (
-              <span className="truncate text-left text-xs font-semibold">
-                English (<span className="font-extrabold uppercase">{currency}</span>)
-              </span>
-            )}
+            <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap truncate text-left text-xs font-semibold ${
+              isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+            }`}>
+              English (<span className="font-extrabold uppercase">{currency}</span>)
+            </span>
           </button>
           {showLanguagePopover && (
             <>
@@ -179,53 +176,52 @@ export default function GlobalSidebar({
 
         {/* User Switcher Card */}
         <div className="relative pt-1">
-          {isCollapsed ? (
-            <button
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="w-10 h-10 mx-auto rounded-full bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 flex items-center justify-center text-[#402970] font-extrabold text-xs cursor-pointer transition-all"
-              title={
-                activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
-                  ? "Kamal Silva"
-                  : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
-                  ? "Nimal Perera"
-                  : "Guest Profile"
-              }
-            >
-              {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
-                ? "KS"
+          <button
+            onClick={() => setShowUserDropdown(!showUserDropdown)}
+            className={`flex items-center justify-between border transition-all duration-300 cursor-pointer outline-none group ${
+              isCollapsed
+                ? "w-10 h-10 mx-auto rounded-full bg-[#402970]/5 border-[#402970]/10 hover:bg-[#402970]/10 p-0 justify-center"
+                : "w-full p-2.5 rounded-xl border-slate-200/60 bg-white hover:bg-[#402970]/5 hover:border-[#402970]/20 hover:text-[#402970] text-left"
+            }`}
+            title={
+              activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
+                ? "Kamal Silva"
                 : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
-                ? "NP"
-                : "GU"}
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-200/60 bg-white hover:bg-[#402970]/5 hover:border-[#402970]/20 hover:text-[#402970] transition-all cursor-pointer outline-none text-left group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-[#402970]/10 flex items-center justify-center text-[#402970] font-bold text-xs shrink-0 group-hover:bg-[#402970]/20 transition-colors">
-                  {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
-                    ? "KS"
-                    : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
-                    ? "NP"
-                    : "GU"}
-                </div>
-                <div className="flex flex-col text-left min-w-0">
-                  <span className="text-xs font-bold text-slate-700 group-hover:text-[#402970] transition-colors truncate">
-                    {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
-                      ? "Kamal Silva"
-                      : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
-                      ? "Nimal Perera"
-                      : "Guest Profile"}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-bold tracking-wide group-hover:text-[#402970]/70 transition-colors truncate">
-                    {activeUserId === "guest" ? "Guest Mode" : "Active Profile"}
-                  </span>
-                </div>
+                ? "Nimal Perera"
+                : "Guest Profile"
+            }
+          >
+            <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed ? "justify-center" : ""}`}>
+              <div className={`rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
+                isCollapsed
+                  ? "w-full h-full bg-transparent text-[#402970] font-extrabold"
+                  : "w-8 h-8 bg-[#402970]/10 text-[#402970] group-hover:bg-[#402970]/20"
+              }`}>
+                {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
+                  ? "KS"
+                  : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
+                  ? "NP"
+                  : "GU"}
               </div>
+              <div className={`flex flex-col text-left min-w-0 transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap ${
+                isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+              }`}>
+                <span className="text-xs font-bold text-slate-700 group-hover:text-[#402970] transition-colors truncate">
+                  {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
+                    ? "Kamal Silva"
+                    : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
+                    ? "Nimal Perera"
+                    : "Guest Profile"}
+                </span>
+                <span className="text-[10px] text-slate-400 font-bold tracking-wide group-hover:text-[#402970]/70 transition-colors truncate">
+                  {activeUserId === "guest" ? "Guest Mode" : "Active Profile"}
+                </span>
+              </div>
+            </div>
+            {!isCollapsed && (
               <ChevronUp size={14} className="text-slate-400 group-hover:text-[#402970] transition-colors shrink-0" />
-            </button>
-          )}
+            )}
+          </button>
 
           {showUserDropdown && (
             <>

@@ -315,26 +315,35 @@ export async function listCategories(): Promise<MCPToolResult<KaprukaCategory[]>
  * Security: recipient info is passed through only — never stored in source code.
  */
 export async function createOrder(
-  productId: string,
-  quantity: number,
-  recipient: {
-    name: string;
-    phone: string;
-    address: string;
-    city: string;
-  }
+  productIdOrItems: string | Array<{ productId: string; quantity: number }>,
+  quantityOrRecipient: number | { name: string; phone: string; address: string; city: string },
+  recipientDetail?: { name: string; phone: string; address: string; city: string }
 ): Promise<MCPToolResult<KaprukaOrderResult>> {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split("T")[0]; // YYYY-MM-DD
 
-  const params = {
-    cart: [
+  let cartPayload: Array<{ product_id: string; quantity: number }> = [];
+  let recipient: { name: string; phone: string; address: string; city: string };
+
+  if (Array.isArray(productIdOrItems)) {
+    cartPayload = productIdOrItems.map(item => ({
+      product_id: item.productId,
+      quantity: item.quantity,
+    }));
+    recipient = quantityOrRecipient as { name: string; phone: string; address: string; city: string };
+  } else {
+    cartPayload = [
       {
-        product_id: productId,
-        quantity,
+        product_id: productIdOrItems,
+        quantity: quantityOrRecipient as number,
       },
-    ],
+    ];
+    recipient = recipientDetail!;
+  }
+
+  const params = {
+    cart: cartPayload,
     recipient: {
       name: recipient.name,
       phone: recipient.phone,

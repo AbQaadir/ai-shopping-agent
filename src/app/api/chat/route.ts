@@ -258,6 +258,7 @@ RULES:
         const getAccumulatedOrderData = () => {
           let product: any = null, savedAddress: any = null, confirmedQuantity: number | null = null;
           let confirmedAddress: any = null, paymentMethod: string | null = null, stockQty: number | null = null, stockStatus: string | null = null;
+          let cartItems: any[] | null = null;
           for (const m of chatHistoryForClassifier) {
             if (m.role === "assistant" && m.thoughtProcess) {
               try {
@@ -265,6 +266,7 @@ RULES:
                 if (tp?.orderFlowStep) {
                   const step = tp.orderFlowStep as any;
                   if (step.product) product = step.product;
+                  if (step.cartItems) cartItems = step.cartItems;
                   if (step.savedAddress) savedAddress = step.savedAddress;
                   if (step.confirmedQuantity != null) confirmedQuantity = step.confirmedQuantity;
                   if (step.confirmedAddress) confirmedAddress = step.confirmedAddress;
@@ -275,7 +277,7 @@ RULES:
               } catch { /* ignore */ }
             }
           }
-          return { product, savedAddress, confirmedQuantity, confirmedAddress, paymentMethod, stockQty, stockStatus };
+          return { product, cartItems, savedAddress, confirmedQuantity, confirmedAddress, paymentMethod, stockQty, stockStatus };
         };
 
         // ── Helper: stream text word by word ────────────────────────────
@@ -324,43 +326,129 @@ RULES:
         const savedAddr = USER_DEFAULTS_OA[userId] || null;
         const hasSavedAddress = !!(savedAddr?.address && savedAddr?.city);
 
+        // ── Intercept Add to Cart queries ───────────────────────────────
+        const isAddToCartQuery = /add.*cart|add.*to.*cart|put.*cart/i.test(message.toLowerCase());
+        if (isAddToCartQuery) {
+          const freshSession = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+          let currentCart: any[] = [];
+          if (freshSession?.cart) {
+            try {
+              currentCart = typeof freshSession.cart === "string" ? JSON.parse(freshSession.cart as string) : (freshSession.cart as any[]);
+            } catch (e) {
+              console.error(e);
+            }
+          }
+
+          let responseText = "";
+          if (currentCart.length > 0) {
+            const itemsList = currentCart.map((item) => `- ${item.quantity}x **${item.name}** (Rs. ${item.price.toLocaleString()})`).join("\n");
+            const total = currentCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            responseText = `I've updated your session cart! 🛒 Current items in your cart:\n\n${itemsList}\n\n**Total subtotal: Rs. ${total.toLocaleString()}**\n\nWould you like to search for more products or proceed to **checkout cart**?`;
+          } else {
+            responseText = "Your cart is currently empty. Try checking some product selection boxes in the search matches and click **Add to Cart**!";
+          }
+
+          await streamWords(responseText);
+          await prisma.chatMessage.create({
+            data: {
+              sessionId,
+              role: "assistant",
+              content: responseText,
+              thoughtProcess: JSON.stringify({
+                steps: [{ step: "cart_addition", status: "completed", content: "Updated cart view sent to customer.", durationMs: 0 }],
+                intent: "product",
+              }),
+            },
+          });
+          controller.close();
+          return;
+        }
 
         // ══════════════════════════════════════════════════════════════════════
-        // PHASE: INITIAL — "order this" → check stock → qty_ask
+        // PHASE: INITIAL — "checkout cart" or "order this" → check stock → qty_ask
         // ══════════════════════════════════════════════════════════════════════
-        const isOrderThisQuery =
-          message.toLowerCase().trim() === "order this" &&
-          selectedProductIds &&
-          selectedProductIds.length === 1 &&
-          fetchedSelectedProducts.length === 1;
+        const isCheckoutQuery = 
+          /checkout|place.*order|order.*selected/i.test(message.toLowerCase()) ||
+          message.toLowerCase().trim() === "checkout cart" ||
+          message.toLowerCase().trim() === "order this" ||
+          message.toLowerCase().trim() === "order selected" ||
+          (message.toLowerCase().trim() === "order this" && selectedProductIds && selectedProductIds.length === 1);
 
-        if (isOrderThisQuery) {
-          const product = fetchedSelectedProducts[0];
-          send({ type: "thought", step: "checking_stock", status: "running", content: `Checking stock for "${product.name}"...` });
-          send({ type: "tool_call", name: "kapruka_get_product", args: { productId: product.id } });
+        if (isCheckoutQuery) {
+          let currentCart: any[] = [];
+          const sessionWithCart = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+          if (sessionWithCart?.cart) {
+            try {
+              currentCart = typeof sessionWithCart.cart === "string" ? JSON.parse(sessionWithCart.cart as string) : (sessionWithCart.cart as any[]);
+            } catch (e) {
+              console.error(e);
+            }
+          }
 
-          const freshProduct = await pillar1_getProductDetails(product.id);
-          const inStock = freshProduct?.inStock !== false;
-          const initStockStatus: "in_stock" | "out_of_stock" = inStock ? "in_stock" : "out_of_stock";
-          const finalProduct = freshProduct ?? product;
-          const initStockQty = 50;
+          // Auto-populate cart from selection boxes if empty
+          if (currentCart.length === 0 && fetchedSelectedProducts.length > 0) {
+            currentCart = fetchedSelectedProducts.map((p: any) => ({
+              id: p.id,
+              name: p.name || p.title || "Kapruka Product",
+              price: p.price || 0,
+              quantity: 1,
+              imageUrl: p.imageUrl || p.image,
+              inStock: p.inStock !== false
+            }));
+            await prisma.chatSession.update({
+              where: { id: sessionId },
+              data: { cart: currentCart }
+            });
+          }
 
-          send({ type: "thought", step: "checking_stock", status: "completed", content: `Stock: ${inStock ? "In Stock ✓" : "Out of Stock ✗"}`, durationMs: 0 });
-
-          if (!inStock) {
-            const ofs = { phase: "out_of_stock", product: finalProduct, stockStatus: initStockStatus };
+          if (currentCart.length === 0) {
+            const ofs = { phase: "qty_ask", cartItems: [] };
             send({ type: "order_flow_step", ...ofs });
-            const t = await llmGenerate(`Product "${finalProduct.name}" is OUT OF STOCK. Write 1-2 empathetic sentences apologising and suggesting alternatives.`)
-              || `I'm sorry, **${finalProduct.name}** is currently out of stock. Please try searching for a similar product!`;
+            const t = "Your cart is currently empty. Please select products from the search matches and click 'Add to Cart' or 'Order Selected' first!";
+            await streamWords(t);
+            await saveOrderMessage(t, ofs);
+            controller.close();
+            return;
+          }
+
+          // Stock checking
+          send({ type: "thought", step: "checking_stock", status: "running", content: `Checking stock for ${currentCart.length} item(s)...` });
+          
+          const freshCart = await Promise.all(
+            currentCart.map(async (item) => {
+              const fresh = await pillar1_getProductDetails(item.id).catch(() => null as any);
+              return {
+                ...item,
+                inStock: fresh ? fresh.inStock !== false : item.inStock,
+                stockQty: (fresh as any)?.stockQty ?? 50
+              };
+            })
+          );
+
+          currentCart = freshCart;
+          await prisma.chatSession.update({
+            where: { id: sessionId },
+            data: { cart: currentCart }
+          });
+
+          send({ type: "thought", step: "checking_stock", status: "completed", content: "Stock check complete.", durationMs: 0 });
+
+          // If any out of stock items
+          const outOfStockItems = currentCart.filter((item) => !item.inStock);
+          if (outOfStockItems.length > 0) {
+            const ofs = { phase: "out_of_stock", cartItems: currentCart };
+            send({ type: "order_flow_step", ...ofs });
+            const names = outOfStockItems.map(i => `**${i.name}**`).join(", ");
+            const t = `I'm sorry, but some items in your cart are currently out of stock: ${names}. Please remove them or choose different products!`;
             await streamWords(t);
             await saveOrderMessage(t, ofs);
             controller.close(); return;
           }
 
-          const qas = { phase: "qty_ask", product: finalProduct, stockStatus: initStockStatus, stockQty: initStockQty, savedAddress: savedAddr };
+          const qas = { phase: "qty_ask", cartItems: currentCart, savedAddress: savedAddr };
           send({ type: "order_flow_step", ...qas });
-          const t = await llmGenerate(`Product "${finalProduct.name}" is IN STOCK (up to ${initStockQty} units). Ask how many they'd like to order. 1-2 enthusiastic sentences.`)
-            || `Great news! **${finalProduct.name}** is in stock and ready to ship 🎉 How many would you like to order?`;
+          const total = currentCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+          const t = `I've loaded your cart for checkout 📦 You have **${currentCart.length} item(s)** (Subtotal: Rs. ${total.toLocaleString()}). Please confirm the quantities and click next when ready.`;
           await streamWords(t);
           await saveOrderMessage(t, qas);
           controller.close(); return;
@@ -375,6 +463,7 @@ RULES:
           const { phase, orderFlowStep: currentStep } = activePhase;
           const accData = getAccumulatedOrderData();
           const product = (accData.product || (currentStep as any).product) as any;
+          const cartItems = (accData.cartItems || (currentStep as any).cartItems) as any[] | null;
           const stockQty = (accData.stockQty ?? (currentStep as any).stockQty ?? 50) as number;
 
           send({ type: "thought", step: "order_agent", status: "running", content: `Order agent: processing phase "${phase}"...` });
@@ -382,37 +471,57 @@ RULES:
 
           // ── Phase: qty_ask ───────────────────────────────────────────────
           if (phase === "qty_ask") {
-            let extractedQty = 1;
-            try {
-              if (ai) {
-                const r = await ai.models.generateContent({
-                  model: config.gemini.fastModel,
-                  contents: `Extract the integer quantity from: "${message}". Reply ONLY with the number.`,
-                  config: { responseMimeType: "application/json" },
-                });
-                extractedQty = Math.max(1, Math.abs(parseInt(JSON.parse(r.text || "1")) || 1));
-              } else {
-                extractedQty = parseInt(message.match(/\d+/)?.[0] || "1") || 1;
+            if (cartItems && cartItems.length > 0) {
+              const freshSession = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+              let finalCart = cartItems;
+              if (freshSession?.cart) {
+                try {
+                  finalCart = typeof freshSession.cart === "string" ? JSON.parse(freshSession.cart as string) : (freshSession.cart as any[]);
+                } catch (e) {
+                  console.error(e);
+                }
               }
-            } catch { extractedQty = parseInt(message.match(/\d+/)?.[0] || "1") || 1; }
 
-            if (extractedQty > stockQty) {
-              const ofs = { phase: "qty_ask", product, stockStatus: "in_stock", stockQty, savedAddress: savedAddr, errorMessage: `max ${stockQty}` };
-              send({ type: "order_flow_step", ...ofs });
-              const t = await llmGenerate(`Customer requested ${extractedQty} units but max available is ${stockQty}. Tell them politely and ask again.`)
-                || `We only have **${stockQty}** units available right now. How many would you like (up to ${stockQty})?`;
-              await streamWords(t); await saveOrderMessage(t, ofs); controller.close(); return;
+              const das: Record<string, unknown> = { phase: "delivery_ask", cartItems: finalCart, savedAddress: savedAddr };
+              send({ type: "order_flow_step", ...das });
+              const itemsListStr = finalCart.map((i) => `${i.quantity}x **${i.name}**`).join(", ");
+              const t = hasSavedAddress
+                ? `Got it — ${itemsListStr} confirmed! Should we deliver to your saved address at **${savedAddr?.address}, ${savedAddr?.city}**, or would you like to use a different address?`
+                : `Got it — ${itemsListStr} confirmed! Where should we deliver your order? You can type an address or a nearby landmark.`;
+              await streamWords(t); await saveOrderMessage(t, das); controller.close(); return;
+            } else {
+              let extractedQty = 1;
+              try {
+                if (ai) {
+                  const r = await ai.models.generateContent({
+                    model: config.gemini.fastModel,
+                    contents: `Extract the integer quantity from: "${message}". Reply ONLY with the number.`,
+                    config: { responseMimeType: "application/json" },
+                  });
+                  extractedQty = Math.max(1, Math.abs(parseInt(JSON.parse(r.text || "1")) || 1));
+                } else {
+                  extractedQty = parseInt(message.match(/\d+/)?.[0] || "1") || 1;
+                }
+              } catch { extractedQty = parseInt(message.match(/\d+/)?.[0] || "1") || 1; }
+
+              if (extractedQty > stockQty) {
+                const ofs = { phase: "qty_ask", product, stockStatus: "in_stock", stockQty, savedAddress: savedAddr, errorMessage: `max ${stockQty}` };
+                send({ type: "order_flow_step", ...ofs });
+                const t = await llmGenerate(`Customer requested ${extractedQty} units but max available is ${stockQty}. Tell them politely and ask again.`)
+                  || `We only have **${stockQty}** units available right now. How many would you like (up to ${stockQty})?`;
+                await streamWords(t); await saveOrderMessage(t, ofs); controller.close(); return;
+              }
+
+              const das: Record<string, unknown> = { phase: "delivery_ask", product, stockQty, confirmedQuantity: extractedQty, savedAddress: savedAddr };
+              send({ type: "order_flow_step", ...das });
+              const firstName = savedAddr?.name?.split(" ")[0] || "";
+              const t = await llmGenerate(
+                `Customer confirmed qty: ${extractedQty} units of "${product.name || product.title}". ${hasSavedAddress ? `They have a saved address (${savedAddr?.address}, ${savedAddr?.city}). Ask if they want delivery there or a new address.` : "Ask where to deliver."} 1-2 sentences.`
+              ) || (hasSavedAddress
+                ? `Perfect! ${extractedQty} unit${extractedQty > 1 ? "s" : ""} of **${product.name || product.title}** confirmed. Should we deliver to ${firstName ? firstName + "'s" : "your"} saved address, or would you like a new one?`
+                : `Got it — ${extractedQty} unit${extractedQty > 1 ? "s" : ""} of **${product.name || product.title}** locked in! Where should we deliver your order?`);
+              await streamWords(t); await saveOrderMessage(t, das); controller.close(); return;
             }
-
-            const das: Record<string, unknown> = { phase: "delivery_ask", product, stockQty, confirmedQuantity: extractedQty, savedAddress: savedAddr };
-            send({ type: "order_flow_step", ...das });
-            const firstName = savedAddr?.name?.split(" ")[0] || "";
-            const t = await llmGenerate(
-              `Customer confirmed qty: ${extractedQty} units of "${product.name || product.title}". ${hasSavedAddress ? `They have a saved address (${savedAddr?.address}, ${savedAddr?.city}). Ask if they want delivery there or a new address.` : "Ask where to deliver."} 1-2 sentences.`
-            ) || (hasSavedAddress
-              ? `Perfect! ${extractedQty} unit${extractedQty > 1 ? "s" : ""} of **${product.name || product.title}** confirmed. Should we deliver to ${firstName ? firstName + "'s" : "your"} saved address, or would you like a new one?`
-              : `Got it — ${extractedQty} unit${extractedQty > 1 ? "s" : ""} of **${product.name || product.title}** locked in! Where should we deliver your order?`);
-            await streamWords(t); await saveOrderMessage(t, das); controller.close(); return;
           }
 
           // ── Phase: delivery_ask ──────────────────────────────────────────
@@ -424,7 +533,7 @@ RULES:
             const hasLocationText = !wantsSaved && message.trim().length > 3;
 
             if (wantsSaved && hasSavedAddress) {
-              const pas: Record<string, unknown> = { phase: "payment_ask", product, confirmedQuantity: confirmedQty, confirmedAddress: savedAddr, savedAddress: savedAddr };
+              const pas: Record<string, unknown> = { phase: "payment_ask", product, cartItems, confirmedQuantity: confirmedQty, confirmedAddress: savedAddr, savedAddress: savedAddr };
               send({ type: "order_flow_step", ...pas });
               const t = await llmGenerate(`Delivering to ${savedAddr?.address}, ${savedAddr?.city}. Ask how to pay: Cash on Delivery or Card. 1 sentence.`)
                 || `Delivering to **${savedAddr?.address}, ${savedAddr?.city}** ✓ How would you like to pay?`;
@@ -432,7 +541,7 @@ RULES:
             }
 
             if (wantsNew) {
-              const aas: Record<string, unknown> = { phase: "address_ask", product, confirmedQuantity: confirmedQty, savedAddress: savedAddr };
+              const aas: Record<string, unknown> = { phase: "address_ask", product, cartItems, confirmedQuantity: confirmedQty, savedAddress: savedAddr };
               send({ type: "order_flow_step", ...aas });
               const t = await llmGenerate(`Customer wants to use a new address. Prompt them to type a rough location or nearby landmark in chat first. 1-2 sentences.`)
                 || `Sure! Please type a rough location or nearby landmark (e.g. "near munas tex bogahakumbura" or "Galle Road, Colombo 3") so I can open the map there.`;
@@ -446,15 +555,14 @@ RULES:
               send({ type: "thought", step: "geocoding", status: "completed", content: geo ? `Found: ${geo.label}` : "Default: Colombo", durationMs: 0 });
               const geocodedLocation = geo ?? { lat: 6.9271, lng: 79.8612, formattedAddress: "Colombo, Sri Lanka", label: "Colombo" };
 
-              const mos: Record<string, unknown> = { phase: "map_open", product, confirmedQuantity: confirmedQty, savedAddress: savedAddr, geocodedLocation };
+              const mos: Record<string, unknown> = { phase: "map_open", product, cartItems, confirmedQuantity: confirmedQty, savedAddress: savedAddr, geocodedLocation };
               send({ type: "order_flow_step", ...mos });
               const t = await llmGenerate(`Opening map near "${geocodedLocation.label}". Tell customer to drag pin to exact door and confirm. 1-2 sentences.`)
                 || `I've opened the map near **${geocodedLocation.label}** 📍 Drag the pin to your exact door and tap "Confirm this location" when ready.`;
               await streamWords(t); await saveOrderMessage(t, mos); controller.close(); return;
             }
 
-            // Ambiguous
-            const das2: Record<string, unknown> = { phase: "delivery_ask", product, confirmedQuantity: confirmedQty, savedAddress: savedAddr };
+            const das2: Record<string, unknown> = { phase: "delivery_ask", product, cartItems, confirmedQuantity: confirmedQty, savedAddress: savedAddr };
             send({ type: "order_flow_step", ...das2 });
             const t = hasSavedAddress
               ? `Should I deliver to your saved address at **${savedAddr?.address}**, or would you like a new location?`
@@ -472,7 +580,7 @@ RULES:
             send({ type: "thought", step: "geocoding", status: "completed", content: geo ? `Found: ${geo.label}` : "Default: Colombo", durationMs: 0 });
             const geocodedLocation = geo ?? { lat: 6.9271, lng: 79.8612, formattedAddress: "Colombo, Sri Lanka", label: "Colombo" };
 
-            const mos: Record<string, unknown> = { phase: "map_open", product, confirmedQuantity: confirmedQty, savedAddress: savedAddr, geocodedLocation };
+            const mos: Record<string, unknown> = { phase: "map_open", product, cartItems, confirmedQuantity: confirmedQty, savedAddress: savedAddr, geocodedLocation };
             send({ type: "order_flow_step", ...mos });
             const t = await llmGenerate(`Opening map near "${geocodedLocation.label}". Tell customer to drag pin to exact door and confirm. 1-2 sentences.`)
               || `I've opened the map near **${geocodedLocation.label}** 📍 Drag the pin to your exact door and tap "Confirm this location" when ready.`;
@@ -487,7 +595,7 @@ RULES:
               ? { name: savedAddr?.name || "Customer", phone: savedAddr?.phone || "", address: locationMatch[1].trim(), city: locationMatch[2].trim() }
               : { name: savedAddr?.name || "Customer", phone: savedAddr?.phone || "", address: message, city: "Colombo" };
 
-            const pas2: Record<string, unknown> = { phase: "payment_ask", product, confirmedQuantity: confirmedQty, confirmedAddress, savedAddress: savedAddr };
+            const pas2: Record<string, unknown> = { phase: "payment_ask", product, cartItems, confirmedQuantity: confirmedQty, confirmedAddress, savedAddress: savedAddr };
             send({ type: "order_flow_step", ...pas2 });
             const t = await llmGenerate(`Address confirmed: ${JSON.stringify(confirmedAddress)}. Ask how to pay (COD or Card). 1 sentence.`)
               || `Address confirmed ✓ How would you like to pay for your order?`;
@@ -505,51 +613,102 @@ RULES:
             if (/\b(card|credit|debit|online|pay online|card payment)\b/.test(msgLower)) paymentMethod = "card";
 
             if (!paymentMethod) {
-              const pas3: Record<string, unknown> = { phase: "payment_ask", product, confirmedQuantity: confirmedQty, confirmedAddress, savedAddress: savedAddr };
+              const pas3: Record<string, unknown> = { phase: "payment_ask", product, cartItems, confirmedQuantity: confirmedQty, confirmedAddress, savedAddress: savedAddr };
               send({ type: "order_flow_step", ...pas3 });
               await streamWords(`How would you like to pay? Please choose **Cash on Delivery** or **Card Payment**.`);
               await saveOrderMessage(`How would you like to pay? Please choose **Cash on Delivery** or **Card Payment**.`, pas3);
               controller.close(); return;
             }
 
-            send({ type: "thought", step: "placing_order", status: "running", content: "Placing order via Kapruka..." });
+            if (cartItems && cartItems.length > 0) {
+              send({ type: "thought", step: "placing_order", status: "running", content: "Placing combined order via Kapruka..." });
+              
+              let checkoutUrl: string | undefined;
+              let orderId: string | undefined;
+              try {
+                const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+                const orderItems = cartItems.map((i) => ({
+                  productId: i.id,
+                  productName: i.name,
+                  quantity: i.quantity,
+                  priceLKR: i.price,
+                  imageUrl: i.imageUrl
+                }));
 
-            let checkoutUrl: string | undefined;
-            let orderId: string | undefined;
-            try {
-              const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-              const orderRes = await fetch(`${baseUrl}/api/order`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  productId: product.id, quantity: confirmedQty,
-                  recipient: confirmedAddress,
-                  sessionId, userId,
-                  productTitle: product.name || product.title,
-                  priceLKR: product.price, imageUrl: product.imageUrl, paymentMethod,
-                }),
-              });
-              if (orderRes.ok) {
-                const od = await orderRes.json();
-                checkoutUrl = od.checkoutLink?.checkoutUrl;
-                orderId = od.orderResult?.orderId || `ord-${Date.now()}`;
-              }
-            } catch (err) { console.error("[OrderAgent] place order failed:", err); }
+                const orderRes = await fetch(`${baseUrl}/api/order`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    items: orderItems,
+                    recipient: confirmedAddress,
+                    sessionId, userId,
+                    paymentMethod,
+                  }),
+                });
+                if (orderRes.ok) {
+                  const od = await orderRes.json();
+                  checkoutUrl = od.checkoutLink?.checkoutUrl;
+                  orderId = od.orderResult?.orderId || `ord-${Date.now()}`;
+                  
+                  // Clear the session cart in DB after successful order checkout!
+                  await prisma.chatSession.update({
+                    where: { id: sessionId },
+                    data: { cart: null as any }
+                  });
+                }
+              } catch (err) { console.error("[OrderAgent] place order failed:", err); }
 
-            send({ type: "thought", step: "placing_order", status: "completed", content: "Order placed ✓", durationMs: 0 });
+              send({ type: "thought", step: "placing_order", status: "completed", content: "Order placed ✓", durationMs: 0 });
 
-            const cs: Record<string, unknown> = { phase: "confirmed", product, confirmedQuantity: confirmedQty, confirmedAddress, paymentMethod, checkoutUrl, orderId };
-            send({ type: "order_flow_step", ...cs });
+              const cs: Record<string, unknown> = { phase: "confirmed", cartItems, confirmedAddress, paymentMethod, checkoutUrl, orderId };
+              send({ type: "order_flow_step", ...cs });
 
-            const totalLKR = (product.price || 0) * confirmedQty;
-            const t = await llmGenerate(
-              `Order confirmed. Payment: ${paymentMethod}. Total: LKR ${totalLKR}. Qty: ${confirmedQty}x "${product.name}". City: ${confirmedAddress?.city}. Write 1-2 confirmation sentences. ${paymentMethod === "card" ? "Mention payment link is below." : "Mention courier will collect cash."}`
-            ) || (paymentMethod === "cod"
-              ? `Your order is confirmed! 🎉 Our courier will deliver **${confirmedQty}x ${product.name}** and collect **Rs. ${totalLKR.toLocaleString()}** in cash on arrival.`
-              : `Your order is confirmed! 🎉 Complete the payment via the secure link below to finalise your **${product.name}** order.`);
-            await streamWords(t); await saveOrderMessage(t, cs); controller.close(); return;
+              const totalLKR = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+              const itemsListStr = cartItems.map((i) => `${i.quantity}x **${i.name}**`).join(", ");
+              
+              const t = paymentMethod === "cod"
+                ? `Your order for ${itemsListStr} is confirmed! 🎉 Our courier will deliver and collect **Rs. ${totalLKR.toLocaleString()}** in cash on arrival.`
+                : `Your order for ${itemsListStr} is confirmed! 🎉 Complete the payment via the secure link below to finalise your order.`;
+              await streamWords(t); await saveOrderMessage(t, cs); controller.close(); return;
+            } else {
+              send({ type: "thought", step: "placing_order", status: "running", content: "Placing order via Kapruka..." });
+
+              let checkoutUrl: string | undefined;
+              let orderId: string | undefined;
+              try {
+                const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+                const orderRes = await fetch(`${baseUrl}/api/order`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    productId: product.id, quantity: confirmedQty,
+                    recipient: confirmedAddress,
+                    sessionId, userId,
+                    productTitle: product.name || product.title,
+                    priceLKR: product.price, imageUrl: product.imageUrl, paymentMethod,
+                  }),
+                });
+                if (orderRes.ok) {
+                  const od = await orderRes.json();
+                  checkoutUrl = od.checkoutLink?.checkoutUrl;
+                  orderId = od.orderResult?.orderId || `ord-${Date.now()}`;
+                }
+              } catch (err) { console.error("[OrderAgent] place order failed:", err); }
+
+              send({ type: "thought", step: "placing_order", status: "completed", content: "Order placed ✓", durationMs: 0 });
+
+              const cs: Record<string, unknown> = { phase: "confirmed", product, confirmedQuantity: confirmedQty, confirmedAddress, paymentMethod, checkoutUrl, orderId };
+              send({ type: "order_flow_step", ...cs });
+
+              const totalLKR = (product.price || 0) * confirmedQty;
+              const t = await llmGenerate(
+                `Order confirmed. Payment: ${paymentMethod}. Total: LKR ${totalLKR}. Qty: ${confirmedQty}x "${product.name}". City: ${confirmedAddress?.city}. Write 1-2 confirmation sentences. ${paymentMethod === "card" ? "Mention payment link is below." : "Mention courier will collect cash."}`
+              ) || (paymentMethod === "cod"
+                ? `Your order is confirmed! 🎉 Our courier will deliver **${confirmedQty}x ${product.name}** and collect **Rs. ${totalLKR.toLocaleString()}** in cash on arrival.`
+                : `Your order is confirmed! 🎉 Complete the payment via the secure link below to finalise your **${product.name}** order.`);
+              await streamWords(t); await saveOrderMessage(t, cs); controller.close(); return;
+            }
           }
-
           // Fallback: unknown phase — fall through to normal routing
         }
 

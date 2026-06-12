@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing, CheckoutLink, OrderFlowStepData } from "@/types/sourcing";
+import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem } from "@/types/sourcing";
 
 
 interface SourcingContextType {
@@ -41,6 +41,12 @@ interface SourcingContextType {
   setCurrency: (currency: string) => void;
   selectedProducts: InlineProduct[];
   setSelectedProducts: React.Dispatch<React.SetStateAction<InlineProduct[]>>;
+  cartItems: CartItem[];
+  setCartItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
+  isViewingCart: boolean;
+  setIsViewingCart: React.Dispatch<React.SetStateAction<boolean>>;
+  handleUpdateCart: (newCart: CartItem[]) => Promise<void>;
+  handleAddToCart: (products: InlineProduct[]) => Promise<void>;
 }
 
 const SourcingContext = createContext<SourcingContextType | undefined>(undefined);
@@ -58,6 +64,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [country, setCountry] = useState("LK");
   const [currency, setCurrency] = useState("USD");
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isViewingCart, setIsViewingCart] = useState<boolean>(false);
 
   useEffect(() => {
     const detectLocation = async () => {
@@ -109,6 +117,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setActiveQueryText("");
     setIsGenerating(false);
     setSelectedProducts([]);
+    setCartItems([]);
+    setIsViewingCart(false);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -132,6 +142,17 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch(`/api/session?id=${id}&userId=${activeUserId}`);
       if (res.ok) {
         const sessionData = await res.json();
+        
+        let sessionCart: CartItem[] = [];
+        if (sessionData.cart) {
+          try {
+            sessionCart = typeof sessionData.cart === "string" ? JSON.parse(sessionData.cart) : (sessionData.cart as CartItem[]);
+          } catch (e) {
+            console.error("Error parsing cart data:", e);
+          }
+        }
+        setCartItems(sessionCart);
+
         const mappedMessages: Message[] = sessionData.messages.map((m: { id: string; role: string; content: string; createdAt: string; products?: unknown; thoughtProcess?: unknown }) => {
           let inlineProducts: InlineProduct[] = [];
           if (m.products) {
@@ -244,6 +265,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setActiveQueryText("");
     setIsGenerating(false);
     setSelectedProducts([]);
+    setCartItems([]);
+    setIsViewingCart(false);
   }, []);
 
   // Synchronize state when browser Back/Forward navigation occurs
@@ -655,6 +678,112 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     }, 50);
   }, [handleSendMessage]);
 
+  const handleUpdateCart = useCallback(async (newCart: CartItem[]) => {
+    setCartItems(newCart);
+    if (!activeHistoryId) return;
+
+    try {
+      await fetch("/api/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: activeHistoryId, cart: newCart }),
+      });
+
+      setMessages((prevMessages) => {
+        const targetIdx = [...prevMessages].reverse().findIndex(m => m.sender === "ai" && m.orderFlowStep);
+        if (targetIdx === -1) return prevMessages;
+
+        const actualIdx = prevMessages.length - 1 - targetIdx;
+        const targetMsg = prevMessages[actualIdx];
+
+        if (targetMsg.orderFlowStep) {
+          const updatedMessages = [...prevMessages];
+          updatedMessages[actualIdx] = {
+            ...targetMsg,
+            orderFlowStep: {
+              ...targetMsg.orderFlowStep,
+              cartItems: newCart
+            }
+          };
+          return updatedMessages;
+        }
+
+        return prevMessages;
+      });
+    } catch (err) {
+      console.error("Failed to update cart:", err);
+    }
+  }, [activeHistoryId]);
+
+  const handleAddToCart = useCallback(async (products: InlineProduct[]) => {
+    if (products.length === 0) return;
+
+    let currentSessionId = activeHistoryId;
+    if (!currentSessionId) {
+      try {
+        const sessionRes = await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: products[0].title || products[0].name || "Cart Sourcing Session", userId: activeUserId })
+        });
+        if (sessionRes.ok) {
+          const newSession = await sessionRes.json();
+          currentSessionId = newSession.id;
+          setActiveHistoryId(currentSessionId);
+          
+          const newHistoryItem: HistoryItem = {
+            id: currentSessionId!,
+            query: products[0].title || products[0].name || "Cart Sourcing Session",
+            date: new Date().toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
+            queryType: "product",
+            messages: []
+          };
+          setHistory(prev => [newHistoryItem, ...prev]);
+          window.history.replaceState(null, "", `/c/${currentSessionId}`);
+        } else {
+          currentSessionId = `session-${Date.now()}`;
+          setActiveHistoryId(currentSessionId);
+        }
+      } catch (err) {
+        console.error("Failed to auto-create session for cart:", err);
+        currentSessionId = `session-${Date.now()}`;
+        setActiveHistoryId(currentSessionId);
+      }
+    }
+
+    const updatedCart = [...cartItems];
+    for (const prod of products) {
+      const existingItemIdx = updatedCart.findIndex(item => item.id === prod.id);
+      if (existingItemIdx > -1) {
+        updatedCart[existingItemIdx].quantity += 1;
+      } else {
+        updatedCart.push({
+          id: prod.id,
+          name: prod.title || prod.name || "Kapruka Product",
+          price: prod.price || 0,
+          quantity: 1,
+          imageUrl: prod.imageUrl || prod.image,
+          inStock: prod.inStock !== false
+        });
+      }
+    }
+
+    setCartItems(updatedCart);
+    
+    try {
+      await fetch("/api/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: currentSessionId, cart: updatedCart }),
+      });
+    } catch (e) {
+      console.error("Failed to sync cart add to db:", e);
+    }
+
+    const itemsListStr = products.map((p) => p.title || p.name || "product").join(", ");
+    await handleSendMessage(`add selected products to cart: ${itemsListStr}`, []);
+  }, [activeHistoryId, activeUserId, cartItems, handleSendMessage]);
+
   return (
     <SourcingContext.Provider
       value={{
@@ -692,7 +821,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         currency,
         setCurrency,
         selectedProducts,
-        setSelectedProducts
+        setSelectedProducts,
+        
+        cartItems,
+        setCartItems,
+        isViewingCart,
+        setIsViewingCart,
+        handleUpdateCart,
+        handleAddToCart
       }}
     >
       {children}

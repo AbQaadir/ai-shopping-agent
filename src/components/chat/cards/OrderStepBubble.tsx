@@ -17,8 +17,10 @@ import {
   RefreshCw,
   Truck,
   User,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useSourcing } from "@/context/SourcingContext";
 
 interface OrderStepBubbleProps {
   step: OrderFlowStepData;
@@ -28,6 +30,7 @@ interface OrderStepBubbleProps {
 
 // ── Quantity Ask Variant ───────────────────────────────────────────────────
 function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
+  const { handleUpdateCart } = useSourcing();
   const [qty, setQty] = useState(1);
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
@@ -38,8 +41,146 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
     if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
     setSubmitted(true);
-    onAction(`I'd like to order ${qty} unit${qty > 1 ? "s" : ""}`);
+    if (isCart) {
+      onAction("Confirm quantities");
+    } else {
+      onAction(`I'd like to order ${qty} unit${qty > 1 ? "s" : ""}`);
+    }
   };
+
+  const isCart = step.cartItems && step.cartItems.length > 0;
+
+  const handleQtyChange = (itemId: string, currentQty: number, delta: number) => {
+    if (!isActive) return;
+    const updated = (step.cartItems || []).map((item) => {
+      if (item.id === itemId) {
+        return { ...item, quantity: Math.max(1, currentQty + delta) };
+      }
+      return item;
+    });
+    handleUpdateCart(updated);
+  };
+
+  const handleRemove = (itemId: string) => {
+    if (!isActive) return;
+    const updated = (step.cartItems || []).filter((item) => item.id !== itemId);
+    handleUpdateCart(updated);
+  };
+
+  if (isCart) {
+    const totalItems = step.cartItems!.reduce((sum, item) => sum + item.quantity, 0);
+    const totalPrice = step.cartItems!.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    return (
+      <div className="w-full bg-white border border-slate-100 rounded-[20px] shadow-xs p-5 sm:p-6 animate-fadeInScale select-none mt-4">
+        {/* Header */}
+        <div className="flex items-center gap-2 pb-4 border-b border-slate-100/60 mb-5">
+          <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
+            <Package size={16} />
+          </span>
+          <div>
+            <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Confirm Quantities</h4>
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Step 1 of 4: Verify items & quantities</p>
+          </div>
+        </div>
+
+        {/* Cart items list */}
+        <div className="space-y-3.5 mb-5 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+          {step.cartItems!.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-4 p-3 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-slate-50/80 transition-colors animate-fadeIn"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 bg-white"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                    <Package size={16} className="text-slate-400" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <h5 className="text-[11px] font-bold text-slate-700 truncate max-w-[180px] sm:max-w-[280px]">
+                    {item.name}
+                  </h5>
+                  <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                    Rs. {item.price.toLocaleString()} each
+                  </p>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center gap-4 shrink-0">
+                {isActive ? (
+                  <div className="flex items-center gap-1.5 border border-slate-200 bg-white rounded-lg p-0.5 shadow-xs">
+                    <button
+                      onClick={() => handleQtyChange(item.id, item.quantity, -1)}
+                      disabled={item.quantity <= 1 || submitted}
+                      className="p-1 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 cursor-pointer"
+                    >
+                      <Minus size={10} />
+                    </button>
+                    <span className="text-xs font-extrabold text-slate-800 w-5 text-center">{item.quantity}</span>
+                    <button
+                      onClick={() => handleQtyChange(item.id, item.quantity, 1)}
+                      disabled={submitted}
+                      className="p-1 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 cursor-pointer"
+                    >
+                      <Plus size={10} />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs font-extrabold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                    Qty: {item.quantity}
+                  </span>
+                )}
+
+                {isActive && (
+                  <button
+                    onClick={() => handleRemove(item.id)}
+                    disabled={submitted}
+                    className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors cursor-pointer border-none bg-transparent"
+                    title="Remove item"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Grand Subtotal */}
+        <div className="flex items-center justify-between border-t border-slate-100 pt-4 mb-5">
+          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total subtotal ({totalItems} items)</span>
+          <span className="text-base font-black text-[#402970]">
+            Rs. {totalPrice.toLocaleString()}
+          </span>
+        </div>
+
+        {/* Action Button */}
+        <button
+          onClick={handleConfirm}
+          disabled={submitted || !isActive || step.cartItems!.length === 0}
+          className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all duration-150 disabled:opacity-50 cursor-pointer outline-none"
+        >
+          {submitted || !isActive ? (
+            <>
+              <CheckCircle size={13} /> {submitted ? "Confirming quantities..." : "Quantities Confirmed"}
+            </>
+          ) : (
+            <>
+              Confirm Quantities <ChevronRight size={13} />
+            </>
+          )}
+        </button>
+      </div>
+    );
+  }
 
   const unitPrice = step.product?.price || 0;
   const totalPrice = unitPrice * qty;
@@ -571,7 +712,9 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
 // ── Confirmed Variant ──────────────────────────────────────────────────────
 function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const addr = step.confirmedAddress;
-  const totalLKR = (step.product?.price || 0) * (step.confirmedQuantity || 1);
+  const totalLKR = step.cartItems && step.cartItems.length > 0
+    ? step.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    : (step.product?.price || 0) * (step.confirmedQuantity || 1);
   const orderFailed = !step.orderId && step.paymentMethod === "card" && !step.checkoutUrl;
 
   return (
@@ -621,7 +764,40 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
           <>
             {/* Grid details card layout */}
             <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-4">
-              {step.product && (
+              {step.cartItems && step.cartItems.length > 0 ? (
+                <div className="flex flex-col gap-3 pb-3.5 border-b border-slate-100">
+                  {step.cartItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {item.imageUrl ? (
+                          <img
+                            src={item.imageUrl}
+                            alt=""
+                            className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 bg-white"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                            <Package size={14} className="text-slate-400" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h5 className="text-[11px] font-bold text-slate-700 truncate">{item.name}</h5>
+                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                            Qty: {item.quantity} × Rs. {item.price.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-slate-650 shrink-0">
+                        Rs. {(item.price * item.quantity).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 mt-1">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Subtotal</span>
+                    <span className="text-xs font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
+                  </div>
+                </div>
+              ) : step.product ? (
                 <div className="flex items-center gap-3 pb-3.5 border-b border-slate-100">
                   {step.product.imageUrl ? (
                     <img
@@ -644,7 +820,7 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
                     Rs. {totalLKR.toLocaleString()}
                   </span>
                 </div>
-              )}
+              ) : null}
 
               {/* Side-by-side details layout */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

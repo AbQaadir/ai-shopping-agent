@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
     const {
       productId,
       quantity,
+      items, // Array of { productId, productName, quantity, priceLKR, imageUrl }
       recipient,
       sessionId,
       userId,
@@ -17,9 +18,9 @@ export async function POST(req: NextRequest) {
       paymentMethod, // "cod" | "card"
     } = body;
 
-    if (!productId || !quantity || !recipient || !sessionId) {
+    if (!recipient || !sessionId || (!items && (!productId || !quantity))) {
       return NextResponse.json(
-        { error: "Missing required fields: productId, quantity, recipient, sessionId" },
+        { error: "Missing required fields: items/productId, quantity, recipient, sessionId" },
         { status: 400 }
       );
     }
@@ -33,12 +34,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Call MCP tool to create order link
-    const orderResult = await pillar1_createOrderLink(productId, quantity, {
-      name,
-      phone,
-      address,
-      city,
-    });
+    const orderResult = await pillar1_createOrderLink(
+      items && items.length > 0
+        ? items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }))
+        : productId,
+      items && items.length > 0 ? recipient : quantity,
+      items && items.length > 0 ? undefined : recipient
+    );
 
     if (!orderResult) {
       return NextResponse.json(
@@ -49,18 +51,30 @@ export async function POST(req: NextRequest) {
 
     // Prepare checkout link structure
     const checkoutLink = {
-      productId,
-      productTitle: productTitle || "Kapruka Product",
-      priceLKR: priceLKR || orderResult.totalLKR || 0,
+      productId: items && items.length > 0 ? items[0].productId : productId,
+      productTitle: items && items.length > 0 
+        ? (items.length === 1 ? items[0].productName : `${items.length} items`)
+        : (productTitle || "Kapruka Product"),
+      priceLKR: orderResult.totalLKR || (items && items.length > 0
+        ? items.reduce((sum: number, i: any) => sum + (i.priceLKR * i.quantity), 0)
+        : (priceLKR || 0) * quantity),
       checkoutUrl: orderResult.checkoutUrl,
       expiresAt: orderResult.expiresAt,
     };
 
     // Save checkoutLink card message in ChatMessage database
     const isCOD = paymentMethod === "cod";
-    const confirmContent = isCOD
-      ? `Your **Cash on Delivery** order for **${checkoutLink.productTitle}** has been placed! 🎉 Our courier will deliver it to ${recipient?.city || "your address"}. Please have Rs. ${checkoutLink.priceLKR.toLocaleString()} ready upon delivery.`
-      : `I've generated a secure checkout link for **${checkoutLink.productTitle}**. Please complete the payment within 60 minutes.`;
+    let confirmContent = "";
+    if (items && items.length > 0) {
+      const itemsListStr = items.map((i: any) => `${i.quantity}x **${i.productName}**`).join(", ");
+      confirmContent = isCOD
+        ? `Your **Cash on Delivery** order for ${itemsListStr} has been placed! 🎉 Our courier will deliver it to ${recipient?.city || "your address"}. Please have Rs. ${checkoutLink.priceLKR.toLocaleString()} ready upon delivery.`
+        : `I've generated a secure checkout link for your items (${itemsListStr}). Please complete the payment within 60 minutes.`;
+    } else {
+      confirmContent = isCOD
+        ? `Your **Cash on Delivery** order for **${checkoutLink.productTitle}** has been placed! 🎉 Our courier will deliver it to ${recipient?.city || "your address"}. Please have Rs. ${checkoutLink.priceLKR.toLocaleString()} ready upon delivery.`
+        : `I've generated a secure checkout link for **${checkoutLink.productTitle}**. Please complete the payment within 60 minutes.`;
+    }
 
     await prisma.chatMessage.create({
       data: {
@@ -80,20 +94,32 @@ export async function POST(req: NextRequest) {
       try {
         const userExists = await prisma.user.findUnique({ where: { id: userId } });
         if (userExists) {
-          await prisma.order.create({
-            data: {
-              id: orderResult.orderId || `ord-${Date.now()}`,
-              userId,
-              status: "pending",
-              totalLKR: orderResult.totalLKR || (priceLKR || 0) * quantity,
-              items: {
-                create: {
+          const orderItemsData = items && items.length > 0
+            ? items.map((i: any) => ({
+                productId: i.productId,
+                productName: i.productName || "Kapruka Product",
+                quantity: i.quantity,
+                priceLKR: i.priceLKR || 0,
+                imageUrl: i.imageUrl || null,
+              }))
+            : [
+                {
                   productId,
                   productName: checkoutLink.productTitle,
                   quantity,
                   priceLKR: priceLKR || 0,
                   imageUrl: imageUrl || null,
                 },
+              ];
+
+          await prisma.order.create({
+            data: {
+              id: orderResult.orderId || `ord-${Date.now()}`,
+              userId,
+              status: "pending",
+              totalLKR: orderResult.totalLKR || checkoutLink.priceLKR,
+              items: {
+                create: orderItemsData,
               },
             },
           });
