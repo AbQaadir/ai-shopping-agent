@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import { Paperclip, ArrowRight, X, Square } from "lucide-react";
 import type { InlineProduct } from "@/types/sourcing";
+import { useSourcing } from "@/context/SourcingContext";
 
 interface ChatInputAreaProps {
   inputText: string;
@@ -31,6 +32,7 @@ export default function ChatInputArea({
 }: ChatInputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { handleAddToCart } = useSourcing();
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -100,23 +102,31 @@ export default function ChatInputArea({
 
               {/* Action Suggestion Pills */}
               <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => {
+                    handleAddToCart(selectedProducts);
+                  }}
+                  className="px-3.5 py-1.5 bg-[#402970] text-white hover:bg-[#402970]/90 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                >
+                  Add to Cart 🛒
+                </button>
                 {selectedProducts.length === 1 ? (
                   <>
-                    <button
-                      onClick={() => onSubmit("Chat now")}
-                      className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
-                    >
-                      Chat now →
-                    </button>
                     <button
                       onClick={() => onSubmit("Order this")}
                       className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
-                      Order this →
+                      Order Selected 📦
+                    </button>
+                    <button
+                      onClick={() => onSubmit("Chat now")}
+                      className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                    >
+                      Chat now →
                     </button>
                     <button
                       onClick={() => onSubmit("Send inquiry")}
-                      className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                      className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Send inquiry →
                     </button>
@@ -124,14 +134,20 @@ export default function ChatInputArea({
                 ) : (
                   <>
                     <button
-                      onClick={() => onSubmit("Compare")}
+                      onClick={() => onSubmit("Order selected")}
                       className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                    >
+                      Order Selected 📦
+                    </button>
+                    <button
+                      onClick={() => onSubmit("Compare")}
+                      className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Compare →
                     </button>
                     <button
                       onClick={() => onSubmit("Get quotes")}
-                      className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                      className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Get quotes →
                     </button>

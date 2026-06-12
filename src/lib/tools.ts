@@ -103,11 +103,11 @@ export async function pillar1_getProductDetails(
  * Returns a 60-min locked click-to-pay URL.
  */
 export async function pillar1_createOrderLink(
-  productId: string,
-  quantity: number,
-  recipient: { name: string; phone: string; address: string; city: string }
+  productIdOrItems: string | Array<{ productId: string; quantity: number }>,
+  quantityOrRecipient: number | { name: string; phone: string; address: string; city: string },
+  recipientDetail?: { name: string; phone: string; address: string; city: string }
 ): Promise<KaprukaOrderResult | null> {
-  const result = await createOrder(productId, quantity, recipient);
+  const result = await createOrder(productIdOrItems as any, quantityOrRecipient as any, recipientDetail as any);
   if (!result.success || !result.data) {
     console.error("[Pillar1] createOrder failed:", result.error);
     return null;

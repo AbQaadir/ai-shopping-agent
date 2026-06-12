@@ -85,6 +85,9 @@ export default function ChatTimeline({
   // Local state to keep track of closed tool result cards per message ID
   const [closedMessages, setClosedMessages] = React.useState<Record<string, boolean>>({});
 
+  // Find index of the last active order flow step to compute isActive prop
+  const lastOrderStepIdx = messages.map(m => !!m.orderFlowStep).lastIndexOf(true);
+
   // Helper to render closable B2B card wrappers
   const renderClosableToolCard = (
     msgId: string,
@@ -567,7 +570,14 @@ export default function ChatTimeline({
                         {msg.orderFlowStep && (
                           <OrderStepBubble
                             step={msg.orderFlowStep}
-                            onAction={(text) => onDirectSend?.(text) ?? onSampleClick?.(text)}
+                            onAction={(text) => {
+                              if (onDirectSend) {
+                                onDirectSend(text);
+                              } else {
+                                onSampleClick?.(text);
+                              }
+                            }}
+                            isActive={idx === lastOrderStepIdx}
                           />
                         )}
 
