@@ -23,6 +23,46 @@ export interface InlineProduct {
   bgColor?: string;
 }
 
+// ── Conversational Order Flow Types ───────────────────────────────────────────
+
+export type OrderFlowPhase =
+  | "qty_ask"           // AI asked quantity — show quantity picker widget
+  | "delivery_ask"      // AI asked delivery location — show saved address + buttons
+  | "address_ask"       // AI asked user to type a rough location / address — no bubble
+  | "map_open"          // AI opened map — show embedded Google Map for pin drop
+  | "payment_ask"       // AI asked payment method — show COD / Card buttons
+  | "confirmed"         // Order placed — show confirmation card
+  | "out_of_stock";     // Product out of stock — show apology
+
+export interface SavedAddress {
+  name: string;
+  phone: string;
+  address: string;
+  city: string;
+}
+
+export interface GeocodedLocation {
+  lat: number;
+  lng: number;
+  label: string;           // short place name (e.g. "Bogahakumbura")
+  formattedAddress: string; // full formatted address from Geocoding API
+}
+
+export interface OrderFlowStepData {
+  phase: OrderFlowPhase;
+  product?: InlineProduct;
+  stockStatus?: "in_stock" | "out_of_stock" | "limited";
+  stockQty?: number;              // estimated available quantity
+  savedAddress?: SavedAddress;    // user's default saved address
+  geocodedLocation?: GeocodedLocation; // geocoded result for map_open phase
+  confirmedQuantity?: number;     // quantity confirmed by user
+  confirmedAddress?: SavedAddress; // delivery address confirmed by user
+  paymentMethod?: "cod" | "card"; // confirmed payment method
+  checkoutUrl?: string;           // card payment URL after order placed
+  orderId?: string;               // order reference after placement
+  errorMessage?: string;          // e.g. "requested qty exceeds stock"
+}
+
 export interface DeliveryResult {
   city: string;
   canDeliver: boolean;
@@ -131,7 +171,10 @@ export interface Message {
   checkoutLinks?: CheckoutLink[];
   checkoutFormProduct?: InlineProduct;
 
-  // Conversational order flow (new multi-step agent)
+  // Conversational order flow — NEW (phase-driven step bubbles)
+  orderFlowStep?: OrderFlowStepData;
+
+  // Conversational order flow — LEGACY (kept for backward compat with old chat history)
   orderFlowProduct?: InlineProduct;
   orderFlowStockStatus?: "in_stock" | "out_of_stock" | "limited";
   orderFlowStockQty?: number;

@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing, CheckoutLink } from "@/types/sourcing";
+import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing, CheckoutLink, OrderFlowStepData } from "@/types/sourcing";
+
 
 interface SourcingContextType {
   isSidebarCollapsed: boolean;
@@ -33,6 +34,7 @@ interface SourcingContextType {
   handleSendMessage: (text: string, files: File[]) => Promise<void>;
   handleBuyProduct: (product: InlineProduct) => void;
   handleSuggestionClick: (suggestion?: string) => void;
+  handleDirectSend: (text: string) => void;
   country: string;
   setCountry: (country: string) => void;
   currency: string;
@@ -147,6 +149,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           let orderFlowProduct: InlineProduct | undefined = undefined;
           let orderFlowStockStatus: "in_stock" | "out_of_stock" | "limited" | undefined = undefined;
           let orderFlowStockQty: number | undefined = undefined;
+          let orderFlowStep: OrderFlowStepData | undefined = undefined;
           let isComparison = false;
           if (m.thoughtProcess) {
             try {
@@ -160,6 +163,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 orderFlowProduct = (parsedProcess as { orderFlowProduct?: InlineProduct }).orderFlowProduct;
                 orderFlowStockStatus = (parsedProcess as { orderFlowStockStatus?: "in_stock" | "out_of_stock" | "limited" }).orderFlowStockStatus;
                 orderFlowStockQty = (parsedProcess as { orderFlowStockQty?: number }).orderFlowStockQty;
+                orderFlowStep = (parsedProcess as { orderFlowStep?: OrderFlowStepData }).orderFlowStep;
                 isComparison = !!parsedProcess.isComparison;
               } else if (Array.isArray(parsedProcess)) {
                 thinkingSteps = parsedProcess;
@@ -185,6 +189,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
             orderFlowProduct,
             orderFlowStockStatus,
             orderFlowStockQty,
+            orderFlowStep,
             followUpText: followUpSamples.length > 0 
               ? "Based on this session, you can continue with:" 
               : inlineProducts.length > 0 
@@ -405,6 +410,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       let orderFlowProduct: InlineProduct | undefined = undefined;
       let orderFlowStockStatus: "in_stock" | "out_of_stock" | "limited" | undefined = undefined;
       let orderFlowStockQty: number | undefined = undefined;
+      let orderFlowStep: OrderFlowStepData | undefined = undefined;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -511,6 +517,27 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                     ? { ...m, activeToolCall: null, orderFlowProduct, orderFlowStockStatus, orderFlowStockQty }
                     : m
                 ));
+              } else if (packet.type === "order_flow_step") {
+                // New conversational phase-driven order flow
+                orderFlowStep = {
+                  phase: packet.phase,
+                  product: packet.product,
+                  stockStatus: packet.stockStatus,
+                  stockQty: packet.stockQty,
+                  savedAddress: packet.savedAddress,
+                  geocodedLocation: packet.geocodedLocation,
+                  confirmedQuantity: packet.confirmedQuantity,
+                  confirmedAddress: packet.confirmedAddress,
+                  paymentMethod: packet.paymentMethod,
+                  checkoutUrl: packet.checkoutUrl,
+                  orderId: packet.orderId,
+                  errorMessage: packet.errorMessage,
+                } as OrderFlowStepData;
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId
+                    ? { ...m, activeToolCall: null, orderFlowStep }
+                    : m
+                ));
               } else if (packet.type === "follow_ups") {
                 if (packet.questions) {
                   followUpQuestions = packet.questions;
@@ -551,6 +578,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         followUpText: followUpQuestions.length > 0 ? "Continue with:" : undefined,
         followUpSamples: followUpQuestions.length > 0 ? followUpQuestions : undefined,
         checkoutFormProduct,
+        orderFlowStep,
         orderFlowProduct,
         orderFlowStockStatus,
         orderFlowStockQty,
@@ -614,6 +642,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleDirectSend = useCallback((text: string) => {
+    if (text.trim()) {
+      handleSendMessage(text, []);
+    }
+  }, [handleSendMessage]);
+
   const handleBuyProduct = useCallback((product: InlineProduct) => {
     setSelectedProducts([product]);
     setTimeout(() => {
@@ -652,6 +686,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         handleSendMessage,
         handleBuyProduct,
         handleSuggestionClick,
+        handleDirectSend,
         country,
         setCountry,
         currency,

@@ -114,24 +114,12 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
       let MarkerClass: any;
       let isAdvancedMarker = false;
 
-      // Check if modern dynamic import pattern is supported
-      if (typeof google.maps.importLibrary === "function") {
-        const { Map: M } = await google.maps.importLibrary("maps") as any;
-        const { Geocoder: G } = await google.maps.importLibrary("geocoding") as any;
-        try {
-          const { AdvancedMarkerElement } = await google.maps.importLibrary("marker") as any;
-          MarkerClass = AdvancedMarkerElement;
-          isAdvancedMarker = true;
-        } catch {
-          MarkerClass = google.maps.Marker;
-        }
-        MapClass = M;
-        GeocoderClass = G;
-      } else {
-        // Fall back to legacy synchronous namespace objects
-        MapClass = google.maps.Map;
-        GeocoderClass = google.maps.Geocoder;
-        MarkerClass = google.maps.Marker;
+      MapClass = google.maps.Map;
+      GeocoderClass = google.maps.Geocoder;
+      MarkerClass = google.maps.Marker;
+      if (google.maps.marker && (google.maps.marker as any).AdvancedMarkerElement) {
+        MarkerClass = (google.maps.marker as any).AdvancedMarkerElement;
+        isAdvancedMarker = true;
       }
 
       // mapId is required for AdvancedMarkerElement, harmless for legacy Map

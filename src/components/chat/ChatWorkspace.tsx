@@ -108,34 +108,36 @@ export default function ChatWorkspace({
 
   return (
     /* Full-height flex column — exactly fills the space below the app header */
-    <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-white">
+    <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-white relative">
 
-      {/* ── 1. Thin top bar ── */}
-      <div className="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-white shrink-0 select-none">
-        <div className="flex items-center gap-3">
-          {/* Mobile menu trigger */}
-          <button
-            onClick={() => setIsMobileSidebarOpen(true)}
-            className="md:hidden p-1.5 -ml-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer outline-none"
-            title="Open menu"
-          >
-            <Menu size={16} />
-          </button>
-          
-          <button
-            onClick={onBackToLanding}
-            className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
-          >
-            <ChevronLeft size={14} />
-            Back  
-          </button>
-        </div>
+      {/* Floating mobile trigger & back button */}
+      <div className="absolute top-4 left-6 z-20 flex items-center gap-2.5 bg-white/85 backdrop-blur-md p-1.5 rounded-xl border border-slate-100/80 shadow-xs select-none">
+        {/* Mobile menu trigger */}
+        <button
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="md:hidden p-1 -ml-0.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer outline-none"
+          title="Open menu"
+        >
+          <Menu size={15} />
+        </button>
+        
+        <button
+          onClick={onBackToLanding}
+          className="flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors p-1"
+        >
+          <ChevronLeft size={13} />
+          Back  
+        </button>
+      </div>
+
+      {/* Floating share button */}
+      <div className="absolute top-4 right-6 z-20 select-none">
         <button
           onClick={handleShareClick}
-          className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+          className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs ${
             isCopied
-              ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-extrabold shadow-sm scale-95"
-              : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-extrabold scale-95"
+              : "bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350"
           }`}
         >
           {isCopied ? <Check size={13} className="stroke-[3]" /> : <Share2 size={13} />}
@@ -154,6 +156,7 @@ export default function ChatWorkspace({
             isGenerating={isGenerating}
             activeQueryText={activeQueryText}
             onSampleClick={handleSampleClick}
+            onDirectSend={(text) => handleSubmit(text)}
             onViewMoreProducts={handleViewMoreProducts}
             selectedProductIds={selectedProducts.map(p => p.id)}
             onToggleSelectProduct={handleToggleSelectProduct}
