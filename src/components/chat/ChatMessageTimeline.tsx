@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink, LayoutGrid, List, ChevronDown } from "lucide-react";
 import type { Message, InlineProduct } from "@/types/sourcing";
 
 import DeliveryCard from "./cards/DeliveryCard";
@@ -13,6 +13,167 @@ import OrderFlowCard from "./cards/OrderFlowCard";
 import OrderStepBubble from "./cards/OrderStepBubble";
 import ProductGrid from "./ProductGrid";
 import ThinkingPanel from "./ThinkingPanel";
+
+interface ProductSectionProps {
+  msg: Message;
+  selectedProductIds: string[];
+  onToggleSelectProduct?: (product: InlineProduct) => void;
+  onBuyProduct?: (product: InlineProduct) => void;
+  renderClosableToolCard: (
+    msgId: string,
+    title: string,
+    icon: React.ReactNode,
+    content: React.ReactNode,
+    isClosable?: boolean,
+    headerActions?: React.ReactNode,
+    badge?: React.ReactNode
+  ) => React.ReactNode;
+}
+
+function SortDropdown({
+  value,
+  onChange,
+}: {
+  value: "default" | "lowToHigh" | "highToLow";
+  onChange: (val: "default" | "lowToHigh" | "highToLow") => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const options = [
+    { value: "default", label: "Relevance" },
+    { value: "lowToHigh", label: "Price: Low to High" },
+    { value: "highToLow", label: "Price: High to Low" },
+  ] as const;
+
+  const activeLabel = options.find((opt) => opt.value === value)?.label || "Relevance";
+
+  return (
+    <div className="relative inline-block text-left" ref={containerRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1.5 text-slate-700 hover:text-slate-900 font-bold text-[11px] outline-none cursor-pointer py-1 transition-colors select-none"
+      >
+        <span>{activeLabel}</span>
+        <ChevronDown
+          size={11}
+          className={`text-slate-500 transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-1.5 w-40 bg-white border border-slate-100 rounded-xl shadow-xl py-1 z-50 animate-fadeIn min-w-[150px]">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-[11px] font-semibold transition-colors duration-150 cursor-pointer ${
+                value === opt.value
+                  ? "bg-[#402970]/5 text-[#402970]"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProductSection({
+  msg,
+  selectedProductIds,
+  onToggleSelectProduct,
+  onBuyProduct,
+  renderClosableToolCard,
+}: ProductSectionProps) {
+  const [sortOrder, setSortOrder] = useState<"default" | "lowToHigh" | "highToLow">("default");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  if (!msg.inlineProducts || msg.inlineProducts.length === 0) return null;
+
+  const badge = (
+    <span className="px-2 py-0.5 bg-[#402970]/8 text-[#402970] text-[10px] font-bold rounded-full border border-[#402970]/15 select-none ml-1">
+      {msg.inlineProducts.length} results
+    </span>
+  );
+
+  const headerActions = (
+    <div className="flex items-center gap-3 select-none">
+      {/* Transparent sort select */}
+      <SortDropdown value={sortOrder} onChange={setSortOrder} />
+
+      {/* Vertical divider */}
+      <div className="h-3 w-[1px] bg-slate-200"></div>
+
+      {/* Grid / List view toggle */}
+      <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+        <button
+          onClick={() => setViewMode("grid")}
+          title="Grid view"
+          className={`p-1.5 rounded-md transition-all cursor-pointer ${
+            viewMode === "grid"
+              ? "bg-white text-[#402970] shadow-sm"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <LayoutGrid size={14} />
+        </button>
+        <button
+          onClick={() => setViewMode("list")}
+          title="List view"
+          className={`p-1.5 rounded-md transition-all cursor-pointer ${
+            viewMode === "list"
+              ? "bg-white text-[#402970] shadow-sm"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <List size={14} />
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {renderClosableToolCard(
+        msg.id,
+        msg.inlineProductsHeader || "Product search",
+        <Box size={16} className="text-[#402970] shrink-0" />,
+        <ProductGrid
+          products={msg.inlineProducts}
+          selectedIds={selectedProductIds}
+          onToggle={onToggleSelectProduct}
+          onBuy={onBuyProduct}
+          sortOrder={sortOrder}
+          viewMode={viewMode}
+        />,
+        false, // isClosable = false
+        headerActions,
+        badge
+      )}
+    </>
+  );
+}
 
 interface ChatTimelineProps {
   messages: Message[];
@@ -93,7 +254,10 @@ export default function ChatTimeline({
     msgId: string,
     title: string,
     icon: React.ReactNode,
-    content: React.ReactNode
+    content: React.ReactNode,
+    isClosable = true,
+    headerActions?: React.ReactNode,
+    badge?: React.ReactNode
   ) => {
     if (closedMessages[msgId]) return null;
 
@@ -104,16 +268,19 @@ export default function ChatTimeline({
           <div className="flex items-center gap-2">
             {icon}
             <span className="text-[14px] font-bold text-slate-800">{title}</span>
+            {badge}
           </div>
-          {/* Right side: Close button */}
+          {/* Right side: Close button and actions */}
           <div className="flex items-center gap-3">
-            {/* Close button */}
-            <button
-              onClick={() => setClosedMessages(prev => ({ ...prev, [msgId]: true }))}
-              className="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-            >
-              <X size={16} />
-            </button>
+            {headerActions}
+            {isClosable && (
+              <button
+                onClick={() => setClosedMessages(prev => ({ ...prev, [msgId]: true }))}
+                className="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
         </div>
         {content}
@@ -222,6 +389,17 @@ export default function ChatTimeline({
                             hasText={!!msg.text}
                             inlineProducts={msg.inlineProducts}
                             activeQueryText={activeQueryText}
+                          />
+                        )}
+
+                        {/* ── Pillar 1/3: Product Grid ── */}
+                        {msg.inlineProducts && msg.inlineProducts.length > 0 && (
+                          <ProductSection
+                            msg={msg}
+                            selectedProductIds={selectedProductIds}
+                            onToggleSelectProduct={onToggleSelectProduct}
+                            onBuyProduct={onBuyProduct}
+                            renderClosableToolCard={renderClosableToolCard}
                           />
                         )}
 
@@ -505,21 +683,6 @@ export default function ChatTimeline({
                           </div>
                         )}
 
-                        {/* ── Pillar 1/3: Product Grid ── */}
-                        {msg.inlineProducts && msg.inlineProducts.length > 0 &&
-                          renderClosableToolCard(
-                            msg.id,
-                            msg.inlineProductsHeader || "Product search",
-                            <Box size={16} className="text-[#402970] shrink-0" />,
-                            <ProductGrid
-                              products={msg.inlineProducts}
-                              header={msg.inlineProductsHeader}
-                              selectedIds={selectedProductIds}
-                              onToggle={onToggleSelectProduct}
-                              onBuy={onBuyProduct}
-                            />
-                          )
-                        }
 
                         {/* ── Pillar 2: Delivery Card ── */}
                         {msg.deliveryResult &&

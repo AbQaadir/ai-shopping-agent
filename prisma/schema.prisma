@@ -40,6 +40,7 @@ model User {
   updatedAt    DateTime      @updatedAt
   chatSessions ChatSession[]
   orders       Order[]
+  cart         Json?
 }
 
 model Order {
@@ -73,7 +74,6 @@ model ChatSession {
   messages  ChatMessage[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
-  cart      Json?
 }
 
 model ChatMessage {

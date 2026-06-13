@@ -56,11 +56,7 @@ export default function ProductCard({
   if (viewMode === "list") {
     return (
       <div
-        className={`group flex gap-3 bg-white rounded-xl border p-3 hover:shadow-md transition-all duration-200 ${
-          isSelected
-            ? "border-[#402970]/30 shadow-sm ring-1 ring-[#402970]/10"
-            : "border-slate-100 hover:border-slate-200"
-        }`}
+        className="group flex gap-3 bg-white rounded-xl border p-3 hover:shadow-md transition-all duration-200 border-slate-100 hover:border-slate-200"
       >
         {/* Thumbnail */}
         <div className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden bg-slate-50">
@@ -135,11 +131,7 @@ export default function ProductCard({
   /* ── GRID CARD ────────────────────────────────────────────────────── */
   return (
     <div
-      className={`group bg-white rounded-xl overflow-hidden border transition-all duration-200 hover:shadow-lg flex flex-col ${
-        isSelected
-          ? "border-[#402970]/40 shadow-md ring-1 ring-[#402970]/15"
-          : "border-slate-100 hover:border-slate-200"
-      }`}
+      className="group bg-white rounded-xl overflow-hidden border transition-all duration-200 hover:shadow-lg flex flex-col border-slate-100 hover:border-slate-200"
     >
       {/* Image */}
       <div className="relative aspect-square bg-slate-50 overflow-hidden">

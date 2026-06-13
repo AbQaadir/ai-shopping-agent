@@ -9,20 +9,17 @@ export async function GET(req: NextRequest) {
     const cartOnly = searchParams.get("cartOnly") === "true";
 
     if (cartOnly && userId) {
-      const sessions = await (prisma.chatSession as any).findMany({
-        where: {
-          userId: userId === "guest" ? null : userId,
-          cart: { not: null },
-        },
-        select: {
-          id: true,
-          title: true,
-          cart: true,
-          createdAt: true,
-        },
-        orderBy: { updatedAt: "desc" },
+      let user = await (prisma.user as any).findUnique({
+        where: { id: userId },
+        select: { cart: true },
       });
-      return NextResponse.json(sessions);
+      if (!user && userId === "guest") {
+        user = await (prisma.user as any).create({
+          data: { id: "guest", email: "guest@kapuruka.com", name: "Guest User" },
+          select: { cart: true },
+        });
+      }
+      return NextResponse.json(user?.cart || []);
     }
 
     if (sessionId) {
@@ -59,18 +56,25 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { sessionId, cart } = body;
+    const { userId, cart } = body;
 
-    if (!sessionId) {
-      return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+    if (!userId) {
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const updatedSession = await (prisma.chatSession as any).update({
-      where: { id: sessionId },
+    let userExists = await prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists && userId === "guest") {
+      userExists = await prisma.user.create({
+        data: { id: "guest", email: "guest@kapuruka.com", name: "Guest User" }
+      });
+    }
+
+    const updatedUser = await (prisma.user as any).update({
+      where: { id: userId },
       data: { cart },
     });
 
-    return NextResponse.json(updatedSession);
+    return NextResponse.json(updatedUser);
   } catch (error: any) {
     console.error("Session PATCH error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });

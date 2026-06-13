@@ -329,11 +329,12 @@ RULES:
         // ── Intercept Add to Cart queries ───────────────────────────────
         const isAddToCartQuery = /add.*cart|add.*to.*cart|put.*cart/i.test(message.toLowerCase());
         if (isAddToCartQuery) {
-          const freshSession = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+          const currentUserId = session?.userId || userId || "guest";
+          const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
           let currentCart: any[] = [];
-          if (freshSession?.cart) {
+          if (userWithCart?.cart) {
             try {
-              currentCart = typeof freshSession.cart === "string" ? JSON.parse(freshSession.cart as string) : (freshSession.cart as any[]);
+              currentCart = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as any[]);
             } catch (e) {
               console.error(e);
             }
@@ -376,10 +377,11 @@ RULES:
 
         if (isCheckoutQuery) {
           let currentCart: any[] = [];
-          const sessionWithCart = await prisma.chatSession.findUnique({ where: { id: sessionId } });
-          if (sessionWithCart?.cart) {
+          const currentUserId = session?.userId || userId || "guest";
+          const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
+          if (userWithCart?.cart) {
             try {
-              currentCart = typeof sessionWithCart.cart === "string" ? JSON.parse(sessionWithCart.cart as string) : (sessionWithCart.cart as any[]);
+              currentCart = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as any[]);
             } catch (e) {
               console.error(e);
             }
@@ -395,8 +397,8 @@ RULES:
               imageUrl: p.imageUrl || p.image,
               inStock: p.inStock !== false
             }));
-            await prisma.chatSession.update({
-              where: { id: sessionId },
+            await (prisma.user as any).update({
+              where: { id: currentUserId },
               data: { cart: currentCart }
             });
           }
@@ -426,8 +428,8 @@ RULES:
           );
 
           currentCart = freshCart;
-          await prisma.chatSession.update({
-            where: { id: sessionId },
+          await (prisma.user as any).update({
+            where: { id: currentUserId },
             data: { cart: currentCart }
           });
 
@@ -472,11 +474,12 @@ RULES:
           // ── Phase: qty_ask ───────────────────────────────────────────────
           if (phase === "qty_ask") {
             if (cartItems && cartItems.length > 0) {
-              const freshSession = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+              const currentUserId = session?.userId || userId || "guest";
+              const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
               let finalCart = cartItems;
-              if (freshSession?.cart) {
+              if (userWithCart?.cart) {
                 try {
-                  finalCart = typeof freshSession.cart === "string" ? JSON.parse(freshSession.cart as string) : (freshSession.cart as any[]);
+                  finalCart = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as any[]);
                 } catch (e) {
                   console.error(e);
                 }
@@ -650,10 +653,11 @@ RULES:
                   checkoutUrl = od.checkoutLink?.checkoutUrl;
                   orderId = od.orderResult?.orderId || `ord-${Date.now()}`;
                   
-                  // Clear the session cart in DB after successful order checkout!
-                  await prisma.chatSession.update({
-                    where: { id: sessionId },
-                    data: { cart: null as any }
+                  // Clear the user's cart in DB after successful order checkout!
+                  const currentUserId = session?.userId || userId || "guest";
+                  await (prisma.user as any).update({
+                    where: { id: currentUserId },
+                    data: { cart: [] }
                   });
                 }
               } catch (err) { console.error("[OrderAgent] place order failed:", err); }
