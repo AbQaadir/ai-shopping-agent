@@ -124,16 +124,16 @@ export async function POST(req: NextRequest) {
     // Start with rule-based, then refine with LLM
     let intent: Intent = ruleBasedIntent(message);
     let isRelated = true;
-    let llmSearchQuery: string | undefined = undefined;
+    let llmSearchTerms: string[] = []; // Array of focused product nouns for parallel search
 
     if (apiKey) {
       try {
         ai = new GoogleGenAI({ apiKey });
         const fastModel = config.gemini.fastModel;
 
-        // LLM-based intent refinement and keyword extraction
+        // LLM-based intent refinement and parallel keyword extraction
         const classifierPrompt = `You are a query classifier and search term extractor for Kapruka (Sri Lankan e-commerce assistant).
-Analyze the user query in the context of the recent conversation history, and perform classifications:
+Analyze the user query in the context of the recent conversation history, and perform these tasks:
 
 1. Determine if the query is RELATED or UNRELATED to the business of Kapruka.
    - RELATED: Product search, cake/gift shopping, order tracking, delivery rates/checks, cross-border import cost calculator, local home services (electrical, plumbing, AC repair, cleaning, etc.), or e-commerce platform support/Q&A. Also count follow-up requests for details/authors/specifications of previously discussed products in the conversation as RELATED.
@@ -147,19 +147,24 @@ Analyze the user query in the context of the recent conversation history, and pe
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
    - "qa": General platform questions (payment, returns, policies, account help) or general knowledge/informational queries that require web search grounding.
 
-3. Extract a clean search keyword/phrase ("searchQuery") to search the catalog:
-   - If the intent is "product" or "service", extract a clean, focused search term that directly refers to the specific product/object/service the user is trying to find.
-   - Conversational filler words, request/action verbs ("find", "show me", "search for", "buy", "purchase", "order", "shop", "want to"), quantifiers/determiners ("some", "any", "a", "an", "the", "many", "few"), question words, and unrelated details (like prices, shipping speeds, recipient names, mother, birthday, etc.) MUST be completely removed.
-   - The search query should make sense for a search engine in an e-commerce platform. It must ONLY contain the core target product/object/service name nouns.
+3. Extract focused product search terms ("searchTerms") as a JSON array of strings:
+   CRITICAL RULES:
+   - Each term must be MAX 2 words — the core product noun only.
+   - Extract ONE term per distinct product the user wants (max 3 terms total).
+   - STRIP ALL: occasion words (wedding, birthday, gift, anniversary), action verbs (buy, find, show, want), filler (some, a, the, for me).
+   - Occasion/context words MUST be excluded UNLESS they are literally part of the product name itself.
+   - If the user wants multiple distinct products, extract one term per product.
    - Extraction Examples:
-     * "I want to buy some flower vase" -> "flower vase" (NOT "buy some flower vase")
-     * "Can you find a nice chocolate cake for my mother's birthday under 5000 rupees?" -> "chocolate cake"
-     * "Show me blue running shoes for men" -> "blue running shoes"
-     * "need AC repair in Colombo" -> "ac repair"
-   - If not a product/service intent, or if no product query is relevant, set "searchQuery" to "".
+     * "I want to buy a cake for my wedding" -> ["cake"] (NOT ["wedding cake"] — 'wedding' is occasion not product)
+     * "I need chocolate cake and flowers for mom's birthday" -> ["chocolate cake", "flowers"]
+     * "I want iPhone 11 Pro tempered glass and a back cover" -> ["tempered glass", "back cover"]
+     * "Show me blue running shoes for men" -> ["running shoes"]
+     * "need AC repair in Colombo" -> ["ac repair"]
+     * "Show me some cakes" -> ["cake"]
+   - If not a product/service intent, set "searchTerms" to [].
 
 Respond ONLY with JSON matching this structure:
-{"intent": "product"|"delivery"|"import"|"service"|"qa", "isRelated": boolean, "searchQuery": string, "reason": "brief explanation"}
+{"intent": "product"|"delivery"|"import"|"service"|"qa", "isRelated": boolean, "searchTerms": string[], "reason": "brief explanation"}
 
 [Recent Conversation History]
 ${historySnippet || "No previous history."}
@@ -174,17 +179,39 @@ User query to classify: "${message}"`;
           },
         });
 
-        const parsed = JSON.parse(result.text || "{}");
+        let responseText = result.text || "{}";
+        // Clean markdown code blocks if they are present
+        if (responseText.includes("```")) {
+          responseText = responseText.replace(/```json/i, "").replace(/```/g, "");
+        }
+        responseText = responseText.trim();
+        const startIdx = responseText.indexOf("{");
+        const endIdx = responseText.lastIndexOf("}");
+        if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
+          responseText = responseText.substring(startIdx, endIdx + 1);
+        }
+
+        const parsed = JSON.parse(responseText);
         if (parsed?.intent && ["product", "delivery", "import", "service", "qa"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
         }
         if (typeof parsed?.isRelated === "boolean") {
           isRelated = parsed.isRelated;
         }
-        if (parsed?.searchQuery && typeof parsed.searchQuery === "string") {
-          llmSearchQuery = parsed.searchQuery.trim();
+
+        // Parse searchTerms[] array (new format)
+        if (parsed?.searchTerms && Array.isArray(parsed.searchTerms)) {
+          llmSearchTerms = (parsed.searchTerms as unknown[])
+            .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+            .map(t => t.trim().toLowerCase())
+            .slice(0, 3); // cap at 3 LLM-extracted terms
         }
-        console.log(`[Intent] "${message.substring(0, 60)}" → ${intent} (isRelated: ${isRelated}, searchQuery: "${llmSearchQuery || ""}", reason: ${parsed.reason})`);
+        // Backward compat: if old searchQuery string came back, wrap it
+        if (llmSearchTerms.length === 0 && parsed?.searchQuery && typeof parsed.searchQuery === "string" && parsed.searchQuery.trim()) {
+          llmSearchTerms = [parsed.searchQuery.trim().toLowerCase()];
+        }
+
+        console.log(`[Intent] "${message.substring(0, 60)}" → ${intent} (isRelated: ${isRelated}, searchTerms: [${llmSearchTerms.join(", ")}], reason: ${parsed.reason})`);
       } catch (err) {
         console.error("[Intent] LLM classification failed, using rule-based:", (err as Error).message);
       }
@@ -751,6 +778,7 @@ RULES:
 
         const steps: Array<{ step: string; status: string; content: string; durationMs: number }> = [];
         let products: KaprukaProduct[] = [];
+        let productGroups: Array<{ title: string; products: KaprukaProduct[] }> = [];
         let fullResponseText = "";
         let groundingSourcesList: Array<{ title: string; uri: string }> = [];
         let pastOrdersContext = "";
@@ -869,54 +897,161 @@ RULES:
               send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
 
             } else {
-              // Standard product search
-              const searchDisplay = llmSearchQuery ? `"${llmSearchQuery}"` : `[${criteria.keywords.slice(0, 5).join(", ")}]`;
+              // ── Parallel Product Search with Noun-First Term Reordering ──────────────────
+
+              // Helper: reorder terms for Kapruka's noun-first search engine.
+              // The engine gives best results when the primary noun leads, e.g.
+              // "chocolate cake" → "cake chocolate" + bare noun "cake" as fallback.
+              const reorderForKapruka = (term: string): string[] => {
+                const words = term.trim().split(/\s+/);
+                if (words.length <= 1) return [term]; // single word: no change
+                if (words.length === 2) {
+                  const reordered = `${words[1]} ${words[0]}`; // swap: noun first
+                  return [reordered, words[1]];                // + bare noun fallback
+                }
+                // 3+ words: use bare last word (likely the noun) + original
+                return [words[words.length - 1], term];
+              };
+
+              // Build the list of base terms from LLM extraction or fallback
+              const baseLlmTerms = llmSearchTerms.length > 0
+                ? llmSearchTerms
+                : criteria.keywords.length > 0
+                  ? [criteria.keywords[0]]
+                  : [message.split(" ").find((w: string) => w.length > 2) || message.split(" ")[0]];
+
+              // Expand each base term into noun-first variants
+              const expandedTerms: string[] = [];
+              for (const term of baseLlmTerms) {
+                for (const variant of reorderForKapruka(term)) {
+                  if (!expandedTerms.includes(variant)) {
+                    expandedTerms.push(variant);
+                  }
+                }
+              }
+              // Cap at 4 parallel calls to respect MCP rate limits
+              const termsToSearch = expandedTerms.slice(0, 4);
+
+              const searchDisplay = baseLlmTerms.map(t => `"${t}"`).join(", ");
               const step1 = {
                 step: "intent_routing",
                 status: "completed",
-                content: `Identified as: Product Search. Search term: ${searchDisplay}${criteria.maxPrice ? `. Max price: Rs. ${criteria.maxPrice.toLocaleString()}` : ""}`,
+                content: `Identified as: Product Search. Terms: ${searchDisplay}${criteria.maxPrice ? `. Max price: Rs. ${criteria.maxPrice.toLocaleString()}` : ""}`,
                 durationMs: 0,
               };
               steps.push(step1);
               send({ type: "thought", ...step1 });
 
-              const t2 = Date.now();
-              const searchQuery = (llmSearchQuery || criteria.keywords.join(" ") || message).trim();
+              // Announce parallel search in thinking panel
+              send({
+                type: "thought",
+                step: "searching_kapruka",
+                status: "running",
+                content: `Running ${termsToSearch.length} parallel search${termsToSearch.length > 1 ? "es" : ""}: ${termsToSearch.map(t => `"${t}"`).join(", ")}...`,
+              });
 
-              if (searchQuery) {
-                send({ type: "thought", step: "searching_kapruka", status: "running", content: `Searching Kapruka live catalog for "${searchQuery}"...` });
-                send({ type: "tool_call", name: "kapruka_search_products", args: { query: searchQuery, max_price: criteria.maxPrice } });
-
-                products = await pillar1_searchProducts(searchQuery, {
-                  maxPriceLKR: criteria.maxPrice,
-                  smeFirst: false,
-                  limit: 50,
-                  currency: currency || "USD",
-                });
-                const dur2 = Date.now() - t2;
-
-                const step2 = {
-                  step: "searching_kapruka",
-                  status: "completed",
-                  content: products.length > 0
-                    ? `Found ${products.length} products from Kapruka live catalog.`
-                    : "No matching products found in the catalog.",
-                  durationMs: dur2,
-                };
-                steps.push(step2);
-                send({ type: "thought", ...step2 });
-                send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
-              } else {
-                const step2 = {
-                  step: "searching_kapruka",
-                  status: "completed",
-                  content: "Search query is empty. Showing 0 products.",
-                  durationMs: 0,
-                };
-                steps.push(step2);
-                send({ type: "thought", ...step2 });
-                send({ type: "tool_result", toolName: "kapruka_search_products", result: { products: [] } });
+              // Fire one tool_call SSE event per term so the ThinkingPanel shows each capsule
+              for (const term of termsToSearch) {
+                send({ type: "tool_call", name: "kapruka_search_products", args: { query: term, max_price: criteria.maxPrice } });
               }
+
+              // Execute all searches in parallel, staggered by 150ms increments to avoid rate limit spikes
+              const t2 = Date.now();
+              const parallelSettled = await Promise.allSettled(
+                termsToSearch.map((term, index) =>
+                  new Promise<{ term: string; results: KaprukaProduct[]; found: boolean }>((resolve, reject) => {
+                    setTimeout(() => {
+                      pillar1_searchProducts(term, {
+                        maxPriceLKR: criteria.maxPrice,
+                        smeFirst: false,
+                        limit: 30,
+                        currency: currency || "LKR",
+                      })
+                      .then(results => resolve({ term, results, found: results.length > 0 }))
+                      .catch(reject);
+                    }, index * 150);
+                  })
+                )
+              );
+              const dur2 = Date.now() - t2;
+
+              // Collect per-term results (gracefully handle failures)
+              const termResults: Array<{ term: string; results: KaprukaProduct[]; found: boolean }> = [];
+              parallelSettled.forEach((settled, idx) => {
+                termResults.push(
+                  settled.status === "fulfilled"
+                    ? settled.value
+                    : { term: termsToSearch[idx], results: [], found: false }
+                );
+              });
+
+              // Group results by their base LLM search terms
+              const groups: Array<{ title: string; products: KaprukaProduct[] }> = [];
+              for (const baseTerm of baseLlmTerms) {
+                const variants = reorderForKapruka(baseTerm);
+                const groupResults: KaprukaProduct[] = [];
+                const seenIds = new Set<string>();
+                const primaryNoun = baseTerm.split(" ")[0].toLowerCase();
+
+                for (const variant of variants) {
+                  const match = termResults.find(r => r.term === variant);
+                  if (match && match.results.length > 0) {
+                    for (const product of match.results) {
+                      if (!seenIds.has(product.id)) {
+                        seenIds.add(product.id);
+                        const nameMatch = product.name.toLowerCase().includes(primaryNoun);
+                        (product as KaprukaProduct & { _relevanceScore?: number })._relevanceScore = nameMatch ? 2 : 1;
+                        groupResults.push(product);
+                      }
+                    }
+                  }
+                }
+
+                if (groupResults.length > 0) {
+                  groupResults.sort((a, b) =>
+                    ((b as KaprukaProduct & { _relevanceScore?: number })._relevanceScore ?? 0) -
+                    ((a as KaprukaProduct & { _relevanceScore?: number })._relevanceScore ?? 0)
+                  );
+                  // Format title nicely (capitalized base term)
+                  const title = baseTerm.replace(/\b\w/g, (c: string) => c.toUpperCase());
+                  groups.push({
+                    title,
+                    products: groupResults,
+                  });
+                }
+              }
+
+              productGroups = groups;
+              // Flatten groups to keep products populated for fallback compatibility
+              products = groups.flatMap(g => g.products);
+
+              // Track which original LLM terms were found / not found
+              // A base term is "found" if any of its expanded variants returned results
+              const notFoundOriginalTerms: string[] = [];
+              for (const baseTerm of baseLlmTerms) {
+                const variants = reorderForKapruka(baseTerm);
+                const anyFound = variants.some(v =>
+                  termResults.some(r => r.term === v && r.found)
+                );
+                if (!anyFound) notFoundOriginalTerms.push(baseTerm);
+              }
+
+              const step2 = {
+                step: "searching_kapruka",
+                status: "completed",
+                content: products.length > 0
+                  ? `Found ${products.length} product${products.length !== 1 ? "s" : ""} across ${termsToSearch.length} parallel search${termsToSearch.length > 1 ? "es" : ""}${notFoundOriginalTerms.length > 0 ? ` (not found: ${notFoundOriginalTerms.map((t: string) => `"${t}"`).join(", ")})` : ""}.`
+                  : `No matching products found across all ${termsToSearch.length} search${termsToSearch.length > 1 ? "es" : ""}.`,
+                durationMs: dur2,
+                terms: termsToSearch, // individual parallel search terms for capsule rendering
+              };
+              steps.push(step2);
+              send({ type: "thought", ...step2 });
+              send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
+              send({ type: "product_groups", groups: productGroups });
+
+              // Stash notFoundOriginalTerms for contextNote building below
+              (criteria as typeof criteria & { _notFoundTerms?: string[] })._notFoundTerms = notFoundOriginalTerms;
             }
           }
         }
@@ -1064,13 +1199,17 @@ RULES:
             // Augment context with tool results for the LLM
             let contextNote = "";
             if (intent === "product") {
+              const notFoundTerms: string[] = (criteria as typeof criteria & { _notFoundTerms?: string[] })._notFoundTerms ?? [];
               if (products.length > 0) {
-                contextNote = `\n\n[Tool Results] Found ${products.length} products on Kapruka:\n` +
+                contextNote = `\n\n[Tool Results] Found ${products.length} product${products.length !== 1 ? "s" : ""} on Kapruka (ranked by relevance):\n` +
                   products.slice(0, 5).map((p, i) =>
                     `${i + 1}. ${p.name} — Rs. ${p.price?.toLocaleString() || "N/A"} (${p.inStock ? "In Stock" : "Out of Stock"})${p.isSME ? " 🇱🇰 Local Brand" : ""}`
                   ).join("\n");
+                if (notFoundTerms.length > 0) {
+                  contextNote += `\n\n[Availability Note] The following item${notFoundTerms.length > 1 ? "s were" : " was"} NOT found in the Kapruka catalog: ${notFoundTerms.map(t => `"${t}"`).join(", ")}. You MUST tell the user clearly and naturally which specific item(s) are unavailable while still showing the found products.`;
+                }
               } else {
-                contextNote = `\n\n[Tool Results] NO products matching the query were found in the Kapruka live catalog. Explain to the user that no items were found, apologize politely, and ask if they would like to try searching for something else or adjusting their keywords. Do not list any products.`;
+                contextNote = `\n\n[Tool Results] NO products were found in the Kapruka live catalog for any of the searched terms. Apologize politely and ask the user if they would like to try a different keyword or search for something similar. Do not list any products.`;
               }
             }
 
@@ -1215,7 +1354,9 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
               groundingSources: groundingSourcesList.length > 0 ? groundingSourcesList : undefined,
               isComparison: !!(selectedProductIds && selectedProductIds.length > 0),
             }),
-            products: products.length > 0 ? JSON.stringify(products) : undefined,
+            products: productGroups.length > 0 
+              ? JSON.stringify(productGroups) 
+              : (products.length > 0 ? JSON.stringify(products) : undefined),
           },
         });
 

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem } from "@/types/sourcing";
+import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem, ProductGroup } from "@/types/sourcing";
 
 
 interface SourcingContextType {
@@ -165,9 +165,18 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
         const mappedMessages: Message[] = sessionData.messages.map((m: { id: string; role: string; content: string; createdAt: string; products?: unknown; thoughtProcess?: unknown }) => {
           let inlineProducts: InlineProduct[] = [];
+          let productGroups: ProductGroup[] = [];
           if (m.products) {
             try {
-              inlineProducts = typeof m.products === "string" ? JSON.parse(m.products) : (m.products as InlineProduct[]);
+              const parsedProducts = typeof m.products === "string" ? JSON.parse(m.products) : m.products;
+              if (Array.isArray(parsedProducts)) {
+                if (parsedProducts.length > 0 && typeof parsedProducts[0] === "object" && parsedProducts[0] !== null && "title" in parsedProducts[0] && "products" in parsedProducts[0]) {
+                  productGroups = parsedProducts as ProductGroup[];
+                  inlineProducts = productGroups.flatMap(g => g.products);
+                } else {
+                  inlineProducts = parsedProducts as InlineProduct[];
+                }
+              }
             } catch (e) {
               console.error("Error parsing product data:", e);
             }
@@ -213,6 +222,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
               ? (isComparison ? "Compared Products" : "Matched Sourcing Products") 
               : undefined,
             inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
+            productGroups: productGroups.length > 0 ? productGroups : undefined,
             showViewProductsButton: inlineProducts.length > 0,
             groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
             checkoutFormProduct,
@@ -398,6 +408,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         timestamp: new Date(),
         thinkingSteps: [],
         activeToolCall: null,
+        activeToolCalls: [],
       };
 
       setMessages(prev => {
@@ -444,6 +455,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       let orderFlowStockStatus: "in_stock" | "out_of_stock" | "limited" | undefined = undefined;
       let orderFlowStockQty: number | undefined = undefined;
       let orderFlowStep: OrderFlowStepData | undefined = undefined;
+      let productGroups: ProductGroup[] = [];
 
       while (true) {
         const { value, done } = await reader.read();
@@ -468,7 +480,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   step: packet.step,
                   status: packet.status as "running" | "completed",
                   content: packet.content,
-                  durationMs: packet.durationMs
+                  durationMs: packet.durationMs,
+                  terms: packet.terms as string[] | undefined,
                 };
                 if (existingIdx !== -1) {
                   accumulatedSteps[existingIdx] = stepObj;
@@ -481,7 +494,19 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
               } else if (packet.type === "tool_call") {
                 setMessages(prev => prev.map(m =>
-                  m.id === aiMessageId ? { ...m, activeToolCall: { name: packet.name, args: packet.args } } : m
+                  m.id === aiMessageId
+                    ? {
+                        ...m,
+                        activeToolCall: { name: packet.name, args: packet.args },
+                        // Accumulate all parallel tool calls (deduplicated by name+query)
+                        activeToolCalls: [
+                          ...(m.activeToolCalls || []).filter(c =>
+                            !(c.name === packet.name && (c.args as Record<string, unknown>)?.query === (packet.args as Record<string, unknown>)?.query)
+                          ),
+                          { name: packet.name, args: packet.args }
+                        ],
+                      }
+                    : m
                 ));
 
               } else if (packet.type === "tool_result") {
@@ -491,7 +516,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                     m.id === aiMessageId
                       ? { 
                           ...m, 
-                          activeToolCall: null, 
+                          activeToolCall: null,
+                          activeToolCalls: [], // clear all parallel calls on result
                           inlineProductsHeader: isComparisonQuery ? "Compared Products" : "Kapruka Products", 
                           inlineProducts, 
                           showViewProductsButton: true 
@@ -499,6 +525,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                       : m
                   ));
                 }
+
+              } else if (packet.type === "product_groups") {
+                productGroups = packet.groups as ProductGroup[];
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId ? { ...m, productGroups } : m
+                ));
 
               } else if (packet.type === "delivery_result") {
                 deliveryResult = packet.result as DeliveryResult;
@@ -603,6 +635,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         thinkingSteps: accumulatedSteps,
         inlineProductsHeader: inlineProducts.length > 0 ? "Kapruka Products" : undefined,
         inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
+        productGroups: productGroups.length > 0 ? productGroups : undefined,
         showViewProductsButton: inlineProducts.length > 0,
         deliveryResult,
         trackingResult,

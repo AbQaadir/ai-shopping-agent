@@ -143,24 +143,60 @@ async function callMCPTool(
   }
 }
 
+function isRateLimit(err: unknown, text?: string): boolean {
+  if (text && text.toLowerCase().includes("rate limit")) {
+    return true;
+  }
+  if (err instanceof Error && err.message.toLowerCase().includes("rate limit")) {
+    return true;
+  }
+  if (typeof err === "string" && err.toLowerCase().includes("rate limit")) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Safe wrapper — catches errors and returns a typed MCPToolResult.
  * Use this in tool functions that should not hard-crash the SSE stream.
+ * Includes rate limit retry logic.
  */
 async function safeCallMCPTool<T>(
   toolName: string,
   args: Record<string, unknown>,
   parser: (text: string) => T
 ): Promise<MCPToolResult<T>> {
-  try {
-    const text = await callMCPTool(toolName, args);
-    const data = parser(text);
-    return { success: true, data };
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : "Unknown MCP error";
-    console.error(`[MCP] ${toolName} failed:`, error);
-    return { success: false, error };
+  const maxRetries = 3;
+  let delay = 300; // ms
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    let text = "";
+    try {
+      text = await callMCPTool(toolName, args);
+      
+      // Check if the response text itself is a rate limit error message
+      if (text.toLowerCase().includes("rate limit")) {
+        throw new Error(text);
+      }
+      
+      const data = parser(text);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const isRate = isRateLimit(err, text);
+      
+      if (isRate && attempt <= maxRetries) {
+        console.warn(`[MCP] ${toolName} rate limited (attempt ${attempt}/${maxRetries}). Retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 2.5; // exponential backoff
+        continue;
+      }
+      
+      const error = err instanceof Error ? err.message : "Unknown MCP error";
+      console.error(`[MCP] ${toolName} failed:`, error);
+      return { success: false, error };
+    }
   }
+  return { success: false, error: "Max retries exceeded" };
 }
 
 /** Safely parse JSON from MCP text response */

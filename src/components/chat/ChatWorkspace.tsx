@@ -54,10 +54,10 @@ export default function ChatWorkspace({
   const [modalProducts, setModalProducts] = useState<InlineProduct[]>([]);
   const [modalSearchQuery, setModalSearchQuery] = useState("");
 
-  const handleViewMoreProducts = (products: InlineProduct[]) => {
+  const handleViewMoreProducts = (products: InlineProduct[], queryHint?: string) => {
     setModalProducts(products);
-    // Derive a search query hint from the active query text
-    setModalSearchQuery(activeQueryText || "Products");
+    // Derive a search query hint from the active query text or the queryHint passed in
+    setModalSearchQuery(queryHint || activeQueryText || "Products");
     setShowProductModal(true);
   };
 
