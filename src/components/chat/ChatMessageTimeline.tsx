@@ -15,6 +15,8 @@ import ProductGrid from "./ProductGrid";
 import ThinkingPanel from "./ThinkingPanel";
 
 interface ProductSectionProps {
+  title: string;
+  products: InlineProduct[];
   msg: Message;
   selectedProductIds: string[];
   onToggleSelectProduct?: (product: InlineProduct) => void;
@@ -100,6 +102,8 @@ function SortDropdown({
 }
 
 function ProductSection({
+  title,
+  products,
   msg,
   selectedProductIds,
   onToggleSelectProduct,
@@ -109,11 +113,22 @@ function ProductSection({
   const [sortOrder, setSortOrder] = useState<"default" | "lowToHigh" | "highToLow">("default");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  if (!msg.inlineProducts || msg.inlineProducts.length === 0) return null;
+  const uniqueProducts = React.useMemo(() => {
+    if (!products) return [];
+    const seen = new Set<string>();
+    return products.filter((p) => {
+      if (!p.id) return true;
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  }, [products]);
+
+  if (uniqueProducts.length === 0) return null;
 
   const badge = (
     <span className="px-2 py-0.5 bg-[#402970]/8 text-[#402970] text-[10px] font-bold rounded-full border border-[#402970]/15 select-none ml-1">
-      {msg.inlineProducts.length} results
+      {uniqueProducts.length} results
     </span>
   );
 
@@ -157,10 +172,10 @@ function ProductSection({
     <>
       {renderClosableToolCard(
         msg.id,
-        msg.inlineProductsHeader || "Product search",
+        title,
         <Box size={16} className="text-[#402970] shrink-0" />,
         <ProductGrid
-          products={msg.inlineProducts}
+          products={uniqueProducts}
           selectedIds={selectedProductIds}
           onToggle={onToggleSelectProduct}
           onBuy={onBuyProduct}
@@ -181,7 +196,7 @@ interface ChatTimelineProps {
   activeQueryText?: string;
   onSampleClick?: (sampleText: string) => void;
   onDirectSend?: (text: string) => void;
-  onViewMoreProducts?: (products: InlineProduct[]) => void;
+  onViewMoreProducts?: (products: InlineProduct[], queryHint?: string) => void;
   selectedProductIds?: string[];
   onToggleSelectProduct?: (product: InlineProduct) => void;
   onBuyProduct?: (product: InlineProduct) => void;
@@ -385,23 +400,40 @@ export default function ChatTimeline({
                           <ThinkingPanel
                             steps={msg.thinkingSteps || []}
                             activeToolCall={msg.activeToolCall}
+                            activeToolCalls={msg.activeToolCalls}
                             isGenerating={isLastAIResponse}
                             hasText={!!msg.text}
                             inlineProducts={msg.inlineProducts}
                             activeQueryText={activeQueryText}
+                            onViewDetails={onViewMoreProducts}
                           />
                         )}
 
                         {/* ── Pillar 1/3: Product Grid ── */}
-                        {msg.inlineProducts && msg.inlineProducts.length > 0 && (
+                        {msg.productGroups && msg.productGroups.length > 0 ? (
+                          msg.productGroups.map((group, gIdx) => (
+                            <ProductSection
+                              key={gIdx}
+                              title={group.title}
+                              products={group.products}
+                              msg={msg}
+                              selectedProductIds={selectedProductIds}
+                              onToggleSelectProduct={onToggleSelectProduct}
+                              onBuyProduct={onBuyProduct}
+                              renderClosableToolCard={renderClosableToolCard}
+                            />
+                          ))
+                        ) : msg.inlineProducts && msg.inlineProducts.length > 0 ? (
                           <ProductSection
+                            title={msg.inlineProductsHeader || "Product search"}
+                            products={msg.inlineProducts}
                             msg={msg}
                             selectedProductIds={selectedProductIds}
                             onToggleSelectProduct={onToggleSelectProduct}
                             onBuyProduct={onBuyProduct}
                             renderClosableToolCard={renderClosableToolCard}
                           />
-                        )}
+                        ) : null}
 
                         {/* AI text response */}
                         {msg.text && (

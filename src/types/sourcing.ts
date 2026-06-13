@@ -145,6 +145,11 @@ export interface CheckoutLink {
   expiresAt: string;
 }
 
+export interface ProductGroup {
+  title: string;
+  products: InlineProduct[];
+}
+
 export interface Message {
   id: string;
   sender: "user" | "ai";
@@ -160,12 +165,15 @@ export interface Message {
     status: "running" | "completed";
     content: string;
     durationMs?: number;
+    terms?: string[]; // parallel search terms for capsule rendering
   }[];
   activeToolCall?: { name: string; args: unknown } | null;
+  activeToolCalls?: Array<{ name: string; args: unknown }>; // accumulates parallel tool calls
 
   // Pillar 1 & 3: products
   inlineProductsHeader?: string;
   inlineProducts?: InlineProduct[];
+  productGroups?: ProductGroup[];
   showViewProductsButton?: boolean;
 
   // Pillar 2: delivery
