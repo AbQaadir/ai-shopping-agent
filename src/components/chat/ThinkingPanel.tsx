@@ -9,7 +9,9 @@ interface ThinkingStep {
   status: "running" | "completed";
   content: string;
   durationMs?: number;
-  terms?: string[]; // parallel search terms — renders individual capsules
+  terms?: string[];  // baseLlmTerms: one capsule per user-intent term
+  term?: string;     // per-pipeline term (searching_kapruka, validating_relevance)
+  _key?: string;     // internal dedup key (step__term)
 }
 
 interface ThinkingPanelProps {
@@ -19,6 +21,7 @@ interface ThinkingPanelProps {
   isGenerating: boolean;
   hasText: boolean;
   inlineProducts?: InlineProduct[];
+  productGroups?: Array<{ title: string; products: InlineProduct[] }>; // pre-filtered backend groups
   activeQueryText?: string;
   onViewDetails?: (products: InlineProduct[], queryHint?: string) => void; // opens product modal from thought panel
 }
@@ -26,12 +29,13 @@ interface ThinkingPanelProps {
 // Maps step keys to B2B capsule badge titles
 function getStepBadge(stepKey: string): string | null {
   const badgeMap: Record<string, string> = {
-    searching_kapruka: "Product search",
-    sme_filter: "SME filtering",
-    checking_delivery: "Delivery check",
-    tracking_order: "Order tracking",
-    calculating_import: "Import calculator",
-    finding_providers: "Service search",
+    searching_kapruka:   "Product search",
+    validating_relevance: "Relevance check",
+    sme_filter:          "SME filtering",
+    checking_delivery:   "Delivery check",
+    tracking_order:      "Order tracking",
+    calculating_import:  "Import calculator",
+    finding_providers:   "Service search",
     google_search_query: "Google Search",
   };
   return badgeMap[stepKey] || null;
@@ -91,6 +95,7 @@ export default function ThinkingPanel({
   isGenerating,
   hasText,
   inlineProducts,
+  productGroups,
   activeQueryText = "",
   onViewDetails,
 }: ThinkingPanelProps) {
@@ -102,25 +107,55 @@ export default function ThinkingPanel({
   // Filter out duplicate log items
   const visibleSteps = steps.filter(s => s.content && s.step !== "generating_response");
 
+  // Filter products by term using pre-filtered backend groups (if available)
+  // Falls back to local noun matching when groups aren't available yet
+  const getProductsForTerm = (term: string): InlineProduct[] => {
+    // Primary: use pre-validated productGroups from the backend
+    if (productGroups && productGroups.length > 0) {
+      const cleanTerm = term.trim().toLowerCase();
+      // Exact title match
+      const exact = productGroups.find(g => g.title.toLowerCase() === cleanTerm);
+      if (exact) return exact.products;
+      // Fuzzy: group title contains term or term contains group title
+      const fuzzy = productGroups.find(g =>
+        g.title.toLowerCase().includes(cleanTerm) ||
+        cleanTerm.includes(g.title.toLowerCase())
+      );
+      if (fuzzy) return fuzzy.products;
+    }
+    // Fallback: local noun-based filter (used during streaming before group_ready arrives)
+    return filterProductsForTerm(term);
+  };
+
   // Filter products for a specific search term, handling plural/singular mismatches
   const filterProductsForTerm = (term: string): InlineProduct[] => {
     if (!inlineProducts) return [];
     
-    const getStems = (word: string): string[] => {
-      const w = word.toLowerCase();
-      const stems = [w];
-      if (w.endsWith("ies") && w.length > 3) {
-        stems.push(w.slice(0, -3) + "y");
-      } else if (w.endsWith("s") && w.length > 3) {
-        stems.push(w.slice(0, -1));
-      }
-      return stems;
-    };
+    const cleanTerm = term.trim().toLowerCase();
+    const words = cleanTerm.split(/\s+/);
+    const noun = words[words.length - 1]; // last word is the head noun
+    if (!noun) return [];
 
-    const words = term.trim().split(/\s+/).flatMap(getStems);
+    const nounVariants = [noun];
+    if (noun.endsWith("ies") && noun.length > 3) {
+      nounVariants.push(noun.slice(0, -3) + "y");
+    } else if (noun.endsWith("es") && noun.length > 3) {
+      nounVariants.push(noun.slice(0, -2));
+      nounVariants.push(noun.slice(0, -1));
+    } else if (noun.endsWith("s") && noun.length > 3) {
+      nounVariants.push(noun.slice(0, -1));
+    } else {
+      nounVariants.push(noun + "s");
+      nounVariants.push(noun + "es");
+    }
+
     return inlineProducts.filter(p => {
-      const name = (p.name || p.title || "").toLowerCase();
-      return words.some(w => name.includes(w));
+      const nameLower = (p.name || p.title || "").toLowerCase();
+      // Strict Noun Check (Word boundary match)
+      return nounVariants.some(variant => {
+        const regex = new RegExp(`\\b${variant}\\b`, "i");
+        return regex.test(nameLower);
+      });
     });
   };
 
@@ -212,7 +247,7 @@ export default function ThinkingPanel({
                   {hasTerms ? (
                     <div className="flex flex-col gap-1.5">
                       {step.terms!.map((term, tIdx) => {
-                        const filtered = filterProductsForTerm(term);
+                        const filtered = getProductsForTerm(term);
                         return (
                           <div
                             key={tIdx}

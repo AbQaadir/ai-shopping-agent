@@ -475,13 +475,20 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
               const packet = JSON.parse(dataStr);
 
               if (packet.type === "thought") {
-                const existingIdx = accumulatedSteps.findIndex(s => s.step === packet.step);
+                // Per-pipeline steps carry a "term" field; use step+term as the unique key
+                const stepKey = packet.term ? `${packet.step}__${packet.term}` : packet.step;
+                const existingIdx = accumulatedSteps.findIndex(s => {
+                  const key = (s as any)._key;
+                  return key ? key === stepKey : s.step === packet.step && !(s as any)._key;
+                });
                 const stepObj = {
+                  _key: stepKey,
                   step: packet.step,
                   status: packet.status as "running" | "completed",
                   content: packet.content,
                   durationMs: packet.durationMs,
                   terms: packet.terms as string[] | undefined,
+                  term: packet.term as string | undefined,
                 };
                 if (existingIdx !== -1) {
                   accumulatedSteps[existingIdx] = stepObj;
@@ -526,10 +533,44 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   ));
                 }
 
-              } else if (packet.type === "product_groups") {
-                productGroups = packet.groups as ProductGroup[];
+              } else if (packet.type === "group_ready") {
+                // Incremental update: merge this validated group into productGroups immediately
+                // This fires as soon as each pipeline finishes — no waiting for other pipelines
+                const newGroupTitle = (packet.term as string).replace(/\b\w/g, (c: string) => c.toUpperCase());
+                const newGroup: ProductGroup = {
+                  title: newGroupTitle,
+                  products: packet.products as InlineProduct[],
+                };
+                productGroups = [
+                  ...productGroups.filter(g => g.title.toLowerCase() !== newGroupTitle.toLowerCase()),
+                  newGroup,
+                ];
+                inlineProducts = productGroups.flatMap(g => g.products);
+
                 setMessages(prev => prev.map(m =>
-                  m.id === aiMessageId ? { ...m, productGroups } : m
+                  m.id === aiMessageId
+                    ? {
+                        ...m,
+                        productGroups: [...productGroups],
+                        inlineProducts: [...inlineProducts],
+                        inlineProductsHeader: "Kapruka Products",
+                        showViewProductsButton: inlineProducts.length > 0,
+                        // Clear active tool calls for this term
+                        activeToolCalls: (m.activeToolCalls || []).filter(c =>
+                          (c.args as Record<string, unknown>)?.query !== packet.term
+                        ),
+                      }
+                    : m
+                ));
+
+              } else if (packet.type === "product_groups") {
+                // Final aggregated groups (after all pipelines complete) — ensures consistency
+                productGroups = packet.groups as ProductGroup[];
+                inlineProducts = productGroups.flatMap(g => g.products);
+                setMessages(prev => prev.map(m =>
+                  m.id === aiMessageId
+                    ? { ...m, productGroups: [...productGroups], inlineProducts: [...inlineProducts] }
+                    : m
                 ));
 
               } else if (packet.type === "delivery_result") {
