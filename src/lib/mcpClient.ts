@@ -41,6 +41,9 @@ export interface KaprukaProduct {
   deliveryInfo?: string;
   url?: string;
   isSME?: boolean;         // Injected by Pillar 3 logic
+  variants?: any[];
+  attributes?: Record<string, any>;
+  shipping?: Record<string, any>;
 }
 
 /** Kapruka order / checkout result from kapruka_create_order */
@@ -301,6 +304,9 @@ export async function getProduct(productId: string): Promise<MCPToolResult<Kapru
         category?: { id: string; name: string; slug: string };
         images?: string[];
         url?: string;
+        variants?: any[];
+        attributes?: Record<string, any>;
+        shipping?: Record<string, any>;
       }
       const raw = parseJSON<RawProductDetail>(text);
       return {
@@ -314,6 +320,9 @@ export async function getProduct(productId: string): Promise<MCPToolResult<Kapru
         inStock: raw.in_stock,
         description: raw.description || raw.summary || undefined,
         url: raw.url || undefined,
+        variants: raw.variants,
+        attributes: raw.attributes,
+        shipping: raw.shipping,
       };
     }
   );
