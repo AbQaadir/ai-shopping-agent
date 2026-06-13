@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useRef, useState } from "react";
-import { Paperclip, ArrowRight, X, Square } from "lucide-react";
-import type { InlineProduct } from "@/types/sourcing";
 import { useSourcing } from "@/context/SourcingContext";
+import type { InlineProduct } from "@/types/sourcing";
+import { ArrowRight, Paperclip, Square, X } from "lucide-react";
+import React, { useRef, useState } from "react";
 
 interface ChatInputAreaProps {
   inputText: string;
@@ -47,12 +47,42 @@ export default function ChatInputArea({
     }
   };
 
+  const handleCompareClick = () => {
+    if (selectedProducts.length === 0) return;
+    
+    let promptText = "Please compare the following selected products in detail:\n\n";
+    selectedProducts.forEach((prod, index) => {
+      const name = prod.name || prod.title || "Unknown Product";
+      const priceStr = prod.price ? `Rs. ${prod.price.toLocaleString()}` : (prod.priceDisplay || "N/A");
+      const supplier = prod.supplier || "N/A";
+      const rating = prod.rating ? `${prod.rating} / 5` : "N/A";
+      const years = prod.years ? `${prod.years} years on platform` : "N/A";
+      const moq = prod.moq || "N/A";
+      const stock = prod.inStock !== false ? "In Stock" : "Out of Stock";
+      
+      promptText += `${index + 1}. **${name}**\n`;
+      promptText += `   - Price: ${priceStr}\n`;
+      promptText += `   - Supplier: ${supplier} (${years})\n`;
+      promptText += `   - Rating: ${rating}\n`;
+      promptText += `   - Min Order Quantity (MOQ): ${moq}\n`;
+      promptText += `   - Availability: ${stock}\n`;
+      if (prod.description) {
+        promptText += `   - Description: ${prod.description}\n`;
+      }
+      promptText += `\n`;
+    });
+    
+    promptText += "Analyze these items and provide a structured comparison (e.g. comparing cost effectiveness, quality/ratings, and delivery readiness). Conclude with a clear recommendation on which product offers the best value.";
+    
+    onSubmit(promptText);
+  };
+
   return (
     <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 select-none z-20">
       <div className="max-w-3xl mx-auto w-full">
         <div className={`w-full bg-white rounded-2xl py-2.5 px-3 flex flex-col gap-2 transition-all duration-300 border ${
-          isFocused || selectedProducts.length > 0
-            ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]" 
+          isFocused
+            ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]"
             : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
         }`}>
 
@@ -108,7 +138,7 @@ export default function ChatInputArea({
                   }}
                   className="px-3.5 py-1.5 bg-[#402970] text-white hover:bg-[#402970]/90 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                 >
-                  Add to Cart 🛒
+                  Add to Cart →
                 </button>
                 {selectedProducts.length === 1 ? (
                   <>
@@ -116,19 +146,7 @@ export default function ChatInputArea({
                       onClick={() => onSubmit("Order this")}
                       className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
-                      Order Selected 📦
-                    </button>
-                    <button
-                      onClick={() => onSubmit("Chat now")}
-                      className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
-                    >
-                      Chat now →
-                    </button>
-                    <button
-                      onClick={() => onSubmit("Send inquiry")}
-                      className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
-                    >
-                      Send inquiry →
+                      Order →
                     </button>
                   </>
                 ) : (
@@ -137,19 +155,13 @@ export default function ChatInputArea({
                       onClick={() => onSubmit("Order selected")}
                       className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
-                      Order Selected 📦
+                      Order →
                     </button>
                     <button
-                      onClick={() => onSubmit("Compare")}
+                      onClick={handleCompareClick}
                       className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Compare →
-                    </button>
-                    <button
-                      onClick={() => onSubmit("Get quotes")}
-                      className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
-                    >
-                      Get quotes →
                     </button>
                   </>
                 )}
@@ -175,8 +187,8 @@ export default function ChatInputArea({
               {attachedFiles.map((file, idx) => (
                 <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs font-medium text-slate-600 animate-fadeIn">
                   <span className="truncate max-w-[120px]">{file.name}</span>
-                  <button 
-                    onClick={() => onRemoveFile(idx)} 
+                  <button
+                    onClick={() => onRemoveFile(idx)}
                     className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"
                   >
                     <X size={10} />
@@ -196,12 +208,12 @@ export default function ChatInputArea({
             >
               <Paperclip size={14} />
             </button>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              className="hidden" 
-              multiple 
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              multiple
             />
             <button
               onClick={isGenerating ? onStopGeneration : () => onSubmit()}

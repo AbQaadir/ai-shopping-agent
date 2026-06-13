@@ -129,6 +129,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Clear user global cart on successful checkout completion
+    if (userId) {
+      try {
+        await (prisma.user as any).update({
+          where: { id: userId },
+          data: { cart: [] }
+        }).catch(() => {});
+      } catch {}
+    }
+
     return NextResponse.json({
       success: true,
       orderResult,

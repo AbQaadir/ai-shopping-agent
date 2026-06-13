@@ -76,11 +76,7 @@ function ModalGridCard({
 
   return (
     <div
-      className={`group bg-white rounded-2xl overflow-hidden border transition-all duration-200 hover:shadow-xl flex flex-col cursor-pointer ${
-        isSelected
-          ? "border-[#402970]/40 shadow-lg ring-2 ring-[#402970]/15"
-          : "border-slate-100 hover:border-[#402970]/20 hover:shadow-[#402970]/5"
-      }`}
+      className="group bg-white rounded-2xl overflow-hidden border transition-all duration-200 hover:shadow-xl flex flex-col cursor-pointer border-slate-100 hover:border-[#402970]/20 hover:shadow-[#402970]/5"
     >
       {/* Image */}
       <div className="relative aspect-square bg-gradient-to-br from-slate-50 to-slate-100 overflow-hidden">
@@ -209,11 +205,7 @@ function ModalListRow({
 
   return (
     <div
-      className={`group flex gap-4 bg-white rounded-2xl border p-3.5 hover:shadow-lg transition-all duration-200 ${
-        isSelected
-          ? "border-[#402970]/30 shadow-md ring-1 ring-[#402970]/10"
-          : "border-slate-100 hover:border-[#402970]/15"
-      }`}
+      className="group flex gap-4 bg-white rounded-2xl border p-3.5 hover:shadow-lg transition-all duration-200 border-slate-100 hover:border-[#402970]/15"
     >
       {/* Thumbnail */}
       <div className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100">

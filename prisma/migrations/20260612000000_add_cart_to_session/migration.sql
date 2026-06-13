@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "ChatSession" ADD COLUMN     "cart" JSONB;
+ALTER TABLE "User" ADD COLUMN     "cart" JSONB;

@@ -103,9 +103,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
           {/* Dynamic Inner Panel Layout */}
           <div className="flex-1 overflow-hidden flex flex-col">
             {isViewingCart ? (
-              <GlobalCartWorkspace
-                onSelectHistory={handleSelectHistory}
-              />
+              <GlobalCartWorkspace />
             ) : isChatting ? (
               <ChatWorkspace
                 activeHistoryId={activeHistoryId}

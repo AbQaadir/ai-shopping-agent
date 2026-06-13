@@ -1,32 +1,47 @@
 "use client";
 
-import React, { useState } from "react";
-import { LayoutGrid, List, ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import ProductCard from "./ProductCard";
 import type { InlineProduct } from "@/types/sourcing";
 
 interface ProductGridProps {
   products: InlineProduct[];
-  header?: string;
   selectedIds: string[];
   onToggle?: (product: InlineProduct) => void;
   onBuy?: (product: InlineProduct) => void;
+  sortOrder?: "default" | "lowToHigh" | "highToLow";
+  viewMode?: "grid" | "list";
 }
 
 const ITEMS_PER_PAGE = 12;
 
 export default function ProductGrid({
   products,
-  header,
   selectedIds,
   onToggle,
   onBuy,
+  sortOrder = "default",
+  viewMode = "grid",
 }: ProductGridProps) {
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.ceil(products.length / ITEMS_PER_PAGE);
-  const paginatedProducts = products.slice(
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortOrder]);
+
+  const sortedProducts = React.useMemo(() => {
+    const sorted = [...products];
+    if (sortOrder === "lowToHigh") {
+      sorted.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+    } else if (sortOrder === "highToLow") {
+      sorted.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+    }
+    return sorted;
+  }, [products, sortOrder]);
+
+  const totalPages = Math.ceil(sortedProducts.length / ITEMS_PER_PAGE);
+  const paginatedProducts = sortedProducts.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
@@ -37,43 +52,6 @@ export default function ProductGrid({
 
   return (
     <div className="space-y-3 pt-2">
-      {/* ── Section header ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h4 className="font-extrabold text-slate-800 text-sm">
-            {header || "Kapruka Products"}
-          </h4>
-          <span className="px-2 py-0.5 bg-[#402970]/8 text-[#402970] text-[10px] font-bold rounded-full border border-[#402970]/15">
-            {products.length} results
-          </span>
-        </div>
-
-        {/* Grid / List toggle */}
-        <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-          <button
-            onClick={() => setViewMode("grid")}
-            title="Grid view"
-            className={`p-1.5 rounded-md transition-all ${
-              viewMode === "grid"
-                ? "bg-white text-[#402970] shadow-sm"
-                : "text-slate-400 hover:text-slate-600"
-            }`}
-          >
-            <LayoutGrid size={13} />
-          </button>
-          <button
-            onClick={() => setViewMode("list")}
-            title="List view"
-            className={`p-1.5 rounded-md transition-all ${
-              viewMode === "list"
-                ? "bg-white text-[#402970] shadow-sm"
-                : "text-slate-400 hover:text-slate-600"
-            }`}
-          >
-            <List size={13} />
-          </button>
-        </div>
-      </div>
 
       {/* ── Product display ── */}
       {viewMode === "grid" ? (

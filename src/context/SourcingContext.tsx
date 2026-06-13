@@ -87,6 +87,23 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     detectLocation();
   }, []);
 
+  // Hydrate global user cart when user switches
+  useEffect(() => {
+    const loadGlobalCart = async () => {
+      if (!activeUserId) return;
+      try {
+        const res = await fetch(`/api/session?cartOnly=true&userId=${activeUserId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCartItems(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error("Failed to load user global cart:", err);
+      }
+    };
+    loadGlobalCart();
+  }, [activeUserId]);
+
   const abortControllerRef = useRef<AbortController | null>(null);
   const router = useRouter();
 
@@ -143,15 +160,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const sessionData = await res.json();
         
-        let sessionCart: CartItem[] = [];
-        if (sessionData.cart) {
-          try {
-            sessionCart = typeof sessionData.cart === "string" ? JSON.parse(sessionData.cart) : (sessionData.cart as CartItem[]);
-          } catch (e) {
-            console.error("Error parsing cart data:", e);
-          }
-        }
-        setCartItems(sessionCart);
+        // Cart is loaded globally, skipping session-isolated load
+        // Mapped messages parsing continues below
 
         const mappedMessages: Message[] = sessionData.messages.map((m: { id: string; role: string; content: string; createdAt: string; products?: unknown; thoughtProcess?: unknown }) => {
           let inlineProducts: InlineProduct[] = [];
@@ -545,6 +555,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 orderFlowStep = {
                   phase: packet.phase,
                   product: packet.product,
+                  cartItems: packet.cartItems,
                   stockStatus: packet.stockStatus,
                   stockQty: packet.stockQty,
                   savedAddress: packet.savedAddress,
@@ -680,13 +691,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   const handleUpdateCart = useCallback(async (newCart: CartItem[]) => {
     setCartItems(newCart);
-    if (!activeHistoryId) return;
 
     try {
       await fetch("/api/session", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: activeHistoryId, cart: newCart }),
+        body: JSON.stringify({ userId: activeUserId, cart: newCart }),
       });
 
       setMessages((prevMessages) => {
@@ -713,7 +723,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to update cart:", err);
     }
-  }, [activeHistoryId]);
+  }, [activeUserId]);
 
   const handleAddToCart = useCallback(async (products: InlineProduct[]) => {
     if (products.length === 0) return;
@@ -774,7 +784,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       await fetch("/api/session", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: currentSessionId, cart: updatedCart }),
+        body: JSON.stringify({ userId: activeUserId, cart: updatedCart }),
       });
     } catch (e) {
       console.error("Failed to sync cart add to db:", e);
