@@ -39,7 +39,23 @@ export default function ProductCard({
   onBuy,
   viewMode = "grid",
 }: ProductCardProps) {
-  const displayName = product.name || product.title || "Product";
+  const rawName = product.name || product.title || "Product";
+  const displayName = (() => {
+    if (!rawName) return "";
+    const words = rawName.trim().split(/\s+/);
+    return words
+      .map((word) => {
+        const lower = word.toLowerCase();
+        if (/^\d+(kg|g|ml|l|oz|pcs|m|cm|mm)$/i.test(word)) {
+          return lower;
+        }
+        if (/^(lkr|usd|eur|sme)$/i.test(word)) {
+          return word.toUpperCase();
+        }
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join(" ");
+  })();
   const displayPrice = product.price
     ? formatCurrency(product.price, product.currency)
     : product.priceDisplay || "N/A";
@@ -92,8 +108,19 @@ export default function ProductCard({
         {/* Content */}
         <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
           <div className="space-y-1">
-            <h5 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2">
-              {displayName}
+            <h5 className="text-sm font-bold text-slate-800 leading-snug line-clamp-2">
+              {product.url ? (
+                <a
+                  href={product.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#402970] hover:underline transition-colors duration-150 cursor-pointer"
+                >
+                  {displayName}
+                </a>
+              ) : (
+                displayName
+              )}
             </h5>
             <div className="flex items-baseline gap-1.5">
               <span className="text-sm font-extrabold text-[#402970]">{displayPrice}</span>
@@ -199,8 +226,19 @@ export default function ProductCard({
 
       {/* Card body */}
       <div className="p-2.5 flex flex-col flex-1">
-        <h5 className="text-[11px] font-bold text-slate-800 leading-snug line-clamp-2 mb-2 flex-1">
-          {displayName}
+        <h5 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2 mb-2 flex-1">
+          {product.url ? (
+            <a
+              href={product.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[#402970] hover:underline transition-colors duration-150 cursor-pointer"
+            >
+              {displayName}
+            </a>
+          ) : (
+            displayName
+          )}
         </h5>
 
         <div className="space-y-1.5">

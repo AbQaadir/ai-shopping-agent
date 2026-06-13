@@ -368,7 +368,7 @@ function renderMessageTextBlock(
                 {row.map((cell, cIdx) => (
                   <td
                     key={cIdx}
-                    className={`px-4 py-2.5 text-slate-600 ${alignments[cIdx] || "text-left"}`}
+                    className={`px-4 py-2.5 text-slate-800 ${alignments[cIdx] || "text-left"}`}
                   >
                     {renderFormattedText(cell)}
                   </td>
@@ -572,7 +572,7 @@ function renderMessageTextBlock(
   }
 
   return (
-    <div className="text-sm text-slate-600 leading-relaxed space-y-1.5 select-text">
+    <div className="text-sm text-slate-800 leading-relaxed space-y-1.5 select-text">
       {processedElements}
     </div>
   );
@@ -746,14 +746,11 @@ export default function ChatTimeline({
                         {/* ── Pillar 1/3: Product Grid with mixed LLM text ── */}
                         {(() => {
                           const hasProducts = (msg.productGroups && msg.productGroups.length > 0) || (msg.inlineProducts && msg.inlineProducts.length > 0);
-                          
                           if (!hasProducts) {
-                            // If there are no products, just render the text response as normal below the thinking panel
                             return msg.text ? renderMessageTextBlock(msg.text, isLastAIResponse, true) : null;
                           }
 
                           const parsedSections = parseMessageText(msg.text);
-                          const hasTags = parsedSections.some(s => s.type === "intro" || s.type === "details");
 
                           const unifiedGroups = msg.productGroups && msg.productGroups.length > 0
                             ? msg.productGroups
@@ -761,27 +758,6 @@ export default function ChatTimeline({
                                 ? [{ title: msg.inlineProductsHeader || "Product search", products: msg.inlineProducts }]
                                 : []
                               );
-
-                          if (!hasTags) {
-                            // Fallback layout: products first, then AI text response
-                            return (
-                              <>
-                                {unifiedGroups.map((group, gIdx) => (
-                                  <ProductSection
-                                    key={gIdx}
-                                    title={group.title}
-                                    products={group.products}
-                                    msg={msg}
-                                    selectedProductIds={selectedProductIds}
-                                    onToggleSelectProduct={onToggleSelectProduct}
-                                    onBuyProduct={onBuyProduct}
-                                    renderClosableToolCard={renderClosableToolCard}
-                                  />
-                                ))}
-                                {msg.text && renderMessageTextBlock(msg.text, isLastAIResponse, true)}
-                              </>
-                            );
-                          }
 
                           // Norm helper for matching
                           const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");

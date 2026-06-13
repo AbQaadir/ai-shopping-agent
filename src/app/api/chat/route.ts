@@ -25,6 +25,12 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest } from "next/server";
 
+interface SearchTermConfig {
+  term: string;
+  minPrice: number | null;
+  maxPrice: number | null;
+}
+
 // ── System Prompts per Pillar ───────────────────────────────────────────────
 const SYSTEM_PROMPTS: Record<Intent, string> = {
   product: `You are Kapuruka's AI shopping assistant for Sri Lanka.
@@ -61,6 +67,12 @@ You have access to Google Search to retrieve live, real-time information about K
 Answer the user's question accurately using search results. Provide clear, concise, and helpful responses in 2–3 sentences.
 Highlight key information and always reference your sources if appropriate.`,
 };
+
+const SELECTED_PRODUCT_QA_PROMPT = `You are Kapuruka's AI product advisor for Sri Lanka.
+The user has selected specific products from the catalog and is asking questions about them.
+Answer their questions conversationally, helpfully, and specifically using only the provided product details.
+Do NOT use [INTRO] or [DETAILS] tags. Be warm, direct, and detailed in your analysis.
+If asked to compare, create a markdown table comparing their features, price, stock, and highlight the best option.`;
 
 // ── Main Chat POST Handler ─────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -127,15 +139,24 @@ export async function POST(req: NextRequest) {
     // 3. Determine intent ───────────────────────────────────────────────────
     const apiKey = config.gemini.apiKey;
     let ai: GoogleGenAI | null = null;
+    if (apiKey) {
+      ai = new GoogleGenAI({ apiKey });
+    }
+
+    const hasSelectedProducts = !!(selectedProductIds && Array.isArray(selectedProductIds) && selectedProductIds.length > 0);
 
     // Start with rule-based, then refine with LLM
     let intent: Intent = ruleBasedIntent(message);
     let isRelated = true;
-    let llmSearchTerms: string[] = []; // Array of focused product nouns for parallel search
+    let llmSearchTerms: SearchTermConfig[] = []; // Array of focused product search configs
 
-    if (apiKey) {
+    if (hasSelectedProducts) {
+      intent = "product";
+      isRelated = true;
+      llmSearchTerms = [];
+      console.log(`[Intent] Skipping classification — ${selectedProductIds.length} product(s) selected`);
+    } else if (apiKey) {
       try {
-        ai = new GoogleGenAI({ apiKey });
         const fastModel = config.gemini.fastModel;
 
         // LLM-based intent refinement and parallel keyword extraction
@@ -154,30 +175,26 @@ Analyze the user query in the context of the recent conversation history, and pe
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
    - "qa": General platform questions (payment, returns, policies, account help) or general knowledge/informational queries that require web search grounding.
 
-3. Extract focused product search terms ("searchTerms") as a JSON array of strings:
+3. Extract focused product search terms and price filters ("searchTerms") as a JSON array of objects matching this schema:
+   {
+     "term": string (MAX 2 words — the core product noun only. Strip occasion/verbs/filler words like "wedding", "cheap", "buy", "for me"),
+     "minPrice": number | null (minimum price limit specified by user, e.g. "above 5000" -> 5000, "between 2000 and 5000" -> 2000. Set to null if there is no minimum price limit),
+     "maxPrice": number | null (maximum price limit specified by user, e.g. "under 3000" -> 3000, "between 2000 and 5000" -> 5000. Set to null if there is no maximum price limit)
+   }
    CRITICAL RULES:
-   - Each term must be MAX 2 words — the core product noun only.
-   - Extract ONE term per distinct product the user wants (max 3 terms total).
-   - STRIP ALL: occasion words (wedding, birthday, gift, anniversary), action verbs (buy, find, show, want), filler (some, a, the, for me).
-   - Occasion/context words MUST be excluded UNLESS they are literally part of the product name itself.
-   - If the user wants multiple distinct products, extract one term per product.
-   - Extraction Examples:
-     * "I want to buy a cake for my wedding" -> ["cake"] (NOT ["wedding cake"] — 'wedding' is occasion not product)
-     * "I need chocolate cake and flowers for mom's birthday" -> ["chocolate cake", "flowers"]
-     * "I want iPhone 11 Pro tempered glass and a back cover" -> ["tempered glass", "back cover"]
-     * "Show me blue running shoes for men" -> ["running shoes"]
-     * "need AC repair in Colombo" -> ["ac repair"]
-     * "Show me some cakes" -> ["cake"]
+   - Do NOT include any currency symbols or conversions in minPrice/maxPrice — just extract the raw numbers as numbers.
+   - Extract ONE object per distinct product the user wants (max 3 objects total).
    - If not a product/service intent, set "searchTerms" to [].
 
 Respond ONLY with JSON matching this structure:
-{"intent": "product"|"delivery"|"import"|"service"|"qa", "isRelated": boolean, "searchTerms": string[], "reason": "brief explanation"}
+{"intent": "product"|"delivery"|"import"|"service"|"qa", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reason": "brief explanation"}
 
 [Recent Conversation History]
 ${historySnippet || "No previous history."}
 
 User query to classify: "${message}"`;
 
+        if (!ai) throw new Error("GoogleGenAI client not initialized");
         const result = await ai.models.generateContent({
           model: fastModel,
           contents: classifierPrompt,
@@ -206,25 +223,41 @@ User query to classify: "${message}"`;
           isRelated = parsed.isRelated;
         }
 
-        // Parse searchTerms[] array (new format)
+        // Parse searchTerms[] array supporting both structured objects and legacy strings
         if (parsed?.searchTerms && Array.isArray(parsed.searchTerms)) {
           llmSearchTerms = (parsed.searchTerms as unknown[])
-            .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
-            .map(t => t.trim().toLowerCase())
-            .slice(0, 3); // cap at 3 LLM-extracted terms
-        }
-        // Backward compat: if old searchQuery string came back, wrap it
-        if (llmSearchTerms.length === 0 && parsed?.searchQuery && typeof parsed.searchQuery === "string" && parsed.searchQuery.trim()) {
-          llmSearchTerms = [parsed.searchQuery.trim().toLowerCase()];
+            .map((item): SearchTermConfig | null => {
+              if (typeof item === "string" && item.trim().length > 0) {
+                return { term: item.trim().toLowerCase(), minPrice: null, maxPrice: null };
+              }
+              if (item && typeof item === "object") {
+                const obj = item as any;
+                if (typeof obj.term === "string" && obj.term.trim().length > 0) {
+                  return {
+                    term: obj.term.trim().toLowerCase(),
+                    minPrice: typeof obj.minPrice === "number" ? obj.minPrice : (obj.minPrice && !isNaN(Number(obj.minPrice)) ? Number(obj.minPrice) : null),
+                    maxPrice: typeof obj.maxPrice === "number" ? obj.maxPrice : (obj.maxPrice && !isNaN(Number(obj.maxPrice)) ? Number(obj.maxPrice) : null),
+                  };
+                }
+              }
+              return null;
+            })
+            .filter((x): x is SearchTermConfig => x !== null)
+            .slice(0, 3); // cap at 3
         }
 
-        console.log(`[Intent] "${message.substring(0, 60)}" → ${intent} (isRelated: ${isRelated}, searchTerms: [${llmSearchTerms.join(", ")}], reason: ${parsed.reason})`);
+        // Backward compat: if old searchQuery string came back, wrap it
+        if (llmSearchTerms.length === 0 && parsed?.searchQuery && typeof parsed.searchQuery === "string" && parsed.searchQuery.trim()) {
+          llmSearchTerms = [{ term: parsed.searchQuery.trim().toLowerCase(), minPrice: null, maxPrice: null }];
+        }
+
+        console.log(`[Intent] "${message.substring(0, 60)}" → ${intent} (isRelated: ${isRelated}, searchTerms: ${JSON.stringify(llmSearchTerms)}, reason: ${parsed.reason})`);
       } catch (err) {
         console.error("[Intent] LLM classification failed, using rule-based:", (err as Error).message);
       }
     }
 
-    if (selectedProductIds && Array.isArray(selectedProductIds) && selectedProductIds.length > 0) {
+    if (hasSelectedProducts) {
       intent = "product";
       isRelated = true;
     }
@@ -815,15 +848,8 @@ RULES:
             send({ type: "thought", ...step2 });
             send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
 
-            pastOrdersContext = `\n\n[Selected Products Context] The user has selected the following products in the chat interface:\n` +
-              products.map((p, idx) =>
-                `- Product ${idx + 1}: ${p.name} (ID: ${p.id})\n` +
-                `  * Price: LKR ${p.price || "N/A"}\n` +
-                `  * Description: ${p.description || "No description available."}\n` +
-                `  * Stock Status: ${p.inStock ? "In Stock" : "Out of Stock"}\n` +
-                `  * URL: ${p.url || "N/A"}`
-              ).join("\n") +
-              `\n\nInstruction to AI: Focus your answer specifically on the selected products listed above. If the user requested a comparison (e.g. they clicked the 'Compare' action or asked to compare), you MUST generate a clean, detailed Markdown comparison table. Compare them by price, key features/description, and stock status. Highlight the best option for the user. Do not perform any other search.`;
+            // Context will be built in contextNote below to avoid duplication
+            pastOrdersContext = "";
           } else {
             // Step 1: Parse requirements
             send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
@@ -918,15 +944,27 @@ RULES:
               };
 
               // Build base terms from LLM extraction or fallback (max 3)
-              const baseLlmTerms = (
+              // Build base terms from LLM extraction or fallback (max 3)
+              const baseLlmTerms: SearchTermConfig[] = (
                 llmSearchTerms.length > 0
                   ? llmSearchTerms
                   : criteria.keywords.length > 0
-                    ? [criteria.keywords[0]]
-                    : [message.split(" ").find((w: string) => w.length > 2) || message.split(" ")[0]]
+                    ? [{ term: criteria.keywords[0], minPrice: null, maxPrice: null }]
+                    : [{ term: message.split(" ").find((w: string) => w.length > 2) || message.split(" ")[0], minPrice: null, maxPrice: null }]
               ).slice(0, 3);
 
-              const searchDisplay = baseLlmTerms.map((t: string) => `"${t}"`).join(", ");
+              const searchDisplay = baseLlmTerms.map((t: SearchTermConfig) => {
+                let limitStr = "";
+                if (t.minPrice !== null && t.maxPrice !== null) {
+                  limitStr = ` (Rs. ${t.minPrice} - ${t.maxPrice})`;
+                } else if (t.minPrice !== null) {
+                  limitStr = ` (above Rs. ${t.minPrice})`;
+                } else if (t.maxPrice !== null) {
+                  limitStr = ` (under Rs. ${t.maxPrice})`;
+                }
+                return `"${t.term}"${limitStr}`;
+              }).join(", ");
+
               const step1 = {
                 step: "intent_routing",
                 status: "completed",
@@ -939,14 +977,16 @@ RULES:
               // ── Per-intent pipeline: runs in parallel for each base term ──────────────
               // Each pipeline independently: searches → keyword-filters → LLM-validates → streams group_ready
               const runSearchPipeline = async (
-                baseTerm: string,
+                termConfig: SearchTermConfig,
                 pipelineIndex: number
               ): Promise<{ term: string; products: KaprukaProduct[]; discardedCount: number }> => {
 
+                const baseTerm = termConfig.term;
                 const variants = reorderForKapruka(baseTerm);
+                const queryMaxPrice = termConfig.maxPrice ?? criteria.maxPrice;
 
                 // Announce this pipeline starting
-                send({ type: "tool_call", name: "kapruka_search_products", args: { query: baseTerm, max_price: criteria.maxPrice } });
+                send({ type: "tool_call", name: "kapruka_search_products", args: { query: baseTerm, max_price: queryMaxPrice } });
                 send({
                   type: "thought",
                   step: "searching_kapruka",
@@ -962,7 +1002,7 @@ RULES:
                     new Promise<KaprukaProduct[]>((resolve, reject) => {
                       setTimeout(() => {
                         pillar1_searchProducts(v, {
-                          maxPriceLKR: criteria.maxPrice,
+                          maxPriceLKR: queryMaxPrice ?? undefined,
                           smeFirst: false,
                           limit: 30,
                           currency: currency || "LKR",
@@ -987,18 +1027,33 @@ RULES:
                   }
                 }
 
+                // Apply mathematical price filters: minPrice <= price <= maxPrice
+                const beforeFilterCount = rawProducts.length;
+                let priceFilterDiscarded = 0;
+                let filteredPriceProducts = rawProducts;
+                if (termConfig.minPrice !== null || termConfig.maxPrice !== null) {
+                  filteredPriceProducts = rawProducts.filter(p => {
+                    const priceVal = p.price;
+                    if (termConfig.minPrice !== null && priceVal < termConfig.minPrice) return false;
+                    if (termConfig.maxPrice !== null && priceVal > termConfig.maxPrice) return false;
+                    return true;
+                  });
+                  priceFilterDiscarded = beforeFilterCount - filteredPriceProducts.length;
+                }
+
                 send({
                   type: "thought",
                   step: "searching_kapruka",
                   term: baseTerm,
                   status: "completed",
-                  content: `Found ${rawProducts.length} raw result${rawProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.`,
+                  content: `Found ${filteredPriceProducts.length} raw result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.` +
+                    (priceFilterDiscarded > 0 ? ` (Filtered out ${priceFilterDiscarded} product(s) outside price limits)` : ""),
                   durationMs: searchDur,
                 });
 
                 // Layer 1: Fast keyword pre-filter (noun check + accessory exclusion + scoring)
-                const keywordFiltered = scoreAndFilterProducts(rawProducts, baseTerm);
-                const keywordDiscarded = rawProducts.length - keywordFiltered.length;
+                const keywordFiltered = scoreAndFilterProducts(filteredPriceProducts, baseTerm);
+                const keywordDiscarded = filteredPriceProducts.length - keywordFiltered.length + priceFilterDiscarded;
 
                 // Layer 2: LLM Relevance Validation (fast model — runs per pipeline)
                 let validated = keywordFiltered;
@@ -1053,7 +1108,7 @@ RULES:
               // Launch all pipelines in parallel (max 3)
               const tPipelines = Date.now();
               const pipelineResults = await Promise.allSettled(
-                baseLlmTerms.map((term: string, index: number) => runSearchPipeline(term, index))
+                baseLlmTerms.map((tConfig: SearchTermConfig, index: number) => runSearchPipeline(tConfig, index))
               );
               const pipelinesDur = Date.now() - tPipelines;
 
@@ -1064,7 +1119,7 @@ RULES:
 
               for (let i = 0; i < pipelineResults.length; i++) {
                 const settled = pipelineResults[i];
-                const baseTerm = baseLlmTerms[i];
+                const baseTerm = baseLlmTerms[i].term;
                 if (settled.status === "fulfilled" && settled.value.products.length > 0) {
                   const title = baseTerm.replace(/\b\w/g, (c: string) => c.toUpperCase());
                   groups.push({ title, products: settled.value.products });
@@ -1085,7 +1140,7 @@ RULES:
                   ? `All ${baseLlmTerms.length} search pipeline${baseLlmTerms.length > 1 ? "s" : ""} complete in ${pipelinesDur}ms — ${products.length} validated product${products.length !== 1 ? "s" : ""}${totalDiscardedAll > 0 ? `, ${totalDiscardedAll} irrelevant filtered out` : ""}${notFoundOriginalTerms.length > 0 ? `. Not found: ${notFoundOriginalTerms.map((t: string) => `"${t}"`).join(", ")}` : ""}.`
                   : `No matching products found after relevance filtering.`,
                 durationMs: pipelinesDur,
-                terms: baseLlmTerms, // user-intent base terms for ThinkingPanel capsule rendering
+                terms: baseLlmTerms.map(t => t.term), // user-intent base terms for ThinkingPanel capsule rendering
               };
               steps.push(step2);
               send({ type: "thought", ...step2 });
@@ -1241,38 +1296,64 @@ RULES:
             // Augment context with tool results for the LLM
             let contextNote = "";
             if (intent === "product") {
-              const notFoundTerms: string[] = (criteria as typeof criteria & { _notFoundTerms?: string[] })._notFoundTerms ?? [];
-              if (productGroups && productGroups.length > 0) {
-                // Rich structured context — reasoning model uses this for a high-quality response
-                contextNote = `\n\n[Validated Product Search Results — All items below have been relevance-validated]\n`;
-                for (const group of productGroups) {
-                  contextNote += `\n🔍 "${group.title}" — ${group.products.length} verified match${group.products.length !== 1 ? "es" : ""}:\n`;
-                  contextNote += group.products.slice(0, 4).map((p, i) =>
-                    `  ${i + 1}. ${p.name} — Rs. ${p.price?.toLocaleString() || "N/A"} (${p.inStock ? "✅ In Stock" : "❌ Out of Stock"})${p.isSME ? " 🇱🇰 Local" : ""}`
-                  ).join("\n") + "\n";
-                }
-                if (notFoundTerms.length > 0) {
-                  contextNote += `\n⚠️ NOT FOUND: ${notFoundTerms.map(t => `"${t}"`).join(", ")} — these items are not available in the Kapruka catalog. You MUST clearly tell the user which specific items are unavailable.`;
-                }
-                contextNote += `\n\n[Response Instructions]
+              if (hasSelectedProducts && products.length > 0) {
+                contextNote = `\n\n[Selected Products Context — User is asking about these specific products]\n` +
+                  products.map((p, idx) => {
+                    const richInfo = {
+                      id: p.id,
+                      name: p.name,
+                      price: p.price,
+                      compare_at_price: p.originalPrice || null,
+                      currency: p.currency,
+                      in_stock: p.inStock,
+                      category: p.category,
+                      description: p.description,
+                      url: p.url,
+                      variants: p.variants || [],
+                      attributes: p.attributes || {},
+                      shipping: p.shipping || {}
+                    };
+                    return `Product ${idx + 1}:\n\`\`\`json\n${JSON.stringify(richInfo, null, 2)}\n\`\`\``;
+                  }).join("\n\n") +
+                  `\n\n[Instruction] The user has selected the above products and is asking: "${message}". ` +
+                  `Answer their question directly, conversationally, and specifically using ONLY the product data above. ` +
+                  `Be warm, helpful, and direct. Do NOT use [INTRO] or [DETAILS] tags. Do NOT suggest searching for other products unless they ask. ` +
+                  `If they ask for reasons to buy or advantages, analyze the product description, price, attributes, and comparison price (compare_at_price). ` +
+                  `If they ask for a comparison, generate a clean detailed Markdown comparison table.`;
+              } else {
+                const notFoundTerms: string[] = (criteria as typeof criteria & { _notFoundTerms?: string[] })._notFoundTerms ?? [];
+                if (productGroups && productGroups.length > 0) {
+                  // Rich structured context — reasoning model uses this for a high-quality response
+                  contextNote = `\n\n[Validated Product Search Results — All items below have been relevance-validated]\n`;
+                  for (const group of productGroups) {
+                    contextNote += `\n🔍 "${group.title}" — ${group.products.length} verified match${group.products.length !== 1 ? "es" : ""}:\n`;
+                    contextNote += group.products.slice(0, 4).map((p, i) =>
+                      `  ${i + 1}. ${p.name} — Rs. ${p.price?.toLocaleString() || "N/A"} (${p.inStock ? "✅ In Stock" : "❌ Out of Stock"})${p.isSME ? " 🇱🇰 Local" : ""}`
+                    ).join("\n") + "\n";
+                  }
+                  if (notFoundTerms.length > 0) {
+                    contextNote += `\n⚠️ NOT FOUND: ${notFoundTerms.map(t => `"${t}"`).join(", ")} — these items are not available in the Kapruka catalog. You MUST clearly tell the user which specific items are unavailable.`;
+                  }
+                  contextNote += `\n\n[Response Instructions]
 You MUST structure your response for EACH category returned in the search results above using exactly these tags:
 - Use \`[INTRO: <CategoryName>]\` followed by a 1-sentence simple introduction.
 - Use \`[DETAILS: <CategoryName>]\` followed by a 2-3 sentence detailed comparison, mentioning prices in LKR and stock status.
 Make sure the category name in the tags matches the search result headers above exactly (e.g. if the category header is 🔍 "Shoes", use [INTRO: Shoes] and [DETAILS: Shoes]). Speak naturally and confidently. Do not write any general text outside these tags.`;
-              } else if (products.length > 0) {
-                contextNote = `\n\n[Validated Product Results] ${products.length} item${products.length !== 1 ? "s" : ""} found on Kapruka:\n` +
-                  products.slice(0, 6).map((p, i) =>
-                    `${i + 1}. ${p.name} — Rs. ${p.price?.toLocaleString() || "N/A"} (${p.inStock ? "✅ In Stock" : "❌ Out of Stock"})${p.isSME ? " 🇱🇰 Local" : ""}`
-                  ).join("\n");
-                if (notFoundTerms.length > 0) {
-                  contextNote += `\n\n⚠️ NOT FOUND: ${notFoundTerms.map(t => `"${t}"`).join(", ")}. Tell the user clearly these are unavailable.`;
-                }
-                contextNote += `\n\n[Response Instructions]
+                } else if (products.length > 0) {
+                  contextNote = `\n\n[Validated Product Results] ${products.length} item${products.length !== 1 ? "s" : ""} found on Kapruka:\n` +
+                    products.slice(0, 6).map((p, i) =>
+                      `${i + 1}. ${p.name} — Rs. ${p.price?.toLocaleString() || "N/A"} (${p.inStock ? "✅ In Stock" : "❌ Out of Stock"})${p.isSME ? " 🇱🇰 Local" : ""}`
+                    ).join("\n");
+                  if (notFoundTerms.length > 0) {
+                    contextNote += `\n\n⚠️ NOT FOUND: ${notFoundTerms.map(t => `"${t}"`).join(", ")}. Tell the user clearly these are unavailable.`;
+                  }
+                  contextNote += `\n\n[Response Instructions]
 You MUST structure your response using exactly these tags:
 - Use \`[INTRO: Product search]\` followed by a 1-sentence simple introduction.
 - Use \`[DETAILS: Product search]\` followed by a 2-3 sentence detailed comparison, mentioning prices in LKR and stock status.`;
-              } else {
-                contextNote = `\n\n[Search Result] NO products were found in the Kapruka live catalog after relevance filtering. Apologize politely, suggest the user try different keywords or a related category, and offer to help find alternatives.`;
+                } else {
+                  contextNote = `\n\n[Search Result] NO products were found in the Kapruka live catalog after relevance filtering. Apologize politely, suggest the user try different keywords or a related category, and offer to help find alternatives.`;
+                }
               }
             }
 
@@ -1295,7 +1376,7 @@ You MUST structure your response using exactly these tags:
             }
 
             const streamConfig: any = {
-              systemInstruction: SYSTEM_PROMPTS[intent],
+              systemInstruction: hasSelectedProducts ? SELECTED_PRODUCT_QA_PROMPT : SYSTEM_PROMPTS[intent],
             };
 
             // If intent is "qa", enable the Google Search grounding tool!
