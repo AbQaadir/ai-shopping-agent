@@ -56,28 +56,38 @@ export default function ProductGrid({
       {/* ── Product display ── */}
       {viewMode === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 select-none transition-all duration-300">
-          {paginatedProducts.map((prod) => (
-            <ProductCard
+          {paginatedProducts.map((prod, pIdx) => (
+            <div
               key={prod.id}
-              product={prod}
-              viewMode="grid"
-              isSelected={selectedIds.includes(prod.id)}
-              onToggle={() => onToggle?.(prod)}
-              onBuy={() => onBuy?.(prod)}
-            />
+              className="animate-product-reveal"
+              style={{ animationDelay: `${pIdx * 80}ms` }}
+            >
+              <ProductCard
+                product={prod}
+                viewMode="grid"
+                isSelected={selectedIds.includes(prod.id)}
+                onToggle={() => onToggle?.(prod)}
+                onBuy={() => onBuy?.(prod)}
+              />
+            </div>
           ))}
         </div>
       ) : (
         <div className="space-y-2 select-none transition-all duration-300">
-          {paginatedProducts.map((prod) => (
-            <ProductCard
+          {paginatedProducts.map((prod, pIdx) => (
+            <div
               key={prod.id}
-              product={prod}
-              viewMode="list"
-              isSelected={selectedIds.includes(prod.id)}
-              onToggle={() => onToggle?.(prod)}
-              onBuy={() => onBuy?.(prod)}
-            />
+              className="animate-product-reveal"
+              style={{ animationDelay: `${pIdx * 80}ms` }}
+            >
+              <ProductCard
+                product={prod}
+                viewMode="list"
+                isSelected={selectedIds.includes(prod.id)}
+                onToggle={() => onToggle?.(prod)}
+                onBuy={() => onBuy?.(prod)}
+              />
+            </div>
           ))}
         </div>
       )}

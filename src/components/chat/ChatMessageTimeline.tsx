@@ -245,6 +245,339 @@ function renderFormattedText(text: string) {
   });
 }
 
+interface ParsedSection {
+  type: "intro" | "details" | "general";
+  groupTitle?: string;
+  text: string;
+}
+
+function parseMessageText(text: string): ParsedSection[] {
+  if (!text) return [];
+
+  const sections: ParsedSection[] = [];
+  const tagRegex = /\[(INTRO|DETAILS):\s*([^\]]+)\]/gi;
+  
+  let lastIndex = 0;
+  let currentType: "intro" | "details" | "general" = "general";
+  let currentGroupTitle: string | undefined = undefined;
+  
+  let match;
+  while ((match = tagRegex.exec(text)) !== null) {
+    const matchIndex = match.index;
+    const contentText = text.substring(lastIndex, matchIndex);
+    
+    if (contentText.trim() || currentType !== "general") {
+      sections.push({
+        type: currentType,
+        groupTitle: currentGroupTitle,
+        text: contentText
+      });
+    }
+    
+    currentType = match[1].toLowerCase() as "intro" | "details";
+    currentGroupTitle = match[2].trim();
+    lastIndex = tagRegex.lastIndex;
+  }
+  
+  const remainingText = text.substring(lastIndex);
+  if (remainingText.trim() || currentType !== "general") {
+    sections.push({
+      type: currentType,
+      groupTitle: currentGroupTitle,
+      text: remainingText
+    });
+  }
+  
+  return sections;
+}
+
+function renderMessageTextBlock(
+  text: string,
+  isLastAIResponse: boolean,
+  showCursor: boolean
+) {
+  if (!text) return null;
+  const lines = text.split("\n");
+  
+  // Find the last non-empty line index to append the cursor
+  let lastNonEmptyIdx = -1;
+  if (showCursor) {
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim() !== "") {
+        lastNonEmptyIdx = i;
+        break;
+      }
+    }
+  }
+
+  const processedElements: React.ReactNode[] = [];
+  let sourceElements: React.ReactNode[] = [];
+  let isInsideSources = false;
+  let isInsideCodeBlock = false;
+  let codeBlockLines: string[] = [];
+
+  let isInsideTable = false;
+  let tableRows: string[][] = [];
+
+  const parseTableRow = (lineStr: string): string[] => {
+    const parts = lineStr.split("|");
+    if (parts[0].trim() === "") parts.shift();
+    if (parts[parts.length - 1]?.trim() === "") parts.pop();
+    return parts.map(p => p.trim());
+  };
+
+  const isSeparatorRow = (cells: string[]): boolean => {
+    return cells.length > 0 && cells.every(c => /^[:\-\s]+$/.test(c));
+  };
+
+  const renderTable = (rows: string[][], key: string | number) => {
+    if (rows.length === 0) return null;
+    const headerRow = rows[0];
+    let bodyRows = rows.slice(1);
+    let alignments: string[] = [];
+    
+    if (bodyRows.length > 0 && isSeparatorRow(bodyRows[0])) {
+      const separatorRow = bodyRows[0];
+      alignments = separatorRow.map(c => {
+        const t = c.trim();
+        if (t.startsWith(":") && t.endsWith(":")) return "text-center";
+        if (t.endsWith(":")) return "text-right";
+        return "text-left";
+      });
+      bodyRows = bodyRows.slice(1);
+    }
+    
+    return (
+      <div key={key} className="overflow-x-auto my-4 border border-slate-200/80 rounded-xl shadow-xs w-full select-text">
+        <table className="min-w-full divide-y divide-slate-200 text-xs">
+          <thead className="bg-slate-50/80 select-none">
+            <tr>
+              {headerRow.map((cell, idx) => (
+                <th
+                  key={idx}
+                  className={`px-4 py-2.5 font-extrabold text-slate-700 uppercase tracking-wider border-b border-slate-200/60 ${alignments[idx] || "text-left"}`}
+                >
+                  {renderFormattedText(cell)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-slate-100 font-medium">
+            {bodyRows.map((row, rIdx) => (
+              <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors even:bg-slate-50/30">
+                {row.map((cell, cIdx) => (
+                  <td
+                    key={cIdx}
+                    className={`px-4 py-2.5 text-slate-600 ${alignments[cIdx] || "text-left"}`}
+                  >
+                    {renderFormattedText(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+    const trimmed = line.trim();
+
+    const isTableRow = trimmed.startsWith("|");
+
+    if (isInsideTable && !isTableRow) {
+      processedElements.push(renderTable(tableRows, `table-${lineIdx}`));
+      tableRows = [];
+      isInsideTable = false;
+    }
+
+    if (isTableRow) {
+      if (!isInsideTable) {
+        isInsideTable = true;
+        tableRows = [parseTableRow(trimmed)];
+      } else {
+        tableRows.push(parseTableRow(trimmed));
+      }
+      continue;
+    }
+
+    // Fenced Code Blocks
+    if (trimmed.startsWith("```")) {
+      if (isInsideCodeBlock) {
+        const codeContent = codeBlockLines.join("\n");
+        processedElements.push(
+          <pre key={`code-block-${lineIdx}`} className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
+            <code>{codeContent}</code>
+          </pre>
+        );
+        codeBlockLines = [];
+        isInsideCodeBlock = false;
+      } else {
+        isInsideCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (isInsideCodeBlock) {
+      codeBlockLines.push(line);
+      continue;
+    }
+
+    // Sources Header
+    if (trimmed === "**Sources:**" || trimmed === "Sources:") {
+      isInsideSources = true;
+      continue;
+    }
+
+    // Source Citation Item
+    const sourceMatch = trimmed.match(/^\[(\d+)\]\s+\[([^\]]+)\]\(([^)]+)\)/);
+    if (sourceMatch) {
+      const title = sourceMatch[2];
+      const url = sourceMatch[3];
+
+      sourceElements.push(
+        <React.Fragment key={`src-item-${lineIdx}`}>
+          {sourceElements.length > 0 && <span className="text-slate-400 select-none text-sm">,</span>}
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-600 hover:text-sky-800 underline font-semibold text-sm transition-colors"
+          >
+            {title}
+          </a>
+        </React.Fragment>
+      );
+      continue;
+    }
+
+    // Flush source items if the block ended
+    if (isInsideSources && sourceElements.length > 0 && trimmed !== "") {
+      processedElements.push(
+        <p key={`src-container-${lineIdx}`} className="text-sm text-slate-500 font-medium mt-3.5 flex flex-wrap items-center gap-1">
+          <span className="font-bold text-slate-800 select-none">Sources:</span>
+          {sourceElements}
+        </p>
+      );
+      sourceElements = [];
+      isInsideSources = false;
+    }
+
+    // Empty Line
+    if (trimmed === "") {
+      processedElements.push(<div key={lineIdx} className="h-2" />);
+      continue;
+    }
+
+    const isLastLine = showCursor && lineIdx === lastNonEmptyIdx;
+
+    // Headers (###, ##, #)
+    const headerMatch = line.match(/^(\s*)(#{1,3})\s+(.*)/);
+    if (headerMatch) {
+      const level = headerMatch[2].length;
+      const content = headerMatch[3];
+
+      if (level === 3) {
+        processedElements.push(
+          <h5 key={lineIdx} className="text-[14px] font-extrabold text-slate-800 mt-4 mb-1 select-none">
+            {renderFormattedText(content)}
+          </h5>
+        );
+      } else if (level === 2) {
+        processedElements.push(
+          <h4 key={lineIdx} className="text-[15px] font-extrabold text-slate-800 mt-5 mb-1.5 select-none">
+            {renderFormattedText(content)}
+          </h4>
+        );
+      } else {
+        processedElements.push(
+          <h3 key={lineIdx} className="text-[17px] font-extrabold text-slate-900 mt-6 mb-2 select-none">
+            {renderFormattedText(content)}
+          </h3>
+        );
+      }
+      continue;
+    }
+
+    // Bullet Points (*, -, or •)
+    const bulletMatch = line.match(/^\s*([*\-•])\s+(.*)/);
+    if (bulletMatch) {
+      const content = bulletMatch[2];
+      processedElements.push(
+        <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
+          <span className="text-[#402970] mt-1.5 shrink-0 select-none text-[8px]">●</span>
+          <span className="flex-1">
+            {renderFormattedText(content)}
+            {isLastAIResponse && isLastLine && (
+              <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
+            )}
+          </span>
+        </div>
+      );
+      continue;
+    }
+
+    // Numbered Lists
+    const numMatch = line.match(/^\s*(\d+)\.\s+(.*)/);
+    if (numMatch) {
+      const num = numMatch[1];
+      const content = numMatch[2];
+      processedElements.push(
+        <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
+          <span className="text-[#402970] font-bold text-xs mt-0.5 shrink-0 select-none">{num}.</span>
+          <span className="flex-1">
+            {renderFormattedText(content)}
+            {isLastAIResponse && isLastLine && (
+              <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
+            )}
+          </span>
+        </div>
+      );
+      continue;
+    }
+
+    // Standard Line
+    processedElements.push(
+      <p key={lineIdx}>
+        {renderFormattedText(line)}
+        {isLastAIResponse && isLastLine && (
+          <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
+        )}
+      </p>
+    );
+  }
+
+  // Final flushes at end of message text loop
+  if (isInsideTable && tableRows.length > 0) {
+    processedElements.push(renderTable(tableRows, "table-end"));
+  }
+
+  if (isInsideCodeBlock && codeBlockLines.length > 0) {
+    processedElements.push(
+      <pre key="code-block-end" className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
+        <code>{codeBlockLines.join("\n")}</code>
+      </pre>
+    );
+  }
+
+  if (sourceElements.length > 0) {
+    processedElements.push(
+      <p key="src-container-end" className="text-sm text-slate-500 font-medium mt-3.5 flex flex-wrap items-center gap-1">
+        <span className="font-bold text-slate-800 select-none">Sources:</span>
+        {sourceElements}
+      </p>
+    );
+  }
+
+  return (
+    <div className="text-sm text-slate-600 leading-relaxed space-y-1.5 select-text">
+      {processedElements}
+    </div>
+  );
+}
+
 export default function ChatTimeline({
   messages,
   isGenerating,
@@ -404,316 +737,154 @@ export default function ChatTimeline({
                             isGenerating={isLastAIResponse}
                             hasText={!!msg.text}
                             inlineProducts={msg.inlineProducts}
+                            productGroups={msg.productGroups}
                             activeQueryText={activeQueryText}
                             onViewDetails={onViewMoreProducts}
                           />
                         )}
 
-                        {/* ── Pillar 1/3: Product Grid ── */}
-                        {msg.productGroups && msg.productGroups.length > 0 ? (
-                          msg.productGroups.map((group, gIdx) => (
-                            <ProductSection
-                              key={gIdx}
-                              title={group.title}
-                              products={group.products}
-                              msg={msg}
-                              selectedProductIds={selectedProductIds}
-                              onToggleSelectProduct={onToggleSelectProduct}
-                              onBuyProduct={onBuyProduct}
-                              renderClosableToolCard={renderClosableToolCard}
-                            />
-                          ))
-                        ) : msg.inlineProducts && msg.inlineProducts.length > 0 ? (
-                          <ProductSection
-                            title={msg.inlineProductsHeader || "Product search"}
-                            products={msg.inlineProducts}
-                            msg={msg}
-                            selectedProductIds={selectedProductIds}
-                            onToggleSelectProduct={onToggleSelectProduct}
-                            onBuyProduct={onBuyProduct}
-                            renderClosableToolCard={renderClosableToolCard}
-                          />
-                        ) : null}
+                        {/* ── Pillar 1/3: Product Grid with mixed LLM text ── */}
+                        {(() => {
+                          const hasProducts = (msg.productGroups && msg.productGroups.length > 0) || (msg.inlineProducts && msg.inlineProducts.length > 0);
+                          
+                          if (!hasProducts) {
+                            // If there are no products, just render the text response as normal below the thinking panel
+                            return msg.text ? renderMessageTextBlock(msg.text, isLastAIResponse, true) : null;
+                          }
 
-                        {/* AI text response */}
-                        {msg.text && (
-                          <div className="text-sm text-slate-600 leading-relaxed space-y-1.5">
-                            {(() => {
-                              const lines = msg.text.split("\n");
-                              // Find the last non-empty line index to append the cursor
-                              let lastNonEmptyIdx = -1;
-                              for (let i = lines.length - 1; i >= 0; i--) {
-                                if (lines[i].trim() !== "") {
-                                  lastNonEmptyIdx = i;
-                                  break;
-                                }
-                              }
+                          const parsedSections = parseMessageText(msg.text);
+                          const hasTags = parsedSections.some(s => s.type === "intro" || s.type === "details");
 
-                              const processedElements: React.ReactNode[] = [];
-                              let sourceElements: React.ReactNode[] = [];
-                              let isInsideSources = false;
-                              let isInsideCodeBlock = false;
-                              let codeBlockLines: string[] = [];
+                          const unifiedGroups = msg.productGroups && msg.productGroups.length > 0
+                            ? msg.productGroups
+                            : (msg.inlineProducts && msg.inlineProducts.length > 0
+                                ? [{ title: msg.inlineProductsHeader || "Product search", products: msg.inlineProducts }]
+                                : []
+                              );
 
-                              let isInsideTable = false;
-                              let tableRows: string[][] = [];
+                          if (!hasTags) {
+                            // Fallback layout: products first, then AI text response
+                            return (
+                              <>
+                                {unifiedGroups.map((group, gIdx) => (
+                                  <ProductSection
+                                    key={gIdx}
+                                    title={group.title}
+                                    products={group.products}
+                                    msg={msg}
+                                    selectedProductIds={selectedProductIds}
+                                    onToggleSelectProduct={onToggleSelectProduct}
+                                    onBuyProduct={onBuyProduct}
+                                    renderClosableToolCard={renderClosableToolCard}
+                                  />
+                                ))}
+                                {msg.text && renderMessageTextBlock(msg.text, isLastAIResponse, true)}
+                              </>
+                            );
+                          }
 
-                              const parseTableRow = (lineStr: string): string[] => {
-                                const parts = lineStr.split("|");
-                                if (parts[0].trim() === "") parts.shift();
-                                if (parts[parts.length - 1]?.trim() === "") parts.pop();
-                                return parts.map(p => p.trim());
-                              };
+                          // Norm helper for matching
+                          const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-                              const isSeparatorRow = (cells: string[]): boolean => {
-                                return cells.length > 0 && cells.every(c => /^[:\-\s]+$/.test(c));
-                              };
+                          // Custom mixed layout matching user mockups
+                          return (
+                            <div className="space-y-4 w-full">
+                              {/* 1. General text sections before the first group */}
+                              {parsedSections
+                                .filter((s) => {
+                                  if (s.type !== "general") return false;
+                                  const rawIdx = parsedSections.indexOf(s);
+                                  const firstTaggedIdx = parsedSections.findIndex(p => p.type === "intro" || p.type === "details");
+                                  return firstTaggedIdx !== -1 && rawIdx < firstTaggedIdx;
+                                })
+                                .map((s, sIdx) => {
+                                  const rawIdx = parsedSections.indexOf(s);
+                                  const isLast = rawIdx === parsedSections.length - 1;
+                                  return (
+                                    <div key={`gen-top-${sIdx}`} className="animate-fadeIn">
+                                      {renderMessageTextBlock(s.text, isLastAIResponse, isLast)}
+                                    </div>
+                                  );
+                                })}
 
-                              const renderTable = (rows: string[][], key: string | number) => {
-                                if (rows.length === 0) return null;
-                                const headerRow = rows[0];
-                                let bodyRows = rows.slice(1);
-                                let alignments: string[] = [];
+                              {/* 2. Unified product sections mixed with their intro and details */}
+                              {unifiedGroups.map((group, gIdx) => {
+                                const groupNorm = norm(group.title);
                                 
-                                if (bodyRows.length > 0 && isSeparatorRow(bodyRows[0])) {
-                                  const separatorRow = bodyRows[0];
-                                  alignments = separatorRow.map(c => {
-                                    const t = c.trim();
-                                    if (t.startsWith(":") && t.endsWith(":")) return "text-center";
-                                    if (t.endsWith(":")) return "text-right";
-                                    return "text-left";
-                                  });
-                                  bodyRows = bodyRows.slice(1);
-                                }
-                                
+                                // Find intro matching this group
+                                const introSec = parsedSections.find(s => s.type === "intro" && s.groupTitle && norm(s.groupTitle) === groupNorm);
+                                const introIdx = introSec ? parsedSections.indexOf(introSec) : -1;
+                                const isIntroLast = introIdx === parsedSections.length - 1;
+
+                                // Find details matching this group
+                                const detailsSec = parsedSections.find(s => s.type === "details" && s.groupTitle && norm(s.groupTitle) === groupNorm);
+                                const detailsIdx = detailsSec ? parsedSections.indexOf(detailsSec) : -1;
+                                const isDetailsLast = detailsIdx === parsedSections.length - 1;
+
                                 return (
-                                  <div key={key} className="overflow-x-auto my-4 border border-slate-200/80 rounded-xl shadow-xs w-full select-text">
-                                    <table className="min-w-full divide-y divide-slate-200 text-xs">
-                                      <thead className="bg-slate-50/80 select-none">
-                                        <tr>
-                                          {headerRow.map((cell, idx) => (
-                                            <th
-                                              key={idx}
-                                              className={`px-4 py-2.5 font-extrabold text-slate-700 uppercase tracking-wider border-b border-slate-200/60 ${alignments[idx] || "text-left"}`}
-                                            >
-                                              {renderFormattedText(cell)}
-                                            </th>
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody className="bg-white divide-y divide-slate-100 font-medium">
-                                        {bodyRows.map((row, rIdx) => (
-                                          <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors even:bg-slate-50/30">
-                                            {row.map((cell, cIdx) => (
-                                              <td
-                                                key={cIdx}
-                                                className={`px-4 py-2.5 text-slate-600 ${alignments[cIdx] || "text-left"}`}
-                                              >
-                                                {renderFormattedText(cell)}
-                                              </td>
-                                            ))}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
+                                  <div key={`mixed-group-${gIdx}`} className="space-y-4">
+                                    {/* Intro for this group */}
+                                    {introSec && introSec.text.trim() && (
+                                      <div className="animate-fadeIn">
+                                        {renderMessageTextBlock(introSec.text, isLastAIResponse, isIntroLast)}
+                                      </div>
+                                    )}
+
+                                    {/* Product Grid */}
+                                    <ProductSection
+                                      title={group.title}
+                                      products={group.products}
+                                      msg={msg}
+                                      selectedProductIds={selectedProductIds}
+                                      onToggleSelectProduct={onToggleSelectProduct}
+                                      onBuyProduct={onBuyProduct}
+                                      renderClosableToolCard={renderClosableToolCard}
+                                    />
+
+                                    {/* Details for this group */}
+                                    {detailsSec && detailsSec.text.trim() && (
+                                      <div className="animate-fadeIn">
+                                        {renderMessageTextBlock(detailsSec.text, isLastAIResponse, isDetailsLast)}
+                                      </div>
+                                    )}
+
+                                    {/* Divider if not the last group */}
+                                    {gIdx < unifiedGroups.length - 1 && (
+                                      <hr className="border-t border-slate-200/80 my-6" />
+                                    )}
                                   </div>
                                 );
-                              };
+                              })}
 
-                              for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-                                const line = lines[lineIdx];
-                                const trimmed = line.trim();
-
-                                const isTableRow = trimmed.startsWith("|");
-
-                                if (isInsideTable && !isTableRow) {
-                                  processedElements.push(renderTable(tableRows, `table-${lineIdx}`));
-                                  tableRows = [];
-                                  isInsideTable = false;
-                                }
-
-                                if (isTableRow) {
-                                  if (!isInsideTable) {
-                                    isInsideTable = true;
-                                    tableRows = [parseTableRow(trimmed)];
-                                  } else {
-                                    tableRows.push(parseTableRow(trimmed));
+                              {/* 3. Concluding general or unmapped sections */}
+                              {parsedSections
+                                .filter((s) => {
+                                  if (s.type === "general") {
+                                    const firstTaggedIdx = parsedSections.findIndex(p => p.type === "intro" || p.type === "details");
+                                    const rawIdx = parsedSections.indexOf(s);
+                                    return firstTaggedIdx === -1 || rawIdx > parsedSections.map(p => p.type === "intro" || p.type === "details").lastIndexOf(true);
                                   }
-                                  continue;
-                                }
-
-                                // Fenced Code Blocks
-                                if (trimmed.startsWith("```")) {
-                                  if (isInsideCodeBlock) {
-                                    const codeContent = codeBlockLines.join("\n");
-                                    processedElements.push(
-                                      <pre key={`code-block-${lineIdx}`} className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
-                                        <code>{codeContent}</code>
-                                      </pre>
-                                    );
-                                    codeBlockLines = [];
-                                    isInsideCodeBlock = false;
-                                  } else {
-                                    isInsideCodeBlock = true;
-                                  }
-                                  continue;
-                                }
-
-                                if (isInsideCodeBlock) {
-                                  codeBlockLines.push(line);
-                                  continue;
-                                }
-
-                                // Sources Header
-                                if (trimmed === "**Sources:**" || trimmed === "Sources:") {
-                                  isInsideSources = true;
-                                  continue;
-                                }
-
-                                // Source Citation Item
-                                const sourceMatch = trimmed.match(/^\[(\d+)\]\s+\[([^\]]+)\]\(([^)]+)\)/);
-                                if (sourceMatch) {
-                                  const title = sourceMatch[2];
-                                  const url = sourceMatch[3];
-
-                                  sourceElements.push(
-                                    <React.Fragment key={`src-item-${lineIdx}`}>
-                                      {sourceElements.length > 0 && <span className="text-slate-400 select-none text-sm">,</span>}
-                                      <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-sky-600 hover:text-sky-800 underline font-semibold text-sm transition-colors"
-                                      >
-                                        {title}
-                                      </a>
-                                    </React.Fragment>
-                                  );
-                                  continue;
-                                }
-
-                                // Flush source items if the block ended
-                                if (isInsideSources && sourceElements.length > 0 && trimmed !== "") {
-                                  processedElements.push(
-                                    <p key={`src-container-${lineIdx}`} className="text-sm text-slate-500 font-medium mt-3.5 flex flex-wrap items-center gap-1">
-                                      <span className="font-bold text-slate-800 select-none">Sources:</span>
-                                      {sourceElements}
-                                    </p>
-                                  );
-                                  sourceElements = [];
-                                  isInsideSources = false;
-                                }
-
-                                // Empty Line
-                                if (trimmed === "") {
-                                  processedElements.push(<div key={lineIdx} className="h-2" />);
-                                  continue;
-                                }
-
-                                const isLastLine = lineIdx === lastNonEmptyIdx;
-
-                                // Headers (###, ##, #)
-                                const headerMatch = line.match(/^(\s*)(#{1,3})\s+(.*)/);
-                                if (headerMatch) {
-                                  const level = headerMatch[2].length;
-                                  const content = headerMatch[3];
-
-                                  if (level === 3) {
-                                    processedElements.push(
-                                      <h5 key={lineIdx} className="text-[14px] font-extrabold text-slate-800 mt-4 mb-1 select-none">
-                                        {renderFormattedText(content)}
-                                      </h5>
-                                    );
-                                  } else if (level === 2) {
-                                    processedElements.push(
-                                      <h4 key={lineIdx} className="text-[15px] font-extrabold text-slate-800 mt-5 mb-1.5 select-none">
-                                        {renderFormattedText(content)}
-                                      </h4>
-                                    );
-                                  } else {
-                                    processedElements.push(
-                                      <h3 key={lineIdx} className="text-[17px] font-extrabold text-slate-900 mt-6 mb-2 select-none">
-                                        {renderFormattedText(content)}
-                                      </h3>
-                                    );
-                                  }
-                                  continue;
-                                }
-
-                                // Bullet Points (*, -, or •)
-                                const bulletMatch = line.match(/^\s*([*\-•])\s+(.*)/);
-                                if (bulletMatch) {
-                                  const content = bulletMatch[2];
-                                  processedElements.push(
-                                    <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
-                                      <span className="text-[#402970] mt-1.5 shrink-0 select-none text-[8px]">●</span>
-                                      <span className="flex-1">
-                                        {renderFormattedText(content)}
-                                        {isLastAIResponse && isLastLine && (
-                                          <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
-                                        )}
-                                      </span>
+                                  const title = s.groupTitle;
+                                  if (!title) return true;
+                                  return !unifiedGroups.some(g => norm(g.title) === norm(title));
+                                })
+                                .map((s, sIdx) => {
+                                  const rawIdx = parsedSections.indexOf(s);
+                                  const isLast = rawIdx === parsedSections.length - 1;
+                                  return (
+                                    <div key={`concl-${sIdx}`} className="animate-fadeIn">
+                                      {s.type !== "general" && s.groupTitle && (
+                                        <h5 className="text-[13px] font-extrabold text-slate-800 mt-3 mb-1.5 select-none">
+                                          {s.groupTitle} ({s.type})
+                                        </h5>
+                                      )}
+                                      {renderMessageTextBlock(s.text, isLastAIResponse, isLast)}
                                     </div>
                                   );
-                                  continue;
-                                }
-
-                                // Numbered Lists
-                                const numMatch = line.match(/^\s*(\d+)\.\s+(.*)/);
-                                if (numMatch) {
-                                  const num = numMatch[1];
-                                  const content = numMatch[2];
-                                  processedElements.push(
-                                    <div key={lineIdx} className="flex items-start gap-2.5 pl-3 py-0.5 animate-fadeIn">
-                                      <span className="text-[#402970] font-bold text-xs mt-0.5 shrink-0 select-none">{num}.</span>
-                                      <span className="flex-1">
-                                        {renderFormattedText(content)}
-                                        {isLastAIResponse && isLastLine && (
-                                          <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
-                                        )}
-                                      </span>
-                                    </div>
-                                  );
-                                  continue;
-                                }
-
-                                // Standard Line
-                                processedElements.push(
-                                  <p key={lineIdx}>
-                                    {renderFormattedText(line)}
-                                    {isLastAIResponse && isLastLine && (
-                                      <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
-                                    )}
-                                  </p>
-                                );
-                              }
-
-                              // Final flushes at end of message text loop
-                              if (isInsideTable && tableRows.length > 0) {
-                                processedElements.push(renderTable(tableRows, "table-end"));
-                              }
-
-                              if (isInsideCodeBlock && codeBlockLines.length > 0) {
-                                processedElements.push(
-                                  <pre key="code-block-end" className="bg-slate-900 text-slate-100 font-mono text-xs p-3.5 rounded-xl border border-slate-800 my-2 overflow-x-auto select-text leading-relaxed">
-                                    <code>{codeBlockLines.join("\n")}</code>
-                                  </pre>
-                                );
-                              }
-
-                              if (sourceElements.length > 0) {
-                                processedElements.push(
-                                  <p key="src-container-end" className="text-sm text-slate-500 font-medium mt-3.5 flex flex-wrap items-center gap-1">
-                                    <span className="font-bold text-slate-800 select-none">Sources:</span>
-                                    {sourceElements}
-                                  </p>
-                                );
-                              }
-
-                              return processedElements;
-                            })()}
-                          </div>
-                        )}
+                                })}
+                            </div>
+                          );
+                        })()}
 
 
                         {/* ── Pillar 2: Delivery Card ── */}

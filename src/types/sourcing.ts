@@ -165,7 +165,8 @@ export interface Message {
     status: "running" | "completed";
     content: string;
     durationMs?: number;
-    terms?: string[]; // parallel search terms for capsule rendering
+    terms?: string[]; // parallel search terms for capsule rendering (baseLlmTerms)
+    term?: string;    // single term for per-pipeline steps (searching_kapruka, validating_relevance)
   }[];
   activeToolCall?: { name: string; args: unknown } | null;
   activeToolCalls?: Array<{ name: string; args: unknown }>; // accumulates parallel tool calls
