@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useRef, useState } from "react";
-import { Paperclip, ArrowUp, X, Menu, ShoppingCart } from "lucide-react";
+import React, { useRef, useState, useEffect } from "react";
+import { Paperclip, ArrowUp, X, Menu, ShoppingCart, Search, Plus, Send } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
 
 interface LandingWorkspaceProps {
@@ -15,6 +15,54 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
+  useEffect(() => {
+    if (!inputText || inputText.trim().length < 4) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      setSelectedIndex(-1);
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchSuggestions = async () => {
+      try {
+        const res = await fetch("/api/chat/autocomplete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            inputText,
+            chatHistory: [],
+          }),
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.suggestions && data.suggestions.length > 0) {
+            setSuggestions(data.suggestions);
+            setShowDropdown(true);
+          } else {
+            setSuggestions([]);
+            setShowDropdown(false);
+          }
+        }
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("Autocomplete fetch error:", err);
+        }
+      }
+    };
+
+    const debounceTimer = setTimeout(fetchSuggestions, 300);
+    return () => {
+      clearTimeout(debounceTimer);
+      controller.abort();
+    };
+  }, [inputText]);
  
   const handleSubmit = () => {
     if (inputText.trim() || attachedFiles.length > 0) {
@@ -24,7 +72,32 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
     }
   };
  
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showDropdown && suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (e.key === "Enter" && selectedIndex >= 0 && selectedIndex < suggestions.length) {
+        e.preventDefault();
+        setInputText(suggestions[selectedIndex]);
+        setShowDropdown(false);
+        setSelectedIndex(-1);
+        return;
+      }
+      if (e.key === "Escape" || e.key === "Tab") {
+        setShowDropdown(false);
+        setSelectedIndex(-1);
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -100,53 +173,129 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
  
         {/* Prompt input */}
         <div className="w-full relative group px-2 sm:px-0">
-          <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 rounded-[26px] blur-md transition-opacity duration-300 pointer-events-none ${isFocused ? "opacity-15" : "opacity-[0.07] group-hover:opacity-[0.14]"}`} />
-          <div className={`w-full bg-white rounded-3xl border transition-all duration-300 p-3.5 sm:p-4 flex flex-col relative ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"}`}>
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyPress}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              placeholder='Try: "Show me birthday cakes under Rs. 3,000" or paste an Amazon link...'
-              rows={2}
-              className="w-full resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm sm:text-[15px] px-1 sm:px-2 py-1 leading-relaxed min-h-[56px] sm:min-h-[72px]"
-            />
- 
-            {attachedFiles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-2 pb-3 pt-1 border-b border-slate-50">
-                {attachedFiles.map((file, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-medium text-slate-600">
-                    <span className="truncate max-w-[120px]">{file.name}</span>
-                    <button onClick={() => setAttachedFiles((p) => p.filter((_, i) => i !== idx))} className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer">
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
- 
-            <div className="flex items-center justify-between pt-2 sm:pt-3 px-1 sm:px-2">
+          {/* Autocomplete Dropdown floating below the input card */}
+          {showDropdown && suggestions.length > 0 && (
+            <div 
+              className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-md rounded-xl border border-slate-100 shadow-[0_12px_30px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col p-1.5 z-30 animate-fadeInScale text-left"
+            >
+              {suggestions.map((suggestion, index) => {
+                const queryTrim = inputText.trim();
+                const queryLower = queryTrim.toLowerCase();
+                const suggLower = suggestion.toLowerCase();
+                const hasPrefix = suggLower.startsWith(queryLower);
+                const prefix = hasPrefix ? suggestion.substring(0, queryTrim.length) : "";
+                const suffix = hasPrefix ? suggestion.substring(queryTrim.length) : suggestion;
+
+                return (
+                  <button
+                    key={index}
+                    onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
+                    onClick={() => {
+                      setInputText(suggestion);
+                      setShowDropdown(false);
+                      setSelectedIndex(-1);
+                    }}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-lg transition-all duration-150 flex items-center justify-between group cursor-pointer ${
+                      selectedIndex === index
+                        ? "bg-[#402970]/5 text-[#402970] font-semibold"
+                        : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Search 
+                        size={14} 
+                        className={`shrink-0 transition-colors ${
+                          selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
+                        }`} 
+                      />
+                      <span className="truncate">
+                        {hasPrefix ? (
+                          <>
+                            <span className="text-slate-400 font-normal">{prefix}</span>
+                            <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-850"}`}>
+                              {suffix}
+                            </span>
+                          </>
+                        ) : (
+                          <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-755"}`}>
+                            {suggestion}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    {selectedIndex === index && (
+                      <span className="text-[10px] sm:text-xs text-[#402970] font-bold bg-[#402970]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 animate-fadeIn select-none">
+                        Select
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {/* Attached files row above the pill */}
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-slate-100 shadow-sm self-start animate-fadeIn animate-slideInRight">
+              {attachedFiles.map((file, idx) => (
+                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-medium text-slate-600">
+                  <span className="truncate max-w-[120px]">{file.name}</span>
+                  <button onClick={() => setAttachedFiles((p) => p.filter((_, i) => i !== idx))} className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <X size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="w-full relative">
+            <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 rounded-full blur-md transition-opacity duration-300 pointer-events-none ${isFocused ? "opacity-15" : "opacity-[0.07] group-hover:opacity-[0.14]"}`} />
+            
+            <div className={`w-full bg-white rounded-full border transition-all duration-300 py-1.5 pl-4 pr-1.5 flex items-center gap-2.5 relative ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"}`}>
+              {/* Attachment Button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 onMouseDown={(e) => e.preventDefault()}
-                className="p-2 sm:p-2.5 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-all cursor-pointer"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-all cursor-pointer shrink-0 relative"
                 title="Attach files"
               >
-                <Paperclip size={16} />
+                <Plus size={20} />
+                {attachedFiles.length > 0 && (
+                  <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                )}
               </button>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
+
+              {/* Textarea */}
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => {
+                  setIsFocused(false);
+                  setTimeout(() => {
+                    setShowDropdown(false);
+                    setSelectedIndex(-1);
+                  }, 150);
+                }}
+                placeholder='Try: "Show me birthday cakes under Rs. 3,000" or paste an Amazon link...'
+                rows={1}
+                className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm sm:text-[15px] py-2 leading-relaxed max-h-[120px] overflow-y-auto"
+              />
+
+              {/* Send Button */}
               <button
                 onClick={handleSubmit}
                 onMouseDown={(e) => e.preventDefault()}
                 disabled={!inputText.trim() && attachedFiles.length === 0}
-                className={`p-2 sm:p-2.5 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
                   inputText.trim() || attachedFiles.length > 0
                     ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 active:scale-95"
-                    : "bg-slate-100 text-slate-300 cursor-not-allowed"
+                    : "bg-slate-100 text-slate-350 cursor-not-allowed"
                 }`}
               >
-                <ArrowUp size={18} strokeWidth={2.5} />
+                <Send size={16} className="ml-[1px]" />
               </button>
             </div>
           </div>
