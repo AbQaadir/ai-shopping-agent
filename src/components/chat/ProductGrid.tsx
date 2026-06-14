@@ -60,7 +60,7 @@ export default function ProductGrid({
             <div
               key={prod.id}
               className="animate-product-reveal"
-              style={{ animationDelay: `${pIdx * 80}ms` }}
+              style={{ animationDelay: `${pIdx * 100}ms` }}
             >
               <ProductCard
                 product={prod}
@@ -78,7 +78,7 @@ export default function ProductGrid({
             <div
               key={prod.id}
               className="animate-product-reveal"
-              style={{ animationDelay: `${pIdx * 80}ms` }}
+              style={{ animationDelay: `${pIdx * 100}ms` }}
             >
               <ProductCard
                 product={prod}

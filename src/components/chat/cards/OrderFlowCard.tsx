@@ -2,6 +2,7 @@
 
 import { useSourcing } from "@/context/SourcingContext";
 import type { CheckoutLink, InlineProduct } from "@/types/sourcing";
+import { cleanProductTitle } from "@/lib/product";
 import {
   AlertCircle,
   CheckCircle,
@@ -114,12 +115,28 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
       let MarkerClass: any;
       let isAdvancedMarker = false;
 
-      MapClass = google.maps.Map;
-      GeocoderClass = google.maps.Geocoder;
-      MarkerClass = google.maps.Marker;
-      if (google.maps.marker && (google.maps.marker as any).AdvancedMarkerElement) {
-        MarkerClass = (google.maps.marker as any).AdvancedMarkerElement;
-        isAdvancedMarker = true;
+      if (google.maps.importLibrary) {
+        const [mapsLib, geocodingLib, markerLib] = await Promise.all([
+          google.maps.importLibrary("maps"),
+          google.maps.importLibrary("geocoding"),
+          google.maps.importLibrary("marker"),
+        ]);
+        MapClass = mapsLib.Map;
+        GeocoderClass = geocodingLib.Geocoder;
+        if (markerLib.AdvancedMarkerElement) {
+          MarkerClass = markerLib.AdvancedMarkerElement;
+          isAdvancedMarker = true;
+        } else {
+          MarkerClass = markerLib.Marker || google.maps.Marker;
+        }
+      } else {
+        MapClass = google.maps.Map;
+        GeocoderClass = google.maps.Geocoder;
+        MarkerClass = google.maps.Marker;
+        if (google.maps.marker && (google.maps.marker as any).AdvancedMarkerElement) {
+          MarkerClass = (google.maps.marker as any).AdvancedMarkerElement;
+          isAdvancedMarker = true;
+        }
       }
 
       // mapId is required for AdvancedMarkerElement, harmless for legacy Map
@@ -294,7 +311,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
           recipient: { name, phone, address, city },
           sessionId: activeHistoryId,
           userId: activeUserId,
-          productTitle: product.name || product.title,
+          productTitle: cleanProductTitle(product.name || product.title),
           priceLKR: product.price,
           imageUrl: product.imageUrl || product.image,
           paymentMethod,
@@ -338,7 +355,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
     <div className="w-full max-w-xl bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden select-none animate-fadeInScale">
       {/* Product Header */}
       <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
-        <div className="w-12 h-12 bg-white border border-slate-200 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+        <div className="w-14 h-14 bg-white border border-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
           {product.imageUrl ? (
             <img src={product.imageUrl} alt={product.name || product.title} className="w-full h-full object-cover" />
           ) : (
@@ -346,8 +363,8 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h4 className="text-xs font-bold text-slate-800 truncate line-clamp-1">{product.name || product.title}</h4>
-          <p className="text-[11px] font-semibold text-[#402970] mt-0.5">
+          <h4 className="text-xs font-bold text-slate-800 truncate line-clamp-1">{cleanProductTitle(product.name || product.title)}</h4>
+          <p className="text-sm font-extrabold text-[#402970] mt-1">
             {priceLKR > 0 ? `Rs. ${priceLKR.toLocaleString()}` : "Price on request"}
           </p>
         </div>

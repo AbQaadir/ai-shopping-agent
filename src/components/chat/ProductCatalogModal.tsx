@@ -13,6 +13,7 @@ import {
   Tag,
 } from "lucide-react";
 import type { InlineProduct } from "@/types/sourcing";
+import { cleanProductTitle } from "@/lib/product";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ function ModalGridCard({
   onToggle: () => void;
   onBuy: () => void;
 }) {
-  const displayName = product.name || product.title || "Product";
+  const displayName = cleanProductTitle(product.name || product.title);
   const displayPrice = product.price
     ? formatCurrency(product.price, product.currency)
     : product.priceDisplay || "N/A";
@@ -190,7 +191,7 @@ function ModalListRow({
   onToggle: () => void;
   onBuy: () => void;
 }) {
-  const displayName = product.name || product.title || "Product";
+  const displayName = cleanProductTitle(product.name || product.title);
   const displayPrice = product.price
     ? formatCurrency(product.price, product.currency)
     : product.priceDisplay || "N/A";
