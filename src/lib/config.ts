@@ -18,6 +18,7 @@ export const config = {
     apiKey: getEnv("GEMINI_API_KEY", false), // Fast/mock mode fallback handles empty keys
     fastModel: getEnv("FAST_GEMINI_MODEL", false, "gemini-1.5-flash-8b"),
     reasoningModel: getEnv("REASONING_GEMINI_MODEL", false, "gemini-1.5-flash"),
+    autoCompleteModel: getEnv("AUTO_COMPLETE_LLM", false, "gemini-3.1-flash-lite"),
   },
   db: {
     url: getEnv("DATABASE_URL", false), // Prisma reads this directly, but validation helps debug container startups

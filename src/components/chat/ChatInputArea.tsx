@@ -3,8 +3,8 @@
 import { useSourcing } from "@/context/SourcingContext";
 import type { InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
-import { ArrowRight, Paperclip, Square, X } from "lucide-react";
-import React, { useRef, useState } from "react";
+import { ArrowRight, Paperclip, Square, X, Search, Plus, Send } from "lucide-react";
+import React, { useRef, useState, useEffect } from "react";
 
 interface ChatInputAreaProps {
   inputText: string;
@@ -17,6 +17,7 @@ interface ChatInputAreaProps {
   onStopGeneration?: () => void;
   selectedProducts: InlineProduct[];
   onToggleSelectProduct: (product: InlineProduct) => void;
+  chatHistory?: { role: "user" | "assistant"; content: string }[];
 }
 
 export default function ChatInputArea({
@@ -30,12 +31,87 @@ export default function ChatInputArea({
   onStopGeneration,
   selectedProducts,
   onToggleSelectProduct,
+  chatHistory = [],
 }: ChatInputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { handleAddToCart } = useSourcing();
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
+  useEffect(() => {
+    const hasUserHistory = chatHistory.some((h) => h.role === "user");
+    if (!inputText || inputText.trim().length < 4 || isGenerating || hasUserHistory) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      setSelectedIndex(-1);
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchSuggestions = async () => {
+      try {
+        const res = await fetch("/api/chat/autocomplete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            inputText,
+            chatHistory,
+          }),
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.suggestions && data.suggestions.length > 0) {
+            setSuggestions(data.suggestions);
+            setShowDropdown(true);
+          } else {
+            setSuggestions([]);
+            setShowDropdown(false);
+          }
+        }
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("Autocomplete fetch error:", err);
+        }
+      }
+    };
+
+    const debounceTimer = setTimeout(fetchSuggestions, 300);
+    return () => {
+      clearTimeout(debounceTimer);
+      controller.abort();
+    };
+  }, [inputText, chatHistory, isGenerating]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showDropdown && suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (e.key === "Enter" && selectedIndex >= 0 && selectedIndex < suggestions.length) {
+        e.preventDefault();
+        setInputText(suggestions[selectedIndex]);
+        setShowDropdown(false);
+        setSelectedIndex(-1);
+        return;
+      }
+      if (e.key === "Escape" || e.key === "Tab") {
+        setShowDropdown(false);
+        setSelectedIndex(-1);
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onSubmit();
@@ -80,16 +156,72 @@ export default function ChatInputArea({
 
   return (
     <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 select-none z-20">
-      <div className="max-w-3xl mx-auto w-full">
-        <div className={`w-full bg-white rounded-2xl py-2.5 px-3 flex flex-col gap-2 transition-all duration-300 border ${
-          isFocused
-            ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]"
-            : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
-        }`}>
+      <div className="max-w-3xl mx-auto w-full relative">
+        {/* Autocomplete Dropdown floating below the input card */}
+        {showDropdown && suggestions.length > 0 && (
+          <div 
+            className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-md rounded-xl border border-slate-100 shadow-[0_12px_30px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col p-1.5 z-30 animate-fadeInScale"
+          >
+            {suggestions.map((suggestion, index) => {
+              const queryTrim = inputText.trim();
+              const queryLower = queryTrim.toLowerCase();
+              const suggLower = suggestion.toLowerCase();
+              const hasPrefix = suggLower.startsWith(queryLower);
+              const prefix = hasPrefix ? suggestion.substring(0, queryTrim.length) : "";
+              const suffix = hasPrefix ? suggestion.substring(queryTrim.length) : suggestion;
 
+              return (
+                <button
+                  key={index}
+                  onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
+                  onClick={() => {
+                    setInputText(suggestion);
+                    setShowDropdown(false);
+                    setSelectedIndex(-1);
+                  }}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                  className={`w-full text-left px-3.5 py-2.5 text-sm rounded-lg transition-all duration-150 flex items-center justify-between group cursor-pointer ${
+                    selectedIndex === index
+                      ? "bg-[#402970]/5 text-[#402970] font-semibold"
+                      : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Search 
+                      size={13} 
+                      className={`shrink-0 transition-colors ${
+                        selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
+                      }`} 
+                    />
+                    <span className="truncate">
+                      {hasPrefix ? (
+                        <>
+                          <span className="text-slate-400 font-normal">{prefix}</span>
+                          <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-850"}`}>
+                            {suffix}
+                          </span>
+                        </>
+                      ) : (
+                        <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-700"}`}>
+                          {suggestion}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {selectedIndex === index && (
+                    <span className="text-[10px] text-[#402970] font-bold bg-[#402970]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 animate-fadeIn select-none">
+                      Select
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="max-w-3xl mx-auto w-full relative flex flex-col gap-2.5">
           {/* Selected products row */}
           {selectedProducts.length > 0 && (
-            <div className="flex flex-col gap-3 pb-3 border-b border-slate-100 animate-fadeIn">
+            <div className="w-full bg-white/95 backdrop-blur-md border border-slate-150 rounded-2xl py-2.5 px-3 flex flex-col gap-2 shadow-[0_4px_20px_rgba(0,0,0,0.03)] animate-fadeIn">
               <div className="flex flex-row gap-3 overflow-x-auto pb-1 scrollbar-thin">
                 {selectedProducts.map((prod) => (
                   <div
@@ -170,23 +302,11 @@ export default function ChatInputArea({
             </div>
           )}
 
-          {/* Textarea */}
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyPress}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder="ask follow-up..."
-            rows={2}
-            className="w-full resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm px-1 leading-relaxed min-h-[39px]"
-          />
-
           {/* Attached files */}
           {attachedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100">
+            <div className="flex flex-wrap gap-2 p-2 bg-white/95 backdrop-blur-md rounded-xl border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] self-start animate-fadeIn">
               {attachedFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs font-medium text-slate-600 animate-fadeIn">
+                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs font-medium text-slate-600 animate-fadeIn animate-slideInRight">
                   <span className="truncate max-w-[120px]">{file.name}</span>
                   <button
                     onClick={() => onRemoveFile(idx)}
@@ -199,15 +319,22 @@ export default function ChatInputArea({
             </div>
           )}
 
-          {/* Controls row */}
-          <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+          {/* Input pill */}
+          <div className={`w-full bg-white rounded-full py-1.5 pl-4 pr-1.5 flex items-center gap-2 transition-all duration-300 border ${
+            isFocused
+              ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]"
+              : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
+          }`}>
             <button
               onClick={() => fileInputRef.current?.click()}
               onMouseDown={(e) => e.preventDefault()}
-              className="w-8 h-8 rounded-full border border-slate-200 hover:border-slate-300 hover:bg-slate-50 flex items-center justify-center text-slate-500 transition-all cursor-pointer"
+              className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-all cursor-pointer shrink-0 relative"
               title="Attach files"
             >
-              <Paperclip size={14} />
+              <Plus size={18} />
+              {attachedFiles.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />
+              )}
             </button>
             <input
               type="file"
@@ -216,26 +343,43 @@ export default function ChatInputArea({
               className="hidden"
               multiple
             />
+
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => {
+                setIsFocused(false);
+                setTimeout(() => {
+                  setShowDropdown(false);
+                  setSelectedIndex(-1);
+                }, 150);
+              }}
+              placeholder="Ask follow-up..."
+              rows={1}
+              className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm py-1.5 leading-normal max-h-[120px] overflow-y-auto"
+            />
+
             <button
               onClick={isGenerating ? onStopGeneration : () => onSubmit()}
               onMouseDown={(e) => e.preventDefault()}
               disabled={!isGenerating && !inputText.trim() && attachedFiles.length === 0}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${
                 isGenerating
                   ? "bg-slate-200 hover:bg-slate-300 text-slate-800 cursor-pointer"
                   : inputText.trim() || attachedFiles.length > 0
-                    ? "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
-                    : "bg-[#e2e8f0] text-white cursor-not-allowed opacity-80"
+                    ? "bg-[#402970] hover:bg-[#33205a] text-white cursor-pointer shadow-sm"
+                    : "bg-slate-100 text-slate-300 cursor-not-allowed"
               }`}
             >
               {isGenerating ? (
                 <Square size={10} fill="currentColor" strokeWidth={0} />
               ) : (
-                <ArrowRight size={14} strokeWidth={2.5} />
+                <Send size={14} className="ml-[1px]" />
               )}
             </button>
           </div>
-
         </div>
       </div>
     </div>

@@ -203,6 +203,10 @@ export default function ChatWorkspace({
           onStopGeneration={onStopGeneration}
           selectedProducts={selectedProducts}
           onToggleSelectProduct={handleToggleSelectProduct}
+          chatHistory={messages.map((m) => ({
+            role: m.sender === "ai" ? "assistant" as const : "user" as const,
+            content: m.text,
+          }))}
         />
         {/* ── end pinned input ── */}
 
