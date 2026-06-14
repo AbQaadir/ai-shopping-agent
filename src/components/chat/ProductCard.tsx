@@ -4,6 +4,8 @@ import React from "react";
 import { ShoppingCart, Check } from "lucide-react";
 import type { InlineProduct } from "@/types/sourcing";
 
+import { cleanProductTitle } from "@/lib/product";
+
 interface ProductCardProps {
   product: InlineProduct;
   isSelected: boolean;
@@ -40,22 +42,7 @@ export default function ProductCard({
   viewMode = "grid",
 }: ProductCardProps) {
   const rawName = product.name || product.title || "Product";
-  const displayName = (() => {
-    if (!rawName) return "";
-    const words = rawName.trim().split(/\s+/);
-    return words
-      .map((word) => {
-        const lower = word.toLowerCase();
-        if (/^\d+(kg|g|ml|l|oz|pcs|m|cm|mm)$/i.test(word)) {
-          return lower;
-        }
-        if (/^(lkr|usd|eur|sme)$/i.test(word)) {
-          return word.toUpperCase();
-        }
-        return lower.charAt(0).toUpperCase() + lower.slice(1);
-      })
-      .join(" ");
-  })();
+  const displayName = cleanProductTitle(rawName);
   const displayPrice = product.price
     ? formatCurrency(product.price, product.currency)
     : product.priceDisplay || "N/A";

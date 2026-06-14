@@ -455,7 +455,7 @@ RULES:
           }
 
           // Auto-populate cart from selection boxes if empty
-          if (currentCart.length === 0 && fetchedSelectedProducts.length > 0) {
+          if (fetchedSelectedProducts.length > 0) {
             currentCart = fetchedSelectedProducts.map((p: any) => ({
               id: p.id,
               name: p.name || p.title || "Kapruka Product",
@@ -1632,29 +1632,29 @@ function scoreAndFilterProducts(products: KaprukaProduct[], baseTerm: string): K
   return products
     .map(product => {
       const nameLower = product.name.toLowerCase();
+      let score = 0;
 
-      // 1. Strict Noun Check (word boundary match)
+      // 1. Noun Check: add score weight instead of discarding
       const hasNoun = nounVariants.some(variant => {
         const regex = new RegExp(`\\b${variant}\\b`, "i");
         return regex.test(nameLower);
       });
-      if (!hasNoun) return null;
+      if (hasNoun) score += 10;
 
-      // 2. Accessory exclusion: discard products that are accessories of the noun
-      //    unless the user specifically searched for that accessory type
+      // 2. Accessory penalty: penalize score instead of discarding
       if (noiseWords.length > 0) {
         const matchesNoise = noiseWords.some(noise => {
           const noiseRegex = new RegExp(`\\b${noise}\\b`, "i");
           return noiseRegex.test(nameLower);
         });
         if (matchesNoise) {
-          // Exception: keep it if the user explicitly searched for this accessory type
+          // Exception: do not penalize if user explicitly searched for this accessory type
           const userWantsThisAccessory = queryTokens.some(t => noiseWords.includes(t));
-          if (!userWantsThisAccessory) return null;
+          if (!userWantsThisAccessory) {
+            score -= 15;
+          }
         }
       }
-
-      let score = 10; // base score for passing noun check
 
       // 3. Exact Phrase Match
       if (nameLower.includes(cleanTerm)) score += 15;
@@ -1673,7 +1673,6 @@ function scoreAndFilterProducts(products: KaprukaProduct[], baseTerm: string): K
 
       return { ...product, _relevanceScore: score };
     })
-    .filter((p): p is KaprukaProduct & { _relevanceScore: number } => p !== null)
     .sort((a, b) => b._relevanceScore - a._relevanceScore);
 }
 
@@ -1690,8 +1689,8 @@ async function llmValidateRelevance(
 ): Promise<KaprukaProduct[]> {
   if (products.length === 0) return [];
 
-  // Cap at 20 to keep prompt compact and fast
-  const productsToCheck = products.slice(0, 20);
+  // Cap at 50 to keep prompt compact and fast
+  const productsToCheck = products.slice(0, 50);
   const productList = productsToCheck
     .map((p, i) => `${i + 1}. [${p.id}] ${p.name}`)
     .join("\n");
@@ -1736,8 +1735,8 @@ Respond ONLY with valid JSON (no markdown):
     }
 
     const filtered = productsToCheck.filter(p => keepIds.has(p.id));
-    // Append any products beyond the 20-cap (not sent to LLM) without re-checking
-    const remainder = products.slice(20);
+    // Append any products beyond the 50-cap (not sent to LLM) without re-checking
+    const remainder = products.slice(50);
     const combined = [...filtered, ...remainder];
 
     console.log(`[LLM Validator] "${searchTerm}": kept ${filtered.length}/${productsToCheck.length}. Reason: ${parsed?.reason || "n/a"}`);

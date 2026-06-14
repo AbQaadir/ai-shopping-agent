@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink, LayoutGrid, List, ChevronDown } from "lucide-react";
 import type { Message, InlineProduct } from "@/types/sourcing";
+import { cleanProductTitle } from "@/lib/product";
 
 import DeliveryCard from "./cards/DeliveryCard";
 import TrackingCard from "./cards/TrackingCard";
@@ -658,13 +659,13 @@ export default function ChatTimeline({
                   <div className="flex flex-col items-end gap-2 max-w-full">
                     {/* Selected products cards */}
                     {msg.inlineProducts && msg.inlineProducts.length > 0 && (
-                      <div className="flex flex-wrap gap-2 justify-end select-none">
+                      <div className="flex flex-wrap gap-3 justify-end select-none">
                         {msg.inlineProducts.map((prod) => (
                           <div
                             key={prod.id}
-                            className="flex items-center gap-2 bg-slate-100 border border-slate-200/50 rounded-xl p-1.5 pr-3 max-w-[200px]"
+                            className="bg-white rounded-2xl overflow-hidden border border-slate-100 flex flex-col w-32 sm:w-36 shadow-xs hover:shadow-sm transition-all duration-200 animate-fadeIn"
                           >
-                            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
+                            <div className="relative aspect-square bg-slate-50 overflow-hidden shrink-0 border-b border-slate-100/60">
                               {prod.imageUrl ? (
                                 <img
                                   src={prod.imageUrl}
@@ -675,12 +676,12 @@ export default function ChatTimeline({
                                   }}
                                 />
                               ) : (
-                                <span className="text-sm select-none">{prod.image || "🛍️"}</span>
+                                <span className="text-xl select-none">{prod.image || "🛍️"}</span>
                               )}
                             </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-[10px] font-semibold text-slate-700 leading-tight line-clamp-2 truncate-line-clamp break-all">
-                                {prod.name || prod.title || "Product"}
+                            <div className="p-2.5 flex flex-col justify-center flex-1 min-w-0">
+                              <span className="text-xs font-bold text-slate-800 leading-snug line-clamp-2 break-all">
+                                {cleanProductTitle(prod.name || prod.title)}
                               </span>
                             </div>
                           </div>
@@ -947,7 +948,7 @@ export default function ChatTimeline({
                             {msg.checkoutLinks.map((link) => (
                               <div key={link.checkoutUrl} className="flex flex-col gap-2 mt-1">
                                 <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                                  <span className="truncate max-w-[200px]">{link.productTitle}</span>
+                                  <span className="truncate max-w-[200px]">{cleanProductTitle(link.productTitle)}</span>
                                   <span className="text-[#402970] font-bold">Rs. {link.priceLKR.toLocaleString()}</span>
                                 </div>
                                 <a

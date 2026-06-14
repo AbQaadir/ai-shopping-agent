@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useSourcing } from "@/context/SourcingContext";
+import { cleanProductTitle } from "@/lib/product";
 
 interface OrderStepBubbleProps {
   step: OrderFlowStepData;
@@ -78,10 +79,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
           <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
             <Package size={16} />
           </span>
-          <div>
-            <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Confirm Quantities</h4>
-            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Step 1 of 4: Verify items & quantities</p>
-          </div>
+          <h4 className="text-sm font-bold text-slate-800">Confirm Quantities</h4>
         </div>
 
         {/* Cart items list */}
@@ -96,18 +94,18 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
                   <img
                     src={item.imageUrl}
                     alt={item.name}
-                    className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 bg-white"
+                    className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                    <Package size={16} className="text-slate-400" />
+                  <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                    <Package size={20} className="text-slate-400" />
                   </div>
                 )}
                 <div className="min-w-0">
-                  <h5 className="text-[11px] font-bold text-slate-700 truncate max-w-[180px] sm:max-w-[280px]">
-                    {item.name}
+                  <h5 className="text-xs font-bold text-slate-850 truncate max-w-[180px] sm:max-w-[280px]">
+                    {cleanProductTitle(item.name)}
                   </h5>
-                  <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                  <p className="text-sm font-extrabold text-[#402970] mt-1">
                     Rs. {item.price.toLocaleString()} each
                   </p>
                 </div>
@@ -156,28 +154,26 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
 
         {/* Grand Subtotal */}
         <div className="flex items-center justify-between border-t border-slate-100 pt-4 mb-5">
-          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total subtotal ({totalItems} items)</span>
+          <span className="text-xs font-bold text-slate-600">Total subtotal ({totalItems} items)</span>
           <span className="text-base font-black text-[#402970]">
             Rs. {totalPrice.toLocaleString()}
           </span>
         </div>
 
         {/* Action Button */}
-        <button
-          onClick={handleConfirm}
-          disabled={submitted || !isActive || step.cartItems!.length === 0}
-          className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all duration-150 disabled:opacity-50 cursor-pointer outline-none"
-        >
-          {submitted || !isActive ? (
-            <>
-              <CheckCircle size={13} /> {submitted ? "Confirming quantities..." : "Quantities Confirmed"}
-            </>
-          ) : (
-            <>
-              Confirm Quantities <ChevronRight size={13} />
-            </>
-          )}
-        </button>
+        {submitted || !isActive ? (
+          <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none">
+            <CheckCircle size={13} className="text-[#402970]" /> {submitted ? "Confirming quantities..." : "Quantities Confirmed"}
+          </div>
+        ) : (
+          <button
+            onClick={handleConfirm}
+            disabled={step.cartItems!.length === 0}
+            className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all duration-150 cursor-pointer outline-none"
+          >
+            Confirm Quantities <ChevronRight size={13} />
+          </button>
+        )}
       </div>
     );
   }
@@ -192,10 +188,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
         <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
           <Package size={16} />
         </span>
-        <div>
-          <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Confirm Quantity</h4>
-          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Step 1 of 4: Select quantity</p>
-        </div>
+        <h4 className="text-sm font-bold text-slate-800">Confirm Quantity</h4>
       </div>
 
       {/* Product Summary Row */}
@@ -213,11 +206,11 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
             </div>
           )}
           <div className="min-w-0">
-            <h5 className="text-xs font-bold text-slate-800 truncate line-clamp-1">
-              {step.product?.name || step.product?.title}
+            <h5 className="text-xs font-bold text-slate-800 truncate max-w-[180px] sm:max-w-[280px]">
+              {cleanProductTitle(step.product?.name || step.product?.title)}
             </h5>
             {unitPrice > 0 && (
-              <p className="text-[11px] font-semibold text-[#402970] mt-1">
+              <p className="text-sm font-extrabold text-[#402970] mt-1">
                 Rs. {unitPrice.toLocaleString()} / unit
               </p>
             )}
@@ -264,7 +257,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
         {/* Total Cost */}
         {unitPrice > 0 && (
           <div className="text-right flex sm:flex-col items-baseline sm:items-end justify-between sm:justify-center gap-2 sm:gap-0.5 border-t sm:border-0 border-slate-100 pt-3 sm:pt-0">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Subtotal (LKR)</span>
+            <span className="text-xs font-bold text-slate-600">Subtotal (LKR)</span>
             <span className="text-base font-black text-[#402970]">
               Rs. {totalPrice.toLocaleString()}
             </span>
@@ -273,21 +266,18 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
       </div>
 
       {/* Action CTA */}
-      <button
-        onClick={handleConfirm}
-        disabled={submitted || !isActive}
-        className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all duration-150 disabled:opacity-50 cursor-pointer"
-      >
-        {submitted || !isActive ? (
-          <>
-            <CheckCircle size={13} /> {submitted ? "Confirming quantity..." : "Quantity Confirmed"}
-          </>
-        ) : (
-          <>
-            Confirm {qty} Unit{qty > 1 ? "s" : ""} <ChevronRight size={13} />
-          </>
-        )}
-      </button>
+      {submitted || !isActive ? (
+        <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none">
+          <CheckCircle size={13} className="text-[#402970]" /> {submitted ? "Confirming quantity..." : "Quantity Confirmed"}
+        </div>
+      ) : (
+        <button
+          onClick={handleConfirm}
+          className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all duration-150 cursor-pointer"
+        >
+          Confirm {qty} Unit{qty > 1 ? "s" : ""} <ChevronRight size={13} />
+        </button>
+      )}
     </div>
   );
 }
@@ -319,10 +309,7 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
         <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
           <MapPin size={16} />
         </span>
-        <div>
-          <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Delivery Details</h4>
-          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Step 2 of 4: Select address</p>
-        </div>
+        <h4 className="text-sm font-bold text-slate-800">Delivery Details</h4>
       </div>
 
       {/* Address Details Container */}
@@ -404,14 +391,33 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
     const center = { lat: geo.lat, lng: geo.lng };
 
     try {
-      let MapClass = google.maps.Map;
-      let GeocoderClass = google.maps.Geocoder;
-      let MarkerClass = google.maps.Marker;
+      let MapClass: any;
+      let GeocoderClass: any;
+      let MarkerClass: any;
       let isAdvanced = false;
 
-      if (google.maps.marker && (google.maps.marker as any).AdvancedMarkerElement) {
-        MarkerClass = (google.maps.marker as any).AdvancedMarkerElement;
-        isAdvanced = true;
+      if (google.maps.importLibrary) {
+        const [mapsLib, geocodingLib, markerLib] = await Promise.all([
+          google.maps.importLibrary("maps"),
+          google.maps.importLibrary("geocoding"),
+          google.maps.importLibrary("marker"),
+        ]);
+        MapClass = mapsLib.Map;
+        GeocoderClass = geocodingLib.Geocoder;
+        if (markerLib.AdvancedMarkerElement) {
+          MarkerClass = markerLib.AdvancedMarkerElement;
+          isAdvanced = true;
+        } else {
+          MarkerClass = markerLib.Marker || google.maps.Marker;
+        }
+      } else {
+        MapClass = google.maps.Map;
+        GeocoderClass = google.maps.Geocoder;
+        MarkerClass = google.maps.Marker;
+        if (google.maps.marker && (google.maps.marker as any).AdvancedMarkerElement) {
+          MarkerClass = (google.maps.marker as any).AdvancedMarkerElement;
+          isAdvanced = true;
+        }
       }
 
       const map = new MapClass(mapRef.current, {
@@ -546,12 +552,9 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
         <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
           <MapPin size={16} />
         </span>
-        <div>
-          <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-            {mapsLoadFailed ? "Enter Delivery Address" : "Pin Location"}
-          </h4>
-          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Step 2 of 4: Drag pin to exact address</p>
-        </div>
+        <h4 className="text-sm font-bold text-slate-800">
+          {mapsLoadFailed ? "Enter Delivery Address" : "Pin Location"}
+        </h4>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -654,17 +657,14 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
         <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
           <CreditCard size={16} />
         </span>
-        <div>
-          <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Payment Method</h4>
-          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Step 3 of 4: Select payment option</p>
-        </div>
+        <h4 className="text-sm font-bold text-slate-800">Payment Method</h4>
       </div>
 
       <div className="flex flex-col gap-4">
         {totalLKR > 0 && (
           <div className="flex items-center justify-between text-xs px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl">
             <span className="text-slate-500 font-bold">
-              {step.confirmedQuantity || 1} × {step.product?.name || step.product?.title}
+              {step.confirmedQuantity || 1} × {cleanProductTitle(step.product?.name || step.product?.title)}
             </span>
             <span className="font-extrabold text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
           </div>
@@ -734,7 +734,7 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
         </span>
         <div>
           <h4
-            className={`text-xs font-extrabold uppercase tracking-wider ${
+            className={`text-sm font-bold ${
               orderFailed ? "text-rose-700" : "text-emerald-700"
             }`}
           >
@@ -765,7 +765,7 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
             {/* Grid details card layout */}
             <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-4">
               {step.cartItems && step.cartItems.length > 0 ? (
-                <div className="flex flex-col gap-3 pb-3.5 border-b border-slate-100">
+                <div className="flex flex-col gap-3.5 pb-3.5 border-b border-slate-100">
                   {step.cartItems.map((item) => (
                     <div key={item.id} className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
@@ -773,28 +773,28 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
                           <img
                             src={item.imageUrl}
                             alt=""
-                            className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 bg-white"
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                            <Package size={14} className="text-slate-400" />
+                          <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                            <Package size={20} className="text-slate-400" />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <h5 className="text-[11px] font-bold text-slate-700 truncate">{item.name}</h5>
-                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                          <h5 className="text-xs font-bold text-slate-800 truncate">{cleanProductTitle(item.name)}</h5>
+                          <p className="text-xs text-slate-400 font-semibold mt-1">
                             Qty: {item.quantity} × Rs. {item.price.toLocaleString()}
                           </p>
                         </div>
                       </div>
-                      <span className="text-xs font-bold text-slate-650 shrink-0">
+                      <span className="text-sm font-extrabold text-[#402970] shrink-0">
                         Rs. {(item.price * item.quantity).toLocaleString()}
                       </span>
                     </div>
                   ))}
-                  <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 mt-1">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Subtotal</span>
-                    <span className="text-xs font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
+                  <div className="flex justify-between items-center pt-3 border-t border-slate-100 mt-1">
+                    <span className="text-xs font-bold text-slate-700">Subtotal</span>
+                    <span className="text-base font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
                   </div>
                 </div>
               ) : step.product ? (
@@ -803,20 +803,20 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
                     <img
                       src={step.product.imageUrl}
                       alt=""
-                      className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
+                      className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                    <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
                       <Package size={20} className="text-slate-400" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h5 className="text-xs font-bold text-slate-800 truncate">{step.product.name || step.product.title}</h5>
-                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                    <h5 className="text-xs font-bold text-slate-800 truncate">{cleanProductTitle(step.product.name || step.product.title)}</h5>
+                    <p className="text-xs text-slate-400 font-semibold mt-1">
                       Qty: {step.confirmedQuantity || 1} × Rs. {(step.product.price || 0).toLocaleString()}
                     </p>
                   </div>
-                  <span className="text-xs font-extrabold text-[#402970] shrink-0">
+                  <span className="text-sm font-extrabold text-[#402970] shrink-0">
                     Rs. {totalLKR.toLocaleString()}
                   </span>
                 </div>

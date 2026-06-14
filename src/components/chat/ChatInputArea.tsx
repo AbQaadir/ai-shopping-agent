@@ -2,6 +2,7 @@
 
 import { useSourcing } from "@/context/SourcingContext";
 import type { InlineProduct } from "@/types/sourcing";
+import { cleanProductTitle } from "@/lib/product";
 import { ArrowRight, Paperclip, Square, X } from "lucide-react";
 import React, { useRef, useState } from "react";
 
@@ -123,7 +124,7 @@ export default function ChatInputArea({
                     {/* Title */}
                     <div className="flex flex-col min-w-0">
                       <span className="text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 truncate-line-clamp break-words">
-                        {prod.name || prod.title || "Product"}
+                        {cleanProductTitle(prod.name || prod.title)}
                       </span>
                     </div>
                   </div>

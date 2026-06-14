@@ -3,6 +3,7 @@
 import React from "react";
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
+import { cleanProductTitle } from "@/lib/product";
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -101,7 +102,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   <div className="flex-1 flex flex-col justify-between min-w-0">
                     <div>
                       <h3 className="text-xs font-bold text-slate-800 truncate leading-snug group-hover:text-[#402970] transition-colors">
-                        {item.name}
+                        {cleanProductTitle(item.name)}
                       </h3>
                       <p className="text-xs font-bold text-[#402970]/80 mt-1">
                         Rs. {item.price.toLocaleString()}
