@@ -717,12 +717,12 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
             </div>
             <div>
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-800">Cash on Delivery</p>
+                <p className="text-[13px] font-bold text-slate-800">Cash on Delivery</p>
                 {(submitted || !isActive) && selectedMethod === "cod" && (
                   <CheckCircle size={14} className="text-[#402970]" />
                 )}
               </div>
-              <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
+              <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
                 Pay in cash when our courier delivers the package
               </p>
             </div>
@@ -747,12 +747,12 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
             </div>
             <div>
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-800">Credit / Debit Card</p>
+                <p className="text-[13px] font-bold text-slate-800">Credit / Debit Card</p>
                 {(submitted || !isActive) && selectedMethod === "card" && (
                   <CheckCircle size={14} className="text-[#402970]" />
                 )}
               </div>
-              <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
+              <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
                 Pay securely online using Kapruka checkout
               </p>
             </div>

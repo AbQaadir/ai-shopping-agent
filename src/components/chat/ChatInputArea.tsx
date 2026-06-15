@@ -224,8 +224,8 @@ export default function ChatInputArea({
             : "rounded-full py-1.5 pl-4 pr-1.5"
         } ${
           isFocused
-            ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]"
-            : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
+            ? "border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.05)]"
+            : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)]"
         }`}>
           {/* Selected products row */}
           {selectedProducts.length > 0 && (
