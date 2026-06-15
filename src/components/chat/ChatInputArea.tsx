@@ -35,11 +35,20 @@ export default function ChatInputArea({
 }: ChatInputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { handleAddToCart } = useSourcing();
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
+  useEffect(() => {
+    const tx = textareaRef.current;
+    if (tx) {
+      tx.style.height = "auto";
+      tx.style.height = `${tx.scrollHeight}px`;
+    }
+  }, [inputText]);
 
   useEffect(() => {
     const hasUserHistory = chatHistory.some((h) => h.role === "user");
@@ -221,11 +230,11 @@ export default function ChatInputArea({
         <div className={`w-full bg-white flex flex-col transition-all duration-300 border ${
           selectedProducts.length > 0 
             ? "rounded-[24px] p-3.5 gap-3" 
-            : "rounded-full py-1.5 pl-4 pr-1.5"
+            : "rounded-full py-1.5 pl-2 pr-1.5"
         } ${
           isFocused
-            ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]"
-            : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
+            ? "border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.05)]"
+            : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)]"
         }`}>
           {/* Selected products row */}
           {selectedProducts.length > 0 && (
@@ -334,10 +343,10 @@ export default function ChatInputArea({
             <button
               onClick={() => fileInputRef.current?.click()}
               onMouseDown={(e) => e.preventDefault()}
-              className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-all cursor-pointer shrink-0 relative"
+              className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
               title="Attach files"
             >
-              <Plus size={18} />
+              <Paperclip size={16} />
               {attachedFiles.length > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />
               )}
@@ -351,6 +360,7 @@ export default function ChatInputArea({
             />
 
             <textarea
+              ref={textareaRef}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -364,7 +374,8 @@ export default function ChatInputArea({
               }}
               placeholder="Ask follow-up..."
               rows={1}
-              className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm py-1.5 leading-normal max-h-[120px] overflow-y-auto"
+              className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm py-1.5 leading-normal max-h-[120px] overflow-y-auto scrollbar-none"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             />
 
             <button

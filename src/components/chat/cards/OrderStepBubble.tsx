@@ -54,7 +54,8 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
   const handleQtyChange = (itemId: string, currentQty: number, delta: number) => {
     if (!isActive) return;
     const updated = (step.cartItems || []).map((item) => {
-      if (item.id === itemId) {
+      const matchId = item.id || item.name;
+      if (matchId === itemId) {
         return { ...item, quantity: Math.max(1, currentQty + delta) };
       }
       return item;
@@ -64,7 +65,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
 
   const handleRemove = (itemId: string) => {
     if (!isActive) return;
-    const updated = (step.cartItems || []).filter((item) => item.id !== itemId);
+    const updated = (step.cartItems || []).filter((item) => (item.id || item.name) !== itemId);
     handleUpdateCart(updated);
   };
 
@@ -83,10 +84,10 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
         </div>
 
         {/* Cart items list */}
-        <div className="space-y-3.5 mb-5 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
-          {step.cartItems!.map((item) => (
+        <div className="space-y-3.5 mb-5 pr-1">
+          {step.cartItems!.map((item, idx) => (
             <div
-              key={item.id}
+              key={item.id || item.name || idx}
               className="flex items-center justify-between gap-4 p-3 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-slate-50/80 transition-colors animate-fadeIn"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -102,7 +103,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
                   </div>
                 )}
                 <div className="min-w-0">
-                  <h5 className="text-xs font-bold text-slate-850 truncate max-w-[180px] sm:max-w-[280px]">
+                  <h5 className="text-xs font-bold text-slate-800 truncate max-w-[180px] sm:max-w-[280px]">
                     {cleanProductTitle(item.name)}
                   </h5>
                   <p className="text-sm font-extrabold text-[#402970] mt-1">
@@ -116,7 +117,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
                 {isActive ? (
                   <div className="flex items-center gap-1.5 border border-slate-200 bg-white rounded-lg p-0.5 shadow-xs">
                     <button
-                      onClick={() => handleQtyChange(item.id, item.quantity, -1)}
+                      onClick={() => handleQtyChange(item.id || item.name, item.quantity, -1)}
                       disabled={item.quantity <= 1 || submitted}
                       className="p-1 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 cursor-pointer"
                     >
@@ -124,7 +125,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
                     </button>
                     <span className="text-xs font-extrabold text-slate-800 w-5 text-center">{item.quantity}</span>
                     <button
-                      onClick={() => handleQtyChange(item.id, item.quantity, 1)}
+                      onClick={() => handleQtyChange(item.id || item.name, item.quantity, 1)}
                       disabled={submitted}
                       className="p-1 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 cursor-pointer"
                     >
@@ -139,7 +140,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
 
                 {isActive && (
                   <button
-                    onClick={() => handleRemove(item.id)}
+                    onClick={() => handleRemove(item.id || item.name)}
                     disabled={submitted}
                     className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors cursor-pointer border-none bg-transparent"
                     title="Remove item"
@@ -329,21 +330,21 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
       <div className="mb-5">
         {hasAddr ? (
           <div className="p-4 bg-slate-50/60 border border-slate-100/80 rounded-2xl flex flex-col gap-3">
-            <div className="flex items-center gap-2 border-b border-slate-100/50 pb-2">
-              <User size={13} className="text-[#402970] shrink-0" />
-              <span className="text-xs font-bold text-slate-700">{addr!.name}</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-3 border-b border-slate-100/50 pb-2.5">
               <div className="flex items-center gap-2">
-                <Phone size={12} className="text-slate-400 shrink-0" />
-                <span className="text-[11px] text-slate-600 font-semibold">{addr!.phone}</span>
+                <User size={13} className="text-[#402970] shrink-0" />
+                <span className="text-[13px] font-bold text-slate-800">{addr!.name}</span>
               </div>
-              <div className="flex items-start gap-2">
-                <MapPin size={12} className="text-slate-400 shrink-0 mt-0.5" />
-                <span className="text-[11px] text-slate-600 font-semibold truncate-line-clamp leading-relaxed">
-                  {addr!.address}, {addr!.city}
-                </span>
+              <div className="flex items-center gap-2">
+                <Phone size={13} className="text-slate-400 shrink-0" />
+                <span className="text-[13px] font-bold text-slate-800">{addr!.phone}</span>
               </div>
+            </div>
+            <div className="flex items-start gap-2 pt-0.5">
+              <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
+              <span className="text-[13px] font-bold text-slate-800 leading-relaxed truncate-line-clamp">
+                {addr!.address}, {addr!.city}
+              </span>
             </div>
           </div>
         ) : (
@@ -466,10 +467,24 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 
       const geocoder = new GeocoderClass();
       const updateAddr = (latLng: any) => {
+        if (!latLng) return;
+        const google = (window as any).google;
+        const latLngObj = (latLng instanceof google.maps.LatLng)
+          ? latLng
+          : new google.maps.LatLng(
+              typeof latLng.lat === "function" ? latLng.lat() : latLng.lat,
+              typeof latLng.lng === "function" ? latLng.lng() : latLng.lng
+            );
+
         if (markerInstanceRef.current) {
-          isAdvanced ? (markerInstanceRef.current.position = latLng) : markerInstanceRef.current.setPosition(latLng);
+          if (isAdvanced) {
+            markerInstanceRef.current.position = latLngObj;
+          } else {
+            markerInstanceRef.current.setPosition(latLngObj);
+          }
         }
-        geocoder.geocode({ location: latLng }, (results: any, status: any) => {
+
+        geocoder.geocode({ location: latLngObj }, (results: any, status: any) => {
           if (status === "OK" && results[0]) {
             setConfirmedAddress(results[0].formatted_address);
             const comps = results[0].address_components;
@@ -488,7 +503,12 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
       updateAddr(center);
       if (isActive) {
         map.addListener("click", (e: any) => updateAddr(e.latLng));
-        isAdvanced ? marker.addListener("gmp-dragend", () => updateAddr(marker.position)) : marker.addListener("dragend", (e: any) => updateAddr(e.latLng));
+        if (isAdvanced) {
+          marker.addListener("gmp-dragend", () => updateAddr(marker.position));
+          marker.addListener("dragend", (e: any) => updateAddr(e.latLng || marker.position));
+        } else {
+          marker.addListener("dragend", (e: any) => updateAddr(e.latLng));
+        }
       }
     } catch (err) {
       console.error("Maps init error:", err);
@@ -657,7 +677,12 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
-  const totalLKR = (step.product?.price || 0) * (step.confirmedQuantity || 1);
+  
+  const totalLKR = step.cartItems && step.cartItems.length > 0
+    ? step.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    : (step.product?.price || 0) * (step.confirmedQuantity || 1);
+
+  const addr = step.confirmedAddress || step.savedAddress;
 
   const [selectedMethod, setSelectedMethod] = useState<'cod' | 'card' | null>(() => {
     if (!isActive) {
@@ -681,80 +706,167 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
         <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
           <CreditCard size={16} />
         </span>
-        <h4 className="text-sm font-bold text-slate-800">Payment Method</h4>
+        <h4 className="text-sm font-bold text-slate-800">Order Review & Payment</h4>
       </div>
 
-      <div className="flex flex-col gap-4">
-        {totalLKR > 0 && (
-          <div className="flex items-center justify-between text-xs px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl">
-            <span className="text-slate-500 font-bold">
-              {step.confirmedQuantity || 1} × {cleanProductTitle(step.product?.name || step.product?.title)}
-            </span>
-            <span className="font-extrabold text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
+      <div className="flex flex-col gap-5">
+        {/* Ordered Items Review Section */}
+        <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-4">
+          <h5 className="text-xs font-bold text-slate-700">Order Items</h5>
+          
+          {step.cartItems && step.cartItems.length > 0 ? (
+            <div className="flex flex-col gap-3.5">
+              {step.cartItems.map((item, idx) => (
+                <div key={item.id || item.name || idx} className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt=""
+                        className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
+                      />
+                    ) : (
+                      <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                        <Package size={16} className="text-slate-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-xs font-bold text-slate-800 truncate">{cleanProductTitle(item.name)}</h5>
+                      <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                        Qty: {item.quantity} × Rs. {item.price.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-extrabold text-[#402970] shrink-0">
+                    Rs. {(item.price * item.quantity).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : step.product ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {step.product.imageUrl ? (
+                  <img
+                    src={step.product.imageUrl}
+                    alt=""
+                    className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                    <Package size={16} className="text-slate-400" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h5 className="text-xs font-bold text-slate-800 truncate">{cleanProductTitle(step.product.name || step.product.title)}</h5>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                    Qty: {step.confirmedQuantity || 1} × Rs. {(step.product.price || 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-extrabold text-[#402970] shrink-0">
+                Rs. {totalLKR.toLocaleString()}
+              </span>
+            </div>
+          ) : null}
+
+          {/* Subtotal Row */}
+          <div className="flex justify-between items-center pt-3 border-t border-slate-100/70 mt-1">
+            <span className="text-xs font-bold text-slate-700">Order Subtotal</span>
+            <span className="text-sm font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* Delivery Details Section */}
+        {addr && (
+          <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-3">
+            <h5 className="text-xs font-bold text-slate-700">Delivery Location</h5>
+            <div className="flex items-center gap-3 bg-white border border-slate-100/80 rounded-xl p-3 shadow-xs">
+              <div className="p-2.5 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
+                <MapPin size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-xs font-bold text-slate-800">{addr.name}</p>
+                  {addr.phone && (
+                    <div className="flex items-center gap-1 text-[10px] text-slate-700 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md font-semibold">
+                      <Phone size={10} className="text-[#402970]" />
+                      <span>{addr.phone}</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-600 font-medium leading-relaxed mt-1">
+                  {addr.address}, {addr.city}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Side-by-side grid card items */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div
-            onClick={() => !(submitted || !isActive) && handle("cod")}
-            className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
-              submitted || !isActive
-                ? selectedMethod === "cod"
-                  ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
-                  : "border-slate-100 bg-white opacity-40"
-                : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
-            }`}
-          >
-            <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-              (submitted || !isActive) && selectedMethod === "cod"
-                ? "bg-[#402970]/20 border-[#402970]/20"
-                : "bg-amber-50 border-amber-100"
-            }`}>
-              <Truck size={20} className={
-                (submitted || !isActive) && selectedMethod === "cod" ? "text-[#402970]" : "text-amber-600"
-              } />
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-800">Cash on Delivery</p>
-                {(submitted || !isActive) && selectedMethod === "cod" && (
-                  <CheckCircle size={14} className="text-[#402970]" />
-                )}
+        {/* Payment Methods Section */}
+        <div className="flex flex-col gap-3">
+          <h5 className="text-xs font-bold text-slate-700">Choose Payment Method</h5>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div
+              onClick={() => !(submitted || !isActive) && handle("cod")}
+              className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
+                submitted || !isActive
+                  ? selectedMethod === "cod"
+                    ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
+                    : "border-slate-100 bg-white opacity-40"
+                  : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
+              }`}
+            >
+              <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                (submitted || !isActive) && selectedMethod === "cod"
+                  ? "bg-[#402970]/20 border-[#402970]/20"
+                  : "bg-amber-50 border-amber-100"
+              }`}>
+                <Truck size={20} className={
+                  (submitted || !isActive) && selectedMethod === "cod" ? "text-[#402970]" : "text-amber-600"
+                } />
               </div>
-              <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
-                Pay in cash when our courier delivers the package
-              </p>
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] font-bold text-slate-800">Cash on Delivery</p>
+                  {(submitted || !isActive) && selectedMethod === "cod" && (
+                    <CheckCircle size={14} className="text-[#402970]" />
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
+                  Pay in cash when our courier delivers the package
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div
-            onClick={() => !(submitted || !isActive) && handle("card")}
-            className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
-              submitted || !isActive
-                ? selectedMethod === "card"
-                  ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
-                  : "border-slate-100 bg-white opacity-40"
-                : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
-            }`}
-          >
-            <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-              (submitted || !isActive) && selectedMethod === "card"
-                ? "bg-[#402970]/20 border-[#402970]/20"
-                : "bg-[#402970]/10 border-[#402970]/10"
-            }`}>
-              <CreditCard size={20} className="text-[#402970]" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-800">Credit / Debit Card</p>
-                {(submitted || !isActive) && selectedMethod === "card" && (
-                  <CheckCircle size={14} className="text-[#402970]" />
-                )}
+            <div
+              onClick={() => !(submitted || !isActive) && handle("card")}
+              className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
+                submitted || !isActive
+                  ? selectedMethod === "card"
+                    ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
+                    : "border-slate-100 bg-white opacity-40"
+                  : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
+              }`}
+            >
+              <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                (submitted || !isActive) && selectedMethod === "card"
+                  ? "bg-[#402970]/20 border-[#402970]/20"
+                  : "bg-[#402970]/10 border-[#402970]/10"
+              }`}>
+                <CreditCard size={20} className="text-[#402970]" />
               </div>
-              <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
-                Pay securely online using Kapruka checkout
-              </p>
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] font-bold text-slate-800">Credit / Debit Card</p>
+                  {(submitted || !isActive) && selectedMethod === "card" && (
+                    <CheckCircle size={14} className="text-[#402970]" />
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
+                  Pay securely online using Kapruka checkout
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -825,8 +937,8 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
             <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-4">
               {step.cartItems && step.cartItems.length > 0 ? (
                 <div className="flex flex-col gap-3.5 pb-3.5 border-b border-slate-100">
-                  {step.cartItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between gap-3">
+                  {step.cartItems.map((item, idx) => (
+                    <div key={item.id || item.name || idx} className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         {item.imageUrl ? (
                           <img

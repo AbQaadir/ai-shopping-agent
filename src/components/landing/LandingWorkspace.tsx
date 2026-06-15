@@ -15,10 +15,19 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
+  useEffect(() => {
+    const tx = textareaRef.current;
+    if (tx) {
+      tx.style.height = "auto";
+      tx.style.height = `${tx.scrollHeight}px`;
+    }
+  }, [inputText]);
 
   useEffect(() => {
     if (!inputText || inputText.trim().length < 4) {
@@ -251,15 +260,15 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           <div className="w-full relative">
             <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 rounded-full blur-md transition-opacity duration-300 pointer-events-none ${isFocused ? "opacity-15" : "opacity-[0.07] group-hover:opacity-[0.14]"}`} />
             
-            <div className={`w-full bg-white rounded-full border transition-all duration-300 py-1.5 pl-4 pr-1.5 flex items-center gap-2.5 relative ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"}`}>
+            <div className={`w-full bg-white rounded-full border transition-all duration-300 py-1.5 pl-2 pr-1.5 flex items-center gap-2 relative ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"}`}>
               {/* Attachment Button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 onMouseDown={(e) => e.preventDefault()}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-all cursor-pointer shrink-0 relative"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-550 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
                 title="Attach files"
               >
-                <Plus size={20} />
+                <Paperclip size={19} />
                 {attachedFiles.length > 0 && (
                   <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-500 rounded-full" />
                 )}
@@ -268,6 +277,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
 
               {/* Textarea */}
               <textarea
+                ref={textareaRef}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -281,7 +291,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                 }}
                 placeholder='Try: "Show me birthday cakes under Rs. 3,000" or paste an Amazon link...'
                 rows={1}
-                className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm sm:text-[15px] py-2 leading-relaxed max-h-[120px] overflow-y-auto"
+                className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm sm:text-[15px] py-1.5 leading-normal max-h-[120px] overflow-y-auto scrollbar-none"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               />
 
               {/* Send Button */}

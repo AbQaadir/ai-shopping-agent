@@ -197,6 +197,9 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
         marker.addListener("gmp-dragend", () => {
           updateGoogleLocation(marker.position);
         });
+        marker.addListener("dragend", (e: any) => {
+          updateGoogleLocation(e.latLng || marker.position);
+        });
       } else {
         marker.addListener("dragend", (e: any) => {
           updateGoogleLocation(e.latLng);
@@ -210,17 +213,23 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
   const updateGoogleLocation = (latLng: any) => {
     if (!latLng || typeof window === "undefined" || !(window as any).google) return;
     const google = (window as any).google;
+    const latLngObj = (latLng instanceof google.maps.LatLng)
+      ? latLng
+      : new google.maps.LatLng(
+          typeof latLng.lat === "function" ? latLng.lat() : latLng.lat,
+          typeof latLng.lng === "function" ? latLng.lng() : latLng.lng
+        );
 
     if (markerInstanceRef.current) {
       if (isAdvancedMarkerRef.current) {
-        markerInstanceRef.current.position = latLng;
+        markerInstanceRef.current.position = latLngObj;
       } else {
-        markerInstanceRef.current.setPosition(latLng);
+        markerInstanceRef.current.setPosition(latLngObj);
       }
     }
 
     const geocoder = geocoderInstanceRef.current || new google.maps.Geocoder();
-    geocoder.geocode({ location: latLng }, (results: any, status: any) => {
+    geocoder.geocode({ location: latLngObj }, (results: any, status: any) => {
       if (status === "OK" && results[0]) {
         const formattedAddress = results[0].formatted_address;
         setAddress(formattedAddress);

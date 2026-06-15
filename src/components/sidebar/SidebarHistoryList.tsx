@@ -14,7 +14,7 @@ export default function SidebarHistoryList({
   onSelectHistory
 }: SidebarHistoryListProps) {
   return (
-    <div className="pl-7 pr-1 py-1 space-y-1 max-h-[400px] overflow-y-auto scrollbar-none animate-fadeIn w-full flex flex-col items-start">
+    <div className="pl-7 pr-1 py-1 space-y-1 w-full flex flex-col items-start animate-fadeIn">
       {history.map((item, idx) => (
         <SidebarHistoryItem
           key={item.id}
@@ -22,7 +22,6 @@ export default function SidebarHistoryList({
           query={item.query}
           isActive={activeHistoryId === item.id}
           onClick={() => onSelectHistory(item.id)}
-          showStatusDot={idx % 2 === 0}
         />
       ))}
     </div>
