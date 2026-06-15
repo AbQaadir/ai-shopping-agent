@@ -434,16 +434,25 @@ RULES:
                   ? JSON.parse(lastMessageWithProducts.thoughtProcess) 
                   : lastMessageWithProducts.thoughtProcess;
                 
+                let rawCandidates: any[] = [];
                 if (lastMessageWithProducts.products) {
-                  candidates = typeof lastMessageWithProducts.products === "string"
+                  rawCandidates = typeof lastMessageWithProducts.products === "string"
                     ? JSON.parse(lastMessageWithProducts.products)
                     : lastMessageWithProducts.products;
                 } else if (tp?.products) {
-                  candidates = tp.products;
+                  rawCandidates = tp.products;
                 } else if (tp?.checkoutFormProduct) {
-                  candidates = [tp.checkoutFormProduct];
+                  rawCandidates = [tp.checkoutFormProduct];
                 } else if (tp?.orderFlowProduct) {
-                  candidates = [tp.orderFlowProduct];
+                  rawCandidates = [tp.orderFlowProduct];
+                }
+
+                if (Array.isArray(rawCandidates)) {
+                  if (rawCandidates.length > 0 && Array.isArray(rawCandidates[0].products)) {
+                    candidates = rawCandidates.flatMap((group: any) => group.products || []);
+                  } else {
+                    candidates = rawCandidates;
+                  }
                 }
               } catch (e) {
                 console.error("Failed to parse candidates:", e);
@@ -732,6 +741,14 @@ Response JSON:`;
                 }
               }
 
+              if (accData.confirmedAddress) {
+                const pas: Record<string, unknown> = { phase: "payment_ask", cartItems: finalCart, confirmedAddress: accData.confirmedAddress, savedAddress: savedAddr };
+                send({ type: "order_flow_step", ...pas });
+                const itemsListStr = finalCart.map((i) => `${i.quantity}x **${i.name}**`).join(", ");
+                const t = `Got it — ${itemsListStr} confirmed! Delivering to **${accData.confirmedAddress.address}, ${accData.confirmedAddress.city}** ✓ How would you like to pay?`;
+                await streamWords(t); await saveOrderMessage(t, pas); controller.close(); return;
+              }
+
               const das: Record<string, unknown> = { phase: "delivery_ask", cartItems: finalCart, savedAddress: savedAddr };
               send({ type: "order_flow_step", ...das });
               const itemsListStr = finalCart.map((i) => `${i.quantity}x **${i.name}**`).join(", ");
@@ -760,6 +777,13 @@ Response JSON:`;
                 const t = await llmGenerate(`Customer requested ${extractedQty} units but max available is ${stockQty}. Tell them politely and ask again.`)
                   || `We only have **${stockQty}** units available right now. How many would you like (up to ${stockQty})?`;
                 await streamWords(t); await saveOrderMessage(t, ofs); controller.close(); return;
+              }
+
+              if (accData.confirmedAddress) {
+                const pas: Record<string, unknown> = { phase: "payment_ask", product, stockQty, confirmedQuantity: extractedQty, confirmedAddress: accData.confirmedAddress, savedAddress: savedAddr };
+                send({ type: "order_flow_step", ...pas });
+                const t = `Perfect! ${extractedQty} unit${extractedQty > 1 ? "s" : ""} of **${product.name || product.title}** confirmed. Delivering to **${accData.confirmedAddress.address}, ${accData.confirmedAddress.city}** ✓ How would you like to pay?`;
+                await streamWords(t); await saveOrderMessage(t, pas); controller.close(); return;
               }
 
               const das: Record<string, unknown> = { phase: "delivery_ask", product, stockQty, confirmedQuantity: extractedQty, savedAddress: savedAddr };
@@ -1894,6 +1918,8 @@ async function llmValidateRelevance(
 ): Promise<KaprukaProduct[]> {
   if (products.length === 0) return [];
 
+  const cleanQuery = userQuery.trim();
+
   // Cap at 50 to keep prompt compact and fast
   const productsToCheck = products.slice(0, 50);
   const productList = productsToCheck
@@ -1902,7 +1928,7 @@ async function llmValidateRelevance(
 
   const prompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
 
-User's query: "${userQuery}"
+User's query: "${cleanQuery}"
 Search term: "${searchTerm}"
 
 For each product below, decide:
@@ -1918,14 +1944,29 @@ Examples:
 Products:
 ${productList}
 
-Respond ONLY with valid JSON (no markdown):
+Respond ONLY with valid JSON matching the schema:
 {"keep_ids":["id1","id2",...],"reason":"one-line explanation"}`;
 
   try {
     const result = await aiClient.models.generateContent({
       model: fastModel,
       contents: prompt,
-      config: { responseMimeType: "application/json" },
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            keep_ids: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+            },
+            reason: {
+              type: "STRING",
+            }
+          },
+          required: ["keep_ids", "reason"]
+        }
+      },
     });
 
     let text = (result.text || "{}").trim()

@@ -54,7 +54,8 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
   const handleQtyChange = (itemId: string, currentQty: number, delta: number) => {
     if (!isActive) return;
     const updated = (step.cartItems || []).map((item) => {
-      if (item.id === itemId) {
+      const matchId = item.id || item.name;
+      if (matchId === itemId) {
         return { ...item, quantity: Math.max(1, currentQty + delta) };
       }
       return item;
@@ -64,7 +65,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
 
   const handleRemove = (itemId: string) => {
     if (!isActive) return;
-    const updated = (step.cartItems || []).filter((item) => item.id !== itemId);
+    const updated = (step.cartItems || []).filter((item) => (item.id || item.name) !== itemId);
     handleUpdateCart(updated);
   };
 
@@ -83,10 +84,10 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
         </div>
 
         {/* Cart items list */}
-        <div className="space-y-3.5 mb-5 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
-          {step.cartItems!.map((item) => (
+        <div className="space-y-3.5 mb-5 pr-1">
+          {step.cartItems!.map((item, idx) => (
             <div
-              key={item.id}
+              key={item.id || item.name || idx}
               className="flex items-center justify-between gap-4 p-3 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-slate-50/80 transition-colors animate-fadeIn"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -102,7 +103,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
                   </div>
                 )}
                 <div className="min-w-0">
-                  <h5 className="text-xs font-bold text-slate-850 truncate max-w-[180px] sm:max-w-[280px]">
+                  <h5 className="text-xs font-bold text-slate-800 truncate max-w-[180px] sm:max-w-[280px]">
                     {cleanProductTitle(item.name)}
                   </h5>
                   <p className="text-sm font-extrabold text-[#402970] mt-1">
@@ -116,7 +117,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
                 {isActive ? (
                   <div className="flex items-center gap-1.5 border border-slate-200 bg-white rounded-lg p-0.5 shadow-xs">
                     <button
-                      onClick={() => handleQtyChange(item.id, item.quantity, -1)}
+                      onClick={() => handleQtyChange(item.id || item.name, item.quantity, -1)}
                       disabled={item.quantity <= 1 || submitted}
                       className="p-1 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 cursor-pointer"
                     >
@@ -124,7 +125,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
                     </button>
                     <span className="text-xs font-extrabold text-slate-800 w-5 text-center">{item.quantity}</span>
                     <button
-                      onClick={() => handleQtyChange(item.id, item.quantity, 1)}
+                      onClick={() => handleQtyChange(item.id || item.name, item.quantity, 1)}
                       disabled={submitted}
                       className="p-1 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 cursor-pointer"
                     >
@@ -139,7 +140,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
 
                 {isActive && (
                   <button
-                    onClick={() => handleRemove(item.id)}
+                    onClick={() => handleRemove(item.id || item.name)}
                     disabled={submitted}
                     className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors cursor-pointer border-none bg-transparent"
                     title="Remove item"
@@ -466,10 +467,24 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 
       const geocoder = new GeocoderClass();
       const updateAddr = (latLng: any) => {
+        if (!latLng) return;
+        const google = (window as any).google;
+        const latLngObj = (latLng instanceof google.maps.LatLng)
+          ? latLng
+          : new google.maps.LatLng(
+              typeof latLng.lat === "function" ? latLng.lat() : latLng.lat,
+              typeof latLng.lng === "function" ? latLng.lng() : latLng.lng
+            );
+
         if (markerInstanceRef.current) {
-          isAdvanced ? (markerInstanceRef.current.position = latLng) : markerInstanceRef.current.setPosition(latLng);
+          if (isAdvanced) {
+            markerInstanceRef.current.position = latLngObj;
+          } else {
+            markerInstanceRef.current.setPosition(latLngObj);
+          }
         }
-        geocoder.geocode({ location: latLng }, (results: any, status: any) => {
+
+        geocoder.geocode({ location: latLngObj }, (results: any, status: any) => {
           if (status === "OK" && results[0]) {
             setConfirmedAddress(results[0].formatted_address);
             const comps = results[0].address_components;
@@ -488,7 +503,12 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
       updateAddr(center);
       if (isActive) {
         map.addListener("click", (e: any) => updateAddr(e.latLng));
-        isAdvanced ? marker.addListener("gmp-dragend", () => updateAddr(marker.position)) : marker.addListener("dragend", (e: any) => updateAddr(e.latLng));
+        if (isAdvanced) {
+          marker.addListener("gmp-dragend", () => updateAddr(marker.position));
+          marker.addListener("dragend", (e: any) => updateAddr(e.latLng || marker.position));
+        } else {
+          marker.addListener("dragend", (e: any) => updateAddr(e.latLng));
+        }
       }
     } catch (err) {
       console.error("Maps init error:", err);
@@ -696,8 +716,8 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
           
           {step.cartItems && step.cartItems.length > 0 ? (
             <div className="flex flex-col gap-3.5">
-              {step.cartItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-3">
+              {step.cartItems.map((item, idx) => (
+                <div key={item.id || item.name || idx} className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     {item.imageUrl ? (
                       <img
@@ -917,8 +937,8 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
             <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-4">
               {step.cartItems && step.cartItems.length > 0 ? (
                 <div className="flex flex-col gap-3.5 pb-3.5 border-b border-slate-100">
-                  {step.cartItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between gap-3">
+                  {step.cartItems.map((item, idx) => (
+                    <div key={item.id || item.name || idx} className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         {item.imageUrl ? (
                           <img

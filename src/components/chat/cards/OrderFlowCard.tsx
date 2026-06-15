@@ -175,14 +175,23 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
       const geocoder = new GeocoderClass();
 
       const updateLocation = (latLng: any) => {
+        if (!latLng || typeof window === "undefined" || !(window as any).google) return;
+        const google = (window as any).google;
+        const latLngObj = (latLng instanceof google.maps.LatLng)
+          ? latLng
+          : new google.maps.LatLng(
+              typeof latLng.lat === "function" ? latLng.lat() : latLng.lat,
+              typeof latLng.lng === "function" ? latLng.lng() : latLng.lng
+            );
+
         if (markerInstanceRef.current) {
           if (isAdvancedMarker) {
-            markerInstanceRef.current.position = latLng;
+            markerInstanceRef.current.position = latLngObj;
           } else {
-            markerInstanceRef.current.setPosition(latLng);
+            markerInstanceRef.current.setPosition(latLngObj);
           }
         }
-        geocoder.geocode({ location: latLng }, (results: any, status: any) => {
+        geocoder.geocode({ location: latLngObj }, (results: any, status: any) => {
           if (status === "OK" && results[0]) {
             setAddress(results[0].formatted_address);
             const comps = results[0].address_components;
@@ -200,6 +209,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
       map.addListener("click", (e: any) => updateLocation(e.latLng));
       if (isAdvancedMarker) {
         marker.addListener("gmp-dragend", () => updateLocation(marker.position));
+        marker.addListener("dragend", (e: any) => updateLocation(e.latLng || marker.position));
       } else {
         marker.addListener("dragend", (e: any) => updateLocation(e.latLng));
       }
