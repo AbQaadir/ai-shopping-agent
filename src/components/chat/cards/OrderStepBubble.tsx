@@ -329,21 +329,21 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
       <div className="mb-5">
         {hasAddr ? (
           <div className="p-4 bg-slate-50/60 border border-slate-100/80 rounded-2xl flex flex-col gap-3">
-            <div className="flex items-center gap-2 border-b border-slate-100/50 pb-2">
-              <User size={13} className="text-[#402970] shrink-0" />
-              <span className="text-xs font-bold text-slate-700">{addr!.name}</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-3 border-b border-slate-100/50 pb-2.5">
               <div className="flex items-center gap-2">
-                <Phone size={12} className="text-slate-400 shrink-0" />
-                <span className="text-[11px] text-slate-600 font-semibold">{addr!.phone}</span>
+                <User size={13} className="text-[#402970] shrink-0" />
+                <span className="text-[13px] font-bold text-slate-800">{addr!.name}</span>
               </div>
-              <div className="flex items-start gap-2">
-                <MapPin size={12} className="text-slate-400 shrink-0 mt-0.5" />
-                <span className="text-[11px] text-slate-600 font-semibold truncate-line-clamp leading-relaxed">
-                  {addr!.address}, {addr!.city}
-                </span>
+              <div className="flex items-center gap-2">
+                <Phone size={13} className="text-slate-400 shrink-0" />
+                <span className="text-[13px] font-bold text-slate-800">{addr!.phone}</span>
               </div>
+            </div>
+            <div className="flex items-start gap-2 pt-0.5">
+              <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
+              <span className="text-[13px] font-bold text-slate-800 leading-relaxed truncate-line-clamp">
+                {addr!.address}, {addr!.city}
+              </span>
             </div>
           </div>
         ) : (
