@@ -169,11 +169,11 @@ Analyze the user query in the context of the recent conversation history, and pe
    Set "isRelated" to true if it is related, or false if it is unrelated.
 
 2. Classify the user message into exactly ONE intent:
-   - "product": Searching for, comparing, or buying products on Kapruka.com (e.g. cakes, gifts, clothes, books, electronics), asking for details/specifications of a product in the conversation, or reordering.
+   - "product": Searching for, comparing, or buying products on Kapruka.com (e.g. cakes, gifts, clothes, books, electronics), asking for details/specifications of a product in the conversation, reordering, or responding to any active step in the checkout pipeline (such as specifying quantities, selecting/updating delivery addresses, choosing payment methods like cash on delivery or card, or confirming to place the order with "yes please").
    - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order.
    - "import": User asks about importing goods from abroad, pastes Amazon/Walmart/eBay URLs, or asks customs/duties.
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
-   - "qa": General platform questions (payment, returns, policies, account help) or general knowledge/informational queries that require web search grounding.
+   - "qa": General platform questions (returns, policies, general account help) or general knowledge/informational queries that require web search grounding. Note: Do NOT classify any checkout responses, payment method selections for an active order, or checkout confirmations (e.g. cash on delivery) as "qa".
 
 3. Extract focused product search terms and price filters ("searchTerms") as a JSON array of objects matching this schema:
    {
@@ -663,10 +663,10 @@ Response JSON:`;
           message.toLowerCase().trim() === "yes, deliver here" ||
           message.toLowerCase().trim() === "use new address";
 
-        const isUserDeviating = !!(activePhase && (
-          (intent === "product" && llmSearchTerms.length > 0 && !isCheckoutCommand) ||
+        const isUserDeviating = !!(activePhase && !isCheckoutCommand && (
+          (intent === "product" && llmSearchTerms.length > 0) ||
           (intent === "qa") ||
-          (intent === "delivery" && !message.toLowerCase().includes("confirm location") && !/yes|no|saved|new/i.test(message)) ||
+          (intent === "delivery" && activePhase.phase !== "address_ask" && activePhase.phase !== "delivery_ask" && !message.toLowerCase().includes("confirm location") && !/yes|no|saved|new/i.test(message)) ||
           (intent === "import") ||
           (intent === "service")
         ));
@@ -1557,8 +1557,8 @@ The user has an active checkout flow in progress.
 [Instruction]
 The user has temporarily paused checkout to ask: "${message}".
 1. Answer their current query directly and completely (e.g. show product search results, perform tracking, or answer general Q&A).
-2. Afterwards, politely remind them that they have an active order checkout in progress for: ${itemsStr}.
-3. Ask them if they would like to add any of the new items to their order, or proceed with the checkout as is.
+2. Do NOT mention, list, or summarize the paused checkout items, status, or details in your text response (since they are already clearly displayed in the UI checkout card).
+3. Do NOT ask the user to proceed with the checkout or add new items to the checkout in your text response.
 4. Keep the tone conversational, friendly, and helpful.`;
             }
 

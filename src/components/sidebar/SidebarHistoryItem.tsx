@@ -5,14 +5,12 @@ interface SidebarHistoryItemProps {
   query: string;
   isActive: boolean;
   onClick: () => void;
-  showStatusDot?: boolean;
 }
 
 export default function SidebarHistoryItem({
   query,
   isActive,
-  onClick,
-  showStatusDot = false
+  onClick
 }: SidebarHistoryItemProps) {
   return (
     <button
@@ -25,9 +23,7 @@ export default function SidebarHistoryItem({
       title={query}
     >
       <span className="truncate">{query}</span>
-      {showStatusDot && (
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
-      )}
+      <span className="text-slate-350 hover:text-slate-500 transition-colors shrink-0 font-bold select-none">→</span>
     </button>
   );
 }
