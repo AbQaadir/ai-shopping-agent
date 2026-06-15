@@ -289,15 +289,28 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
   const addr = step.savedAddress;
   const hasAddr = !!(addr?.address && addr?.city);
 
+  const [selectedOption, setSelectedOption] = useState<'saved' | 'new' | null>(() => {
+    if (!isActive) {
+      if (hasAddr && step.confirmedAddress && addr) {
+        const isSaved = step.confirmedAddress.address === addr.address && step.confirmedAddress.city === addr.city;
+        return isSaved ? 'saved' : 'new';
+      }
+      return hasAddr ? 'saved' : 'new';
+    }
+    return null;
+  });
+
   const handleSaved = () => {
     if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
+    setSelectedOption('saved');
     setSubmitted(true);
     onAction("Yes, deliver to my saved address");
   };
   const handleNew = () => {
     if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
+    setSelectedOption('new');
     setSubmitted(true);
     onAction("I want to use a new delivery address");
   };
@@ -343,28 +356,33 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
         )}
       </div>
 
-      {/* Side-by-side Buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {hasAddr && (
+      {/* Action Area */}
+      {submitted || !isActive ? (
+        <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none">
+          <CheckCircle size={13} className="text-[#402970]" />{" "}
+          {selectedOption === "saved" ? "Saved Address Confirmed" : "New Address Selected"}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {hasAddr && (
+            <button
+              onClick={handleSaved}
+              className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+            >
+              <CheckCircle size={13} /> Yes, deliver here
+            </button>
+          )}
           <button
-            onClick={handleSaved}
-            disabled={submitted || !isActive}
-            className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+            onClick={handleNew}
+            className={`w-full py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer ${
+              !hasAddr ? "sm:col-span-2" : ""
+            }`}
           >
-            <CheckCircle size={13} /> Yes, deliver here
+            <Navigation size={13} className="text-slate-500" />
+            {hasAddr ? "Use new address" : "Pin delivery location"}
           </button>
-        )}
-        <button
-          onClick={handleNew}
-          disabled={submitted || !isActive}
-          className={`w-full py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer ${
-            !hasAddr ? "sm:col-span-2" : ""
-          }`}
-        >
-          <Navigation size={13} className="text-slate-500" />
-          {hasAddr ? "Use new address" : "Pin delivery location"}
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -617,21 +635,19 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
           </>
         )}
 
+      {submitted || !isActive ? (
+        <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none">
+          <CheckCircle size={13} className="text-[#402970]" /> Location Confirmed
+        </div>
+      ) : (
         <button
           onClick={handleConfirmLocation}
-          disabled={submitted || !canConfirm || !isActive}
-          className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+          disabled={!canConfirm}
+          className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
         >
-          {submitted || !isActive ? (
-            <>
-              <CheckCircle size={13} /> Location Confirmed
-            </>
-          ) : (
-            <>
-              <CheckCircle size={13} /> Confirm this location
-            </>
-          )}
+          <CheckCircle size={13} /> Confirm this location
         </button>
+      )}
       </div>
     </div>
   );
@@ -643,9 +659,17 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
   const [submitted, setSubmitted] = useState(false);
   const totalLKR = (step.product?.price || 0) * (step.confirmedQuantity || 1);
 
+  const [selectedMethod, setSelectedMethod] = useState<'cod' | 'card' | null>(() => {
+    if (!isActive) {
+      return step.paymentMethod || null;
+    }
+    return null;
+  });
+
   const handle = (method: "cod" | "card") => {
     if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
+    setSelectedMethod(method);
     setSubmitted(true);
     onAction(method === "cod" ? "I'll pay cash on delivery" : "I want to pay by card online");
   };
@@ -672,37 +696,67 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
 
         {/* Side-by-side grid card items */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <button
-            onClick={() => handle("cod")}
-            disabled={submitted || !isActive}
-            className="group flex flex-col justify-between p-5 border-2 border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 rounded-2xl text-left transition-all duration-200 cursor-pointer disabled:opacity-50 active:scale-[0.98] h-36"
+          <div
+            onClick={() => !(submitted || !isActive) && handle("cod")}
+            className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
+              submitted || !isActive
+                ? selectedMethod === "cod"
+                  ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
+                  : "border-slate-100 bg-white opacity-40"
+                : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
+            }`}
           >
-            <div className="w-10 h-10 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-amber-100 transition-colors">
-              <Truck size={20} className="text-amber-600" />
+            <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+              (submitted || !isActive) && selectedMethod === "cod"
+                ? "bg-[#402970]/20 border-[#402970]/20"
+                : "bg-amber-50 border-amber-100"
+            }`}>
+              <Truck size={20} className={
+                (submitted || !isActive) && selectedMethod === "cod" ? "text-[#402970]" : "text-amber-600"
+              } />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-800">Cash on Delivery</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-800">Cash on Delivery</p>
+                {(submitted || !isActive) && selectedMethod === "cod" && (
+                  <CheckCircle size={14} className="text-[#402970]" />
+                )}
+              </div>
               <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
                 Pay in cash when our courier delivers the package
               </p>
             </div>
-          </button>
+          </div>
 
-          <button
-            onClick={() => handle("card")}
-            disabled={submitted || !isActive}
-            className="group flex flex-col justify-between p-5 border-2 border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 rounded-2xl text-left transition-all duration-200 cursor-pointer disabled:opacity-50 active:scale-[0.98] h-36"
+          <div
+            onClick={() => !(submitted || !isActive) && handle("card")}
+            className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
+              submitted || !isActive
+                ? selectedMethod === "card"
+                  ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
+                  : "border-slate-100 bg-white opacity-40"
+                : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
+            }`}
           >
-            <div className="w-10 h-10 bg-[#402970]/10 border border-[#402970]/10 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#402970]/20 transition-colors">
+            <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+              (submitted || !isActive) && selectedMethod === "card"
+                ? "bg-[#402970]/20 border-[#402970]/20"
+                : "bg-[#402970]/10 border-[#402970]/10"
+            }`}>
               <CreditCard size={20} className="text-[#402970]" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-800">Credit / Debit Card</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-800">Credit / Debit Card</p>
+                {(submitted || !isActive) && selectedMethod === "card" && (
+                  <CheckCircle size={14} className="text-[#402970]" />
+                )}
+              </div>
               <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
                 Pay securely online using Kapruka checkout
               </p>
             </div>
-          </button>
+          </div>
         </div>
       </div>
     </div>
@@ -752,13 +806,18 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
             <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
               We encountered a connection issue while submitting your request to Kapruka order APIs.
             </p>
-            <button
-              onClick={() => onAction("I want to retry placing my order")}
-              disabled={!isActive}
-              className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <RefreshCw size={13} /> Retry Order Submission
-            </button>
+            {!isActive ? (
+              <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none">
+                <RefreshCw size={13} className="text-[#402970]" /> Retry Attempted
+              </div>
+            ) : (
+              <button
+                onClick={() => onAction("I want to retry placing my order")}
+                className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <RefreshCw size={13} /> Retry Order Submission
+              </button>
+            )}
           </div>
         ) : (
           <>

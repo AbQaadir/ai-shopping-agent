@@ -472,6 +472,14 @@ function renderMessageTextBlock(
       continue;
     }
 
+    // Horizontal Rule (---, ***, ___)
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      processedElements.push(
+        <hr key={lineIdx} className="border-t border-slate-200/80 my-4" />
+      );
+      continue;
+    }
+
     const isLastLine = showCursor && lineIdx === lastNonEmptyIdx;
 
     // Headers (###, ##, #)
@@ -1020,6 +1028,11 @@ export default function ChatTimeline({
 
 
       </div>
+      <div 
+        className={`w-full shrink-0 transition-all duration-300 ${
+          selectedProductIds.length > 0 ? "h-56" : "h-24"
+        }`} 
+      />
       <div ref={bottomRef} />
     </div>
   );

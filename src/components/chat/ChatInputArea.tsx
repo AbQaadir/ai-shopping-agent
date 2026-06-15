@@ -218,15 +218,23 @@ export default function ChatInputArea({
             })}
           </div>
         )}
-        <div className="max-w-3xl mx-auto w-full relative flex flex-col gap-2.5">
+        <div className={`w-full bg-white flex flex-col transition-all duration-300 border ${
+          selectedProducts.length > 0 
+            ? "rounded-[24px] p-3.5 gap-3" 
+            : "rounded-full py-1.5 pl-4 pr-1.5"
+        } ${
+          isFocused
+            ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]"
+            : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
+        }`}>
           {/* Selected products row */}
           {selectedProducts.length > 0 && (
-            <div className="w-full bg-white/95 backdrop-blur-md border border-slate-150 rounded-2xl py-2.5 px-3 flex flex-col gap-2 shadow-[0_4px_20px_rgba(0,0,0,0.03)] animate-fadeIn">
+            <div className="w-full flex flex-col gap-2.5 pb-2.5 border-b border-slate-100 animate-fadeIn">
               <div className="flex flex-row gap-3 overflow-x-auto pb-1 scrollbar-thin">
                 {selectedProducts.map((prod) => (
                   <div
                     key={prod.id}
-                    className="flex items-center gap-2 bg-slate-100/90 border border-slate-200/50 rounded-xl p-1.5 pr-3 relative group max-w-[200px] shrink-0"
+                    className="flex items-center gap-2 bg-slate-50 border border-slate-100/85 rounded-xl p-1.5 pr-3 relative group max-w-[200px] shrink-0"
                   >
                     {/* Absolute close button */}
                     <button
@@ -304,13 +312,13 @@ export default function ChatInputArea({
 
           {/* Attached files */}
           {attachedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 p-2 bg-white/95 backdrop-blur-md rounded-xl border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] self-start animate-fadeIn">
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-50/50 border border-slate-100/50 rounded-xl self-start animate-fadeIn">
               {attachedFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs font-medium text-slate-600 animate-fadeIn animate-slideInRight">
+                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-150 rounded-full text-xs font-medium text-slate-600 animate-fadeIn">
                   <span className="truncate max-w-[120px]">{file.name}</span>
                   <button
                     onClick={() => onRemoveFile(idx)}
-                    className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"
+                    className="p-0.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
                   >
                     <X size={10} />
                   </button>
@@ -319,11 +327,9 @@ export default function ChatInputArea({
             </div>
           )}
 
-          {/* Input pill */}
-          <div className={`w-full bg-white rounded-full py-1.5 pl-4 pr-1.5 flex items-center gap-2 transition-all duration-300 border ${
-            isFocused
-              ? "border-[#402970] shadow-[0_4px_20px_rgba(64,41,112,0.12)]"
-              : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
+          {/* Input Row */}
+          <div className={`w-full flex items-center gap-2 ${
+            selectedProducts.length > 0 ? "px-1 py-0.5" : ""
           }`}>
             <button
               onClick={() => fileInputRef.current?.click()}

@@ -167,7 +167,7 @@ export default function ChatWorkspace({
       <div className="flex-1 min-h-0 relative flex flex-row">
 
         {/* Left Chat Pane */}
-        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col relative w-full">
+        <div className="flex-1 min-h-0 flex flex-col relative w-full">
           {/* Messages */}
           <ChatMessageTimeline
             messages={messages}
@@ -180,9 +180,6 @@ export default function ChatWorkspace({
             onToggleSelectProduct={handleToggleSelectProduct}
             onBuyProduct={onBuyProduct}
           />
-
-          {/* Bottom spacer so last message clears the gradient + input */}
-          <div className="h-36 shrink-0" />
         </div>
 
         {/* ── Gradient fade — messages dissolve upward into white ── */}
