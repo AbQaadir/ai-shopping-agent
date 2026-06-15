@@ -393,8 +393,8 @@ RULES:
         const savedAddr = USER_DEFAULTS_OA[userId] || null;
         const hasSavedAddress = !!(savedAddr?.address && savedAddr?.city);
 
-        // ── Intercept Add to Cart queries ───────────────────────────────
-        const isAddToCartQuery = /add.*cart|add.*to.*cart|put.*cart/i.test(message.toLowerCase());
+        // ── Intercept Add to Cart/Order queries ───────────────────────────
+        const isAddToCartQuery = /add.*(cart|order)|put.*(cart|order)|include.*order/i.test(message.toLowerCase());
         if (isAddToCartQuery) {
           const currentUserId = session?.userId || userId || "guest";
           const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
@@ -407,11 +407,137 @@ RULES:
             }
           }
 
+          // If the message is a raw user text input rather than the UI-triggered add-to-cart message
+          // (which starts with "add selected products to cart")
+          const isUiTriggered = message.toLowerCase().startsWith("add selected products to cart");
+          
+          if (!isUiTriggered) {
+            // Find the last assistant message with products in the session history to get candidates
+            let lastMessageWithProducts: any = null;
+            for (let i = chatHistoryForClassifier.length - 2; i >= 0; i--) {
+              const m = chatHistoryForClassifier[i];
+              if (m.role === "assistant" && m.content && m.thoughtProcess) {
+                try {
+                  const tp = typeof m.thoughtProcess === "string" ? JSON.parse(m.thoughtProcess as string) : m.thoughtProcess;
+                  if (m.products || (tp && (tp.products || tp.checkoutFormProduct || tp.orderFlowProduct))) {
+                    lastMessageWithProducts = m;
+                    break;
+                  }
+                } catch { /* ignore */ }
+              }
+            }
+
+            let candidates: any[] = [];
+            if (lastMessageWithProducts) {
+              try {
+                const tp = typeof lastMessageWithProducts.thoughtProcess === "string" 
+                  ? JSON.parse(lastMessageWithProducts.thoughtProcess) 
+                  : lastMessageWithProducts.thoughtProcess;
+                
+                if (lastMessageWithProducts.products) {
+                  candidates = typeof lastMessageWithProducts.products === "string"
+                    ? JSON.parse(lastMessageWithProducts.products)
+                    : lastMessageWithProducts.products;
+                } else if (tp?.products) {
+                  candidates = tp.products;
+                } else if (tp?.checkoutFormProduct) {
+                  candidates = [tp.checkoutFormProduct];
+                } else if (tp?.orderFlowProduct) {
+                  candidates = [tp.orderFlowProduct];
+                }
+              } catch (e) {
+                console.error("Failed to parse candidates:", e);
+              }
+            }
+
+            let resolvedProduct: any = null;
+            if (candidates.length > 0 && ai) {
+              try {
+                const productListStr = candidates.map((c, idx) => `ID: ${c.id}, Name: "${c.name || c.title}", Price: Rs. ${c.price}`).join("\n");
+                const resolverPrompt = `You are a product resolver for an e-commerce assistant.
+The user wants to add a product to their cart/order.
+User message: "${message}"
+
+Here is the list of products displayed in the previous response:
+${productListStr}
+
+Identify which product the user wants to add.
+Respond with a JSON object containing exactly one key: "productId" (the ID of the matched product). If none of the products match, return {"productId": null}.
+
+Response JSON:`;
+
+                const resolverRes = await ai.models.generateContent({
+                  model: config.gemini.fastModel,
+                  contents: resolverPrompt,
+                  config: { responseMimeType: "application/json" }
+                });
+                let resText = resolverRes.text || "{}";
+                const parsedRes = JSON.parse(resText.trim());
+                if (parsedRes.productId) {
+                  resolvedProduct = candidates.find(c => c.id === parsedRes.productId);
+                }
+              } catch (err) {
+                console.error("Failed to resolve product from history:", err);
+              }
+            }
+            
+            // Fallback keyword matching
+            if (!resolvedProduct && candidates.length > 0) {
+              const msgLower = message.toLowerCase();
+              for (const c of candidates) {
+                const nameLower = (c.name || c.title || "").toLowerCase();
+                const words = nameLower.split(/\s+/).filter((w: string) => w.length > 3);
+                if (words.some((w: string) => msgLower.includes(w))) {
+                  resolvedProduct = c;
+                  break;
+                }
+              }
+              if (!resolvedProduct && candidates.length === 1 && /\b(it|that|this|the one|add)\b/i.test(msgLower)) {
+                resolvedProduct = candidates[0];
+              }
+            }
+
+            if (resolvedProduct) {
+              const existingIdx = currentCart.findIndex(item => item.id === resolvedProduct.id);
+              if (existingIdx > -1) {
+                currentCart[existingIdx].quantity += 1;
+              } else {
+                currentCart.push({
+                  id: resolvedProduct.id,
+                  name: resolvedProduct.name || resolvedProduct.title || "Kapruka Product",
+                  price: resolvedProduct.price || 0,
+                  quantity: 1,
+                  imageUrl: resolvedProduct.imageUrl || resolvedProduct.image,
+                  inStock: resolvedProduct.inStock !== false
+                });
+              }
+              // Sync updated cart back to user in database
+              await (prisma.user as any).update({
+                where: { id: currentUserId },
+                data: { cart: currentCart }
+              });
+            }
+          }
+
           let responseText = "";
           if (currentCart.length > 0) {
             const itemsList = currentCart.map((item) => `- ${item.quantity}x **${item.name}** (Rs. ${item.price.toLocaleString()})`).join("\n");
             const total = currentCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            responseText = `I've updated your session cart! 🛒 Current items in your cart:\n\n${itemsList}\n\n**Total subtotal: Rs. ${total.toLocaleString()}**\n\nWould you like to search for more products or proceed to **checkout cart**?`;
+            
+            const activePhase = getActiveOrderPhase();
+            if (activePhase) {
+              // Reset/Transition checkout flow back to qty_ask for the updated cart items!
+              const ofs = { phase: "qty_ask", cartItems: currentCart, savedAddress: savedAddr };
+              send({ type: "order_flow_step", ...ofs });
+              
+              responseText = `I've added that to your order! 🛒 Here is your updated cart:\n\n${itemsList}\n\n**Total subtotal: Rs. ${total.toLocaleString()}**\n\nPlease confirm the updated quantities in the checkout card to continue.`;
+              await streamWords(responseText);
+              await saveOrderMessage(responseText, ofs);
+              controller.close();
+              return;
+            } else {
+              responseText = `I've updated your session cart! 🛒 Current items in your cart:\n\n${itemsList}\n\n**Total subtotal: Rs. ${total.toLocaleString()}**\n\nWould you like to search for more products or proceed to **checkout cart**?`;
+            }
           } else {
             responseText = "Your cart is currently empty. Try checking some product selection boxes in the search matches and click **Add to Cart**!";
           }
@@ -528,7 +654,24 @@ RULES:
         // ══════════════════════════════════════════════════════════════════════
         const activePhase = getActiveOrderPhase();
 
-        if (activePhase) {
+        const isCheckoutCommand = 
+          /checkout|place.*order|order.*selected|confirm.*quantities|confirm.*location/i.test(message.toLowerCase()) ||
+          /\b(confirm|yes|no|saved|new|cash|cod|card|online|pay online|card payment|delivery|on delivery|cash on delivery)\b/i.test(message.toLowerCase()) ||
+          message.toLowerCase().trim() === "checkout cart" ||
+          message.toLowerCase().trim() === "order this" ||
+          message.toLowerCase().trim() === "order selected" ||
+          message.toLowerCase().trim() === "yes, deliver here" ||
+          message.toLowerCase().trim() === "use new address";
+
+        const isUserDeviating = !!(activePhase && (
+          (intent === "product" && llmSearchTerms.length > 0 && !isCheckoutCommand) ||
+          (intent === "qa") ||
+          (intent === "delivery" && !message.toLowerCase().includes("confirm location") && !/yes|no|saved|new/i.test(message)) ||
+          (intent === "import") ||
+          (intent === "service")
+        ));
+
+        if (activePhase && !isUserDeviating) {
           const { phase, orderFlowStep: currentStep } = activePhase;
           const accData = getAccumulatedOrderData();
           const product = (accData.product || (currentStep as any).product) as any;
@@ -537,6 +680,43 @@ RULES:
 
           send({ type: "thought", step: "order_agent", status: "running", content: `Order agent: processing phase "${phase}"...` });
           send({ type: "thought", step: "order_agent", status: "completed", content: `Analysing customer reply for phase "${phase}"`, durationMs: 0 });
+
+          // ── Backward transitions (edit quantities, change location/address) ────────────────────
+          const msgLower = message.toLowerCase();
+          const isEditAddressQuery = /\b(edit|change|update|new|different)\b.*\b(address|location|destination|landmark|place|delivery address)\b/i.test(msgLower) || /\b(wrong address|change the address)\b/i.test(msgLower);
+          const isEditQuantityQuery = /\b(change|update|edit|increase|decrease|more|less|add more)\b.*\b(quantity|qty|amount|pieces|items|units)\b/i.test(msgLower) || /\b(change the quantity|add one more|increase quantity|decrease quantity)\b/i.test(msgLower);
+
+          if (isEditAddressQuery && phase !== "address_ask" && phase !== "map_open") {
+            const aas: Record<string, unknown> = {
+              phase: "address_ask",
+              product,
+              cartItems,
+              confirmedQuantity: accData.confirmedQuantity ?? 1,
+              savedAddress: savedAddr
+            };
+            send({ type: "order_flow_step", ...aas });
+            const t = `Sure! Let's change your delivery address. Please type a rough location or landmark where you'd like your order delivered. 📍`;
+            await streamWords(t);
+            await saveOrderMessage(t, aas);
+            controller.close();
+            return;
+          }
+
+          if (isEditQuantityQuery && phase !== "qty_ask") {
+            const qas: Record<string, unknown> = {
+              phase: "qty_ask",
+              product,
+              cartItems,
+              savedAddress: savedAddr
+            };
+            send({ type: "order_flow_step", ...qas });
+            const t = `No problem! Let's update your order quantities. Please confirm the correct quantities in the checkout card and click next.`;
+            await streamWords(t);
+            await saveOrderMessage(t, qas);
+            controller.close();
+            return;
+          }
+
 
           // ── Phase: qty_ask ───────────────────────────────────────────────
           if (phase === "qty_ask") {
@@ -1355,6 +1535,31 @@ You MUST structure your response using exactly these tags:
                   contextNote = `\n\n[Search Result] NO products were found in the Kapruka live catalog after relevance filtering. Apologize politely, suggest the user try different keywords or a related category, and offer to help find alternatives.`;
                 }
               }
+            }
+
+            if (activePhase && isUserDeviating) {
+              const { phase } = activePhase;
+              const acc = getAccumulatedOrderData();
+              const items = acc.cartItems && acc.cartItems.length > 0
+                ? acc.cartItems
+                : acc.product ? [acc.product] : [];
+              const itemsStr = items.map(i => {
+                const qtyVal = i.quantity ?? acc.confirmedQuantity ?? 1;
+                return `${qtyVal}x ${i.name || i.title || "Kapruka Product"}`;
+              }).join(", ");
+              
+              contextNote += `\n\n[Active Checkout In Progress (PAUSED)]
+The user has an active checkout flow in progress.
+- Current Checkout Items: ${itemsStr || "No items in cart"}
+- Paused Phase/Step: "${phase}"
+- Confirmed Location: ${acc.confirmedAddress ? `${acc.confirmedAddress.address}, ${acc.confirmedAddress.city}` : "None"}
+
+[Instruction]
+The user has temporarily paused checkout to ask: "${message}".
+1. Answer their current query directly and completely (e.g. show product search results, perform tracking, or answer general Q&A).
+2. Afterwards, politely remind them that they have an active order checkout in progress for: ${itemsStr}.
+3. Ask them if they would like to add any of the new items to their order, or proceed with the checkout as is.
+4. Keep the tone conversational, friendly, and helpful.`;
             }
 
             if (pastOrdersContext) {

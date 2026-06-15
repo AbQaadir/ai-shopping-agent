@@ -657,7 +657,12 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
-  const totalLKR = (step.product?.price || 0) * (step.confirmedQuantity || 1);
+  
+  const totalLKR = step.cartItems && step.cartItems.length > 0
+    ? step.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    : (step.product?.price || 0) * (step.confirmedQuantity || 1);
+
+  const addr = step.confirmedAddress || step.savedAddress;
 
   const [selectedMethod, setSelectedMethod] = useState<'cod' | 'card' | null>(() => {
     if (!isActive) {
@@ -681,80 +686,167 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
         <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
           <CreditCard size={16} />
         </span>
-        <h4 className="text-sm font-bold text-slate-800">Payment Method</h4>
+        <h4 className="text-sm font-bold text-slate-800">Order Review & Payment</h4>
       </div>
 
-      <div className="flex flex-col gap-4">
-        {totalLKR > 0 && (
-          <div className="flex items-center justify-between text-xs px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl">
-            <span className="text-slate-500 font-bold">
-              {step.confirmedQuantity || 1} × {cleanProductTitle(step.product?.name || step.product?.title)}
-            </span>
-            <span className="font-extrabold text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
+      <div className="flex flex-col gap-5">
+        {/* Ordered Items Review Section */}
+        <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-4">
+          <h5 className="text-xs font-bold text-slate-700">Order Items</h5>
+          
+          {step.cartItems && step.cartItems.length > 0 ? (
+            <div className="flex flex-col gap-3.5">
+              {step.cartItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt=""
+                        className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
+                      />
+                    ) : (
+                      <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                        <Package size={16} className="text-slate-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-xs font-bold text-slate-800 truncate">{cleanProductTitle(item.name)}</h5>
+                      <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                        Qty: {item.quantity} × Rs. {item.price.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-extrabold text-[#402970] shrink-0">
+                    Rs. {(item.price * item.quantity).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : step.product ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {step.product.imageUrl ? (
+                  <img
+                    src={step.product.imageUrl}
+                    alt=""
+                    className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                    <Package size={16} className="text-slate-400" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h5 className="text-xs font-bold text-slate-800 truncate">{cleanProductTitle(step.product.name || step.product.title)}</h5>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                    Qty: {step.confirmedQuantity || 1} × Rs. {(step.product.price || 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-extrabold text-[#402970] shrink-0">
+                Rs. {totalLKR.toLocaleString()}
+              </span>
+            </div>
+          ) : null}
+
+          {/* Subtotal Row */}
+          <div className="flex justify-between items-center pt-3 border-t border-slate-100/70 mt-1">
+            <span className="text-xs font-bold text-slate-700">Order Subtotal</span>
+            <span className="text-sm font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* Delivery Details Section */}
+        {addr && (
+          <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-3">
+            <h5 className="text-xs font-bold text-slate-700">Delivery Location</h5>
+            <div className="flex items-center gap-3 bg-white border border-slate-100/80 rounded-xl p-3 shadow-xs">
+              <div className="p-2.5 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
+                <MapPin size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-xs font-bold text-slate-800">{addr.name}</p>
+                  {addr.phone && (
+                    <div className="flex items-center gap-1 text-[10px] text-slate-700 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md font-semibold">
+                      <Phone size={10} className="text-[#402970]" />
+                      <span>{addr.phone}</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-600 font-medium leading-relaxed mt-1">
+                  {addr.address}, {addr.city}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Side-by-side grid card items */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div
-            onClick={() => !(submitted || !isActive) && handle("cod")}
-            className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
-              submitted || !isActive
-                ? selectedMethod === "cod"
-                  ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
-                  : "border-slate-100 bg-white opacity-40"
-                : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
-            }`}
-          >
-            <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-              (submitted || !isActive) && selectedMethod === "cod"
-                ? "bg-[#402970]/20 border-[#402970]/20"
-                : "bg-amber-50 border-amber-100"
-            }`}>
-              <Truck size={20} className={
-                (submitted || !isActive) && selectedMethod === "cod" ? "text-[#402970]" : "text-amber-600"
-              } />
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-bold text-slate-800">Cash on Delivery</p>
-                {(submitted || !isActive) && selectedMethod === "cod" && (
-                  <CheckCircle size={14} className="text-[#402970]" />
-                )}
+        {/* Payment Methods Section */}
+        <div className="flex flex-col gap-3">
+          <h5 className="text-xs font-bold text-slate-700">Choose Payment Method</h5>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div
+              onClick={() => !(submitted || !isActive) && handle("cod")}
+              className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
+                submitted || !isActive
+                  ? selectedMethod === "cod"
+                    ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
+                    : "border-slate-100 bg-white opacity-40"
+                  : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
+              }`}
+            >
+              <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                (submitted || !isActive) && selectedMethod === "cod"
+                  ? "bg-[#402970]/20 border-[#402970]/20"
+                  : "bg-amber-50 border-amber-100"
+              }`}>
+                <Truck size={20} className={
+                  (submitted || !isActive) && selectedMethod === "cod" ? "text-[#402970]" : "text-amber-600"
+                } />
               </div>
-              <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
-                Pay in cash when our courier delivers the package
-              </p>
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] font-bold text-slate-800">Cash on Delivery</p>
+                  {(submitted || !isActive) && selectedMethod === "cod" && (
+                    <CheckCircle size={14} className="text-[#402970]" />
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
+                  Pay in cash when our courier delivers the package
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div
-            onClick={() => !(submitted || !isActive) && handle("card")}
-            className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
-              submitted || !isActive
-                ? selectedMethod === "card"
-                  ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
-                  : "border-slate-100 bg-white opacity-40"
-                : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
-            }`}
-          >
-            <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-              (submitted || !isActive) && selectedMethod === "card"
-                ? "bg-[#402970]/20 border-[#402970]/20"
-                : "bg-[#402970]/10 border-[#402970]/10"
-            }`}>
-              <CreditCard size={20} className="text-[#402970]" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-bold text-slate-800">Credit / Debit Card</p>
-                {(submitted || !isActive) && selectedMethod === "card" && (
-                  <CheckCircle size={14} className="text-[#402970]" />
-                )}
+            <div
+              onClick={() => !(submitted || !isActive) && handle("card")}
+              className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
+                submitted || !isActive
+                  ? selectedMethod === "card"
+                    ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
+                    : "border-slate-100 bg-white opacity-40"
+                  : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
+              }`}
+            >
+              <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                (submitted || !isActive) && selectedMethod === "card"
+                  ? "bg-[#402970]/20 border-[#402970]/20"
+                  : "bg-[#402970]/10 border-[#402970]/10"
+              }`}>
+                <CreditCard size={20} className="text-[#402970]" />
               </div>
-              <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
-                Pay securely online using Kapruka checkout
-              </p>
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] font-bold text-slate-800">Credit / Debit Card</p>
+                  {(submitted || !isActive) && selectedMethod === "card" && (
+                    <CheckCircle size={14} className="text-[#402970]" />
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
+                  Pay securely online using Kapruka checkout
+                </p>
+              </div>
             </div>
           </div>
         </div>
