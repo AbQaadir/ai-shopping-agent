@@ -25,7 +25,7 @@ import { NextRequest } from "next/server";
 // ── New Agentic Architecture ──────────────────────────────────────────────
 import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";
 import { orderAgent } from "@/lib/agents/orderAgent";
-import { cartModifierAgent } from "@/lib/agents/cartModifierAgent";
+import { cartModifierAgent, type CartModification } from "@/lib/agents/cartModifierAgent";
 import {
   getCheckoutState,
   saveCheckoutState,
@@ -510,23 +510,83 @@ User query to classify: "${message}"`;
           send({ type: "thought", step: "cart_agent", status: "running", content: "Cart Modifier Agent: understanding your request..." });
 
           const currentCart = await loadUserCart();
-          let modification = { type: "remove" as any, itemId: null as string | null, itemName: null as string | null, newQty: null as number | null, responseText: "Your cart has been updated.", updatedCart: currentCart };
 
-          if (ai) {
-            modification = await cartModifierAgent(message, currentCart, ai, config.gemini.fastModel);
+          // Fetch products from the last assistant response to serve as contextual available products
+          let availableProducts: any[] = [];
+          try {
+            const msgs = await prisma.chatMessage.findMany({
+              where: {
+                sessionId,
+                role: "assistant",
+              },
+              orderBy: { createdAt: "desc" },
+              take: 5,
+            });
+            const lastAssistantMsg = msgs.find((m) => m.products !== null && m.products !== undefined);
+            if (lastAssistantMsg?.products) {
+              const parsed = typeof lastAssistantMsg.products === "string"
+                ? JSON.parse(lastAssistantMsg.products)
+                : lastAssistantMsg.products;
+              if (Array.isArray(parsed)) {
+                if (parsed.length > 0 && "products" in parsed[0]) {
+                  // Product groups structure
+                  availableProducts = parsed.flatMap((g: any) => g.products || []);
+                } else {
+                  // Flat products array structure
+                  availableProducts = parsed;
+                }
+              }
+            }
+          } catch (err) {
+            console.error("[route.ts] failed to fetch last assistant products:", err);
           }
 
-          send({ type: "thought", step: "cart_agent", status: "completed", content: `Cart: ${modification.type} "${modification.itemName}"`, durationMs: 0 });
+          // Combine with any fetched selected products from request body
+          if (fetchedSelectedProducts.length > 0) {
+            for (const fp of fetchedSelectedProducts) {
+              if (!availableProducts.some((ap) => ap.id === fp.id)) {
+                availableProducts.push(fp);
+              }
+            }
+          }
+
+          let modification: CartModification = {
+            type: "remove" as any,
+            itemId: null,
+            itemName: null,
+            newQty: null,
+            itemsToAdd: null,
+            responseText: "Your cart has been updated.",
+            updatedCart: currentCart,
+          };
+
+          if (ai) {
+            modification = await cartModifierAgent(message, currentCart, availableProducts, ai, config.gemini.fastModel);
+          }
+
+          send({ type: "thought", step: "cart_agent", status: "completed", content: `Cart: ${modification.type} ${modification.type === "add" ? `${modification.itemsToAdd?.length ?? 0} item(s)` : `"${modification.itemName}"`}`, durationMs: 0 });
 
           // Apply and persist
           await saveUserCart(modification.updatedCart);
 
           // Update the checkout session's cartItems too
           if (checkoutState) {
+            let nextPhase = checkoutState.phase;
+            let resetConfirmedQty = checkoutState.confirmedQty;
+
+            // If items are added, reset checkout phase to qty_ask so user can confirm
+            if (modification.type === "add") {
+              nextPhase = "qty_ask";
+              resetConfirmedQty = undefined;
+            }
+
             const updatedState: CheckoutState = {
               ...checkoutState,
               cartItems: modification.updatedCart,
+              phase: nextPhase,
+              confirmedQty: resetConfirmedQty,
             };
+
             if (modification.updatedCart.length === 0) {
               // Cart is now empty — cancel checkout
               await clearCheckoutState(sessionId);
@@ -539,7 +599,15 @@ User query to classify: "${message}"`;
             } else {
               await saveCheckoutState(sessionId, updatedState);
               // Update the UI checkout card with new cart
-              const ofs = { phase: updatedState.phase, cartItems: modification.updatedCart, savedAddress: updatedState.savedAddress };
+              const ofs = {
+                phase: updatedState.phase,
+                cartItems: modification.updatedCart,
+                savedAddress: updatedState.savedAddress,
+                confirmedQuantity: updatedState.confirmedQty,
+                confirmedAddress: updatedState.confirmedAddress,
+                geocodedLocation: updatedState.geocodedLocation,
+                paymentMethod: updatedState.paymentMethod,
+              };
               send({ type: "order_flow_step", ...ofs });
             }
           }
@@ -554,7 +622,15 @@ User query to classify: "${message}"`;
                 steps: [{ step: "cart_agent", status: "completed", content: `Cart modified: ${modification.type}`, durationMs: 0 }],
                 intent: "product",
                 orderFlowStep: checkoutState
-                  ? { phase: checkoutState.phase, cartItems: modification.updatedCart, savedAddress: checkoutState.savedAddress }
+                  ? {
+                      phase: modification.type === "add" ? "qty_ask" : checkoutState.phase,
+                      cartItems: modification.updatedCart,
+                      savedAddress: checkoutState.savedAddress,
+                      confirmedQuantity: modification.type === "add" ? undefined : checkoutState.confirmedQty,
+                      confirmedAddress: checkoutState.confirmedAddress,
+                      geocodedLocation: checkoutState.geocodedLocation,
+                      paymentMethod: checkoutState.paymentMethod,
+                    }
                   : undefined,
               }),
             },
@@ -601,10 +677,17 @@ User query to classify: "${message}"`;
             updatedState.paymentMethod = extractedData.paymentMethod;
           }
 
+          // Determine the actual next phase
+          const nextPhase = agentOutput.stay ? checkoutState.phase : agentOutput.nextPhase;
+          updatedState.phase = nextPhase;
+
           // Handle geocoding for address_ask → map_open
-          if (agentOutput.requiresGeocode && extractedData.addressText) {
-            send({ type: "thought", step: "geocoding", status: "running", content: `Geocoding: "${extractedData.addressText}"...` });
-            const geo = await geocodeLocation(extractedData.addressText);
+          const isTransitioningToMap = checkoutState.phase === "address_ask" && nextPhase === "map_open";
+          const addressToGeocode = extractedData.addressText || (isTransitioningToMap ? message : null);
+
+          if ((agentOutput.requiresGeocode || isTransitioningToMap) && addressToGeocode) {
+            send({ type: "thought", step: "geocoding", status: "running", content: `Geocoding: "${addressToGeocode}"...` });
+            const geo = await geocodeLocation(addressToGeocode);
             send({ type: "thought", step: "geocoding", status: "completed", content: geo ? `Found: ${geo.label}` : "Default: Colombo", durationMs: 0 });
             updatedState.geocodedLocation = geo ?? { lat: 6.9271, lng: 79.8612, formattedAddress: "Colombo, Sri Lanka", label: "Colombo" };
           }
@@ -622,9 +705,7 @@ User query to classify: "${message}"`;
             }
           }
 
-          // Determine the actual next phase
-          const nextPhase = agentOutput.stay ? checkoutState.phase : agentOutput.nextPhase;
-          updatedState.phase = nextPhase;
+
 
           // Handle order placement (payment_ask → confirmed)
           if (agentOutput.requiresOrderPlace) {
@@ -901,8 +982,9 @@ User query to classify: "${message}"`;
 
                 send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "completed", content: `Found ${filteredPriceProducts.length} raw result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.` + (priceFilterDiscarded > 0 ? ` (Filtered out ${priceFilterDiscarded} product(s) outside price limits)` : ""), durationMs: searchDur });
 
-                const keywordFiltered = scoreAndFilterProducts(filteredPriceProducts, baseTerm);
-                const keywordDiscarded = filteredPriceProducts.length - keywordFiltered.length + priceFilterDiscarded;
+                // Bypass keyword-based scoring/filtering. Rely on raw search engine relevance and AI validator.
+                const keywordFiltered: KaprukaProduct[] = filteredPriceProducts.map((p) => ({ ...p, _relevanceScore: 10 }));
+                const keywordDiscarded = priceFilterDiscarded;
 
                 let validated = keywordFiltered;
                 let llmDiscarded = 0;
@@ -1384,6 +1466,9 @@ Examples:
 - Searching "shoes" → sandals, boots, sneakers = KEEP. Shoe rack, shoe polish, shoe box = DISCARD.
 - Searching "cake" → birthday cake, chocolate cake = KEEP. Cake mold, cake box, birthday candle = DISCARD.
 
+Constraint:
+- You must NOT discard more than 5 products. If there are more than 5 irrelevant products, only select the 5 most irrelevant ones to DISCARD, and mark all others as KEEP.
+
 Products:
 ${productList}
 
@@ -1410,14 +1495,27 @@ Respond ONLY with valid JSON: {"keep_ids":["id1","id2",...],"reason":"one-line e
     const parsed = JSON.parse(text);
     const keepIds = new Set<string>(Array.isArray(parsed?.keep_ids) ? parsed.keep_ids : []);
     if (keepIds.size === 0) {
-      console.warn(`[LLM Validator] "${searchTerm}": validator returned 0 IDs — using keyword-filtered set.`);
+      console.warn(`[LLM Validator] "${searchTerm}": validator returned 0 IDs — using raw set.`);
       return products;
     }
     const filtered = productsToCheck.filter((p) => keepIds.has(p.id));
     const remainder = products.slice(50);
-    const combined = [...filtered, ...remainder];
+    const combined = [...filtered, ...remainder].map((p) => {
+      return {
+        ...p,
+        _relevanceScore: keepIds.has(p.id) ? 10 : 1
+      };
+    });
+
+    // Sort in descending order of relevance score
+    combined.sort((a, b) => {
+      const scoreA = (a as any)._relevanceScore ?? 0;
+      const scoreB = (b as any)._relevanceScore ?? 0;
+      return scoreB - scoreA;
+    });
+
     console.log(`[LLM Validator] "${searchTerm}": kept ${filtered.length}/${productsToCheck.length}. Reason: ${parsed?.reason || "n/a"}`);
-    return combined.length > 0 ? combined : products;
+    return combined;
   } catch (err) {
     console.error(`[LLM Validator] Failed for "${searchTerm}":`, (err as Error).message);
     return products;
