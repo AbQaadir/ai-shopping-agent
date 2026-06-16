@@ -1,20 +1,6 @@
-export type Intent = "product" | "delivery" | "import" | "service" | "qa";
+export type Intent = "product" | "delivery" | "service" | "qa";
 
-// ── URL Detection (for import intent) ──────────────────────────────────────
-export function extractUrlFromMessage(message: string): string | null {
-  const urlRegex = /https?:\/\/[^\s]+/i;
-  const match = message.match(urlRegex);
-  return match ? match[0] : null;
-}
 
-// ── Price extraction for import queries ────────────────────────────────────
-export function extractUsdPrice(message: string): number | undefined {
-  const match = message.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
-  if (match) return parseFloat(match[1].replace(",", ""));
-  const wordMatch = message.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:usd|dollars?)/i);
-  if (wordMatch) return parseFloat(wordMatch[1].replace(",", ""));
-  return undefined;
-}
 
 // ── City extraction for delivery queries ───────────────────────────────────
 export function extractCityFromMessage(message: string): string | null {
@@ -64,9 +50,7 @@ export function extractDate(message: string): string {
 export function ruleBasedIntent(message: string): Intent {
   const lower = message.toLowerCase();
 
-  // Import: URL presence = definitive signal
-  if (/https?:\/\/(www\.)?(amazon|walmart|ebay|aliexpress|target)\./i.test(lower)) return "import";
-  if (/import|from amazon|from abroad|overseas|global shop|landed cost|customs duty/i.test(lower)) return "import";
+
 
   // Delivery / tracking
   if (/track|tracking|order status|where.*order|my order/i.test(lower)) return "delivery";

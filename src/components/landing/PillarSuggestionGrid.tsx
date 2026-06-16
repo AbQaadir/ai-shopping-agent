@@ -31,14 +31,7 @@ const PILLARS = [
     border: "border-amber-100",
     iconBg: "bg-amber-100",
   },
-  {
-    icon: "🌍",
-    label: "Estimate Amazon import cost",
-    hint: "https://amazon.com/dp/B0EXAMPLE — what will it cost in Sri Lanka?",
-    color: "from-blue-50 to-sky-50",
-    border: "border-blue-100",
-    iconBg: "bg-blue-100",
-  },
+
   {
     icon: "🔧",
     label: "Book a home repair service",
@@ -53,9 +46,9 @@ export default function PillarSuggestionGrid({ onSuggestionClick }: PillarSugges
   return (
     <div className="w-full px-2 sm:px-0">
       <p className="text-center text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 sm:mb-5">
-        5 Ways I Can Help You
+        4 Ways I Can Help You
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {PILLARS.map((pillar, i) => (
           <button
             key={i}

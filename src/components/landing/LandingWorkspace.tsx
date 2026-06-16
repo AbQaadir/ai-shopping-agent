@@ -289,7 +289,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                     setSelectedIndex(-1);
                   }, 150);
                 }}
-                placeholder='Try: "Show me birthday cakes under Rs. 3,000" or paste an Amazon link...'
+                placeholder='Try: "Show me birthday cakes under Rs. 3,000"...'
                 rows={1}
                 className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm sm:text-[15px] py-1.5 leading-normal max-h-[120px] overflow-y-auto scrollbar-none"
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}

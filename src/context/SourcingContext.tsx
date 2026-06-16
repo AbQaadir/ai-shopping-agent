@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ImportEstimate, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem, ProductGroup } from "@/types/sourcing";
+import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem, ProductGroup } from "@/types/sourcing";
 
 
 interface SourcingContextType {
@@ -87,22 +87,27 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     detectLocation();
   }, []);
 
-  // Hydrate global user cart when user switches
+  // Hydrate user cart when user switches or session changes
   useEffect(() => {
-    const loadGlobalCart = async () => {
+    const loadCart = async () => {
       if (!activeUserId) return;
+      // If there is no active session yet, the cart starts empty for this new chat.
+      if (!activeHistoryId) {
+        setCartItems([]);
+        return;
+      }
       try {
-        const res = await fetch(`/api/session?cartOnly=true&userId=${activeUserId}`);
+        const res = await fetch(`/api/session?cartOnly=true&userId=${activeUserId}&sessionId=${activeHistoryId}`);
         if (res.ok) {
           const data = await res.json();
           setCartItems(Array.isArray(data) ? data : []);
         }
       } catch (err) {
-        console.error("Failed to load user global cart:", err);
+        console.error("Failed to load user session cart:", err);
       }
     };
-    loadGlobalCart();
-  }, [activeUserId]);
+    loadCart();
+  }, [activeUserId, activeHistoryId]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const router = useRouter();
@@ -446,7 +451,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       let followUpQuestions: string[] = [];
       let deliveryResult: DeliveryResult | undefined;
       let trackingResult: TrackingResult | undefined;
-      let importEstimate: ImportEstimate | undefined;
+
       let serviceListing: ServiceListing | undefined;
       let groundingSources: Array<{ title: string; uri: string }> = [];
       let accumulatedSteps: Array<{ step: string; status: "running" | "completed"; content: string; durationMs?: number }> = [];
@@ -585,11 +590,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   m.id === aiMessageId ? { ...m, activeToolCall: null, trackingResult } : m
                 ));
 
-              } else if (packet.type === "import_estimate") {
-                importEstimate = packet.result as ImportEstimate;
-                setMessages(prev => prev.map(m =>
-                  m.id === aiMessageId ? { ...m, activeToolCall: null, importEstimate } : m
-                ));
 
               } else if (packet.type === "service_listing") {
                 serviceListing = packet.result as ServiceListing;
@@ -680,7 +680,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         showViewProductsButton: inlineProducts.length > 0,
         deliveryResult,
         trackingResult,
-        importEstimate,
+
         serviceListing,
         groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
         followUpText: followUpQuestions.length > 0 ? "Continue with:" : undefined,
@@ -737,7 +737,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       samples: [
         "Show me birthday cakes under Rs. 3,000",
         "Can you deliver flowers to Kandy this Saturday?",
-        "https://amazon.com/dp/B0EXAMPLE — how much in Sri Lanka?",
+
         "My air conditioner is broken, find a technician in Colombo",
         "Show me handmade gifts from local Sri Lankan artisans",
       ],
@@ -770,7 +770,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       await fetch("/api/session", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: activeUserId, cart: newCart }),
+        body: JSON.stringify({ userId: activeUserId, sessionId: activeHistoryId, cart: newCart }),
       });
 
       setMessages((prevMessages) => {
@@ -858,7 +858,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       await fetch("/api/session", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: activeUserId, cart: updatedCart }),
+        body: JSON.stringify({ userId: activeUserId, sessionId: currentSessionId, cart: updatedCart }),
       });
     } catch (e) {
       console.error("Failed to sync cart add to db:", e);

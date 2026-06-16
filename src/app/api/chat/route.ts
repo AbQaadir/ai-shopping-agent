@@ -4,8 +4,6 @@ import {
   extractCityFromMessage,
   extractDate,
   extractOrderId,
-  extractUrlFromMessage,
-  extractUsdPrice,
   Intent,
   ruleBasedIntent,
 } from "@/lib/nlp";
@@ -17,7 +15,6 @@ import {
   pillar2_findCity,
   pillar2_trackOrder,
   pillar3_searchSMEProducts,
-  pillar4_estimateImportCost,
   pillar5_detectServiceCategory,
   pillar5_searchServiceProviders,
   type KaprukaProduct,
@@ -52,10 +49,7 @@ All delivery quotes are in LKR. Flat rates are provided by the Grasshoppers cour
 Be precise with dates and delivery windows. Always clarify if perishables have restrictions.
 Keep responses concise — 2–3 sentences.`,
 
-  import: `You are Kapuruka's cross-border import cost estimator for Sri Lanka.
-You help users understand the full landed cost of importing goods from overseas (Amazon, Walmart, eBay, etc.).
-The estimate shown uses standard Sri Lanka Customs duty rates (2024): Customs Duty, PAL (10%), CESS (2.5%), and VAT (18%).
-Always remind the user that this is an estimate and actual duties may vary. Keep responses helpful and clear.`,
+
 
   service: `You are Kapuruka's home services booking assistant for Sri Lanka.
 You connect users with verified local technicians — electricians, plumbers, AC repair, cleaning, pest control, painting, and carpentry.
@@ -171,7 +165,7 @@ Analyze the user query in the context of the recent conversation history, and pe
 2. Classify the user message into exactly ONE intent:
    - "product": Searching for, comparing, or buying products on Kapruka.com (e.g. cakes, gifts, clothes, books, electronics), asking for details/specifications of a product in the conversation, reordering, or responding to any active step in the checkout pipeline (such as specifying quantities, selecting/updating delivery addresses, choosing payment methods like cash on delivery or card, or confirming to place the order with "yes please").
    - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order.
-   - "import": User asks about importing goods from abroad, pastes Amazon/Walmart/eBay URLs, or asks customs/duties.
+
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
    - "qa": General platform questions (returns, policies, general account help) or general knowledge/informational queries that require web search grounding. Note: Do NOT classify any checkout responses, payment method selections for an active order, or checkout confirmations (e.g. cash on delivery) as "qa".
 
@@ -187,7 +181,7 @@ Analyze the user query in the context of the recent conversation history, and pe
    - If not a product/service intent, set "searchTerms" to [].
 
 Respond ONLY with JSON matching this structure:
-{"intent": "product"|"delivery"|"import"|"service"|"qa", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reason": "brief explanation"}
+{"intent": "product"|"delivery"|"service"|"qa", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reason": "brief explanation"}
 
 [Recent Conversation History]
 ${historySnippet || "No previous history."}
@@ -216,7 +210,7 @@ User query to classify: "${message}"`;
         }
 
         const parsed = JSON.parse(responseText);
-        if (parsed?.intent && ["product", "delivery", "import", "service", "qa"].includes(parsed.intent)) {
+        if (parsed?.intent && ["product", "delivery", "service", "qa"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
         }
         if (typeof parsed?.isRelated === "boolean") {
@@ -312,7 +306,7 @@ RULES:
                 const tp = typeof m.thoughtProcess === "string" ? JSON.parse(m.thoughtProcess as string) : m.thoughtProcess as Record<string, unknown>;
                 if (tp?.orderFlowStep && typeof (tp.orderFlowStep as any).phase === "string") {
                   const phase = (tp.orderFlowStep as any).phase as string;
-                  if (phase === "confirmed" || phase === "out_of_stock") return null;
+                  if (phase === "confirmed" || phase === "out_of_stock" || phase === "cancelled") return null;
                   return { phase, orderFlowStep: tp.orderFlowStep as Record<string, unknown> };
                 }
               } catch { /* ignore */ }
@@ -393,15 +387,54 @@ RULES:
         const savedAddr = USER_DEFAULTS_OA[userId] || null;
         const hasSavedAddress = !!(savedAddr?.address && savedAddr?.city);
 
+        // ── Intercept Cart Clearing / Cancellation Queries ────────────────
+        const isCancelQuery = /clear.*cart|empty.*cart|cancel.*(checkout|order)|stop.*(checkout|order)|exit.*checkout/i.test(message.toLowerCase());
+        if (isCancelQuery) {
+          const currentUserId = session?.userId || userId || "guest";
+          const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
+          let cartObj: Record<string, any[]> = {};
+          if (userWithCart?.cart) {
+            try {
+              cartObj = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as Record<string, any[]>);
+              if (Array.isArray(cartObj)) cartObj = {};
+            } catch (e) {
+              console.error(e);
+            }
+          }
+          delete cartObj[sessionId];
+          await (prisma.user as any).update({
+            where: { id: currentUserId },
+            data: { cart: cartObj }
+          });
+
+          const ofs = { phase: "cancelled", cartItems: [] };
+          send({ type: "order_flow_step", ...ofs });
+
+          const t = "No problem! I've cancelled your checkout and cleared your cart. Let me know if you'd like to search for other products!";
+          await streamWords(t);
+          await saveOrderMessage(t, ofs);
+          controller.close();
+          return;
+        }
+
         // ── Intercept Add to Cart/Order queries ───────────────────────────
-        const isAddToCartQuery = /add.*(cart|order)|put.*(cart|order)|include.*order/i.test(message.toLowerCase());
+        const isAddToCartQuery = 
+          /add.*(cart|order)|put.*(cart|order)|include.*order/i.test(message.toLowerCase()) &&
+          llmSearchTerms.length === 0;
         if (isAddToCartQuery) {
           const currentUserId = session?.userId || userId || "guest";
           const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
           let currentCart: any[] = [];
+          let cartObj: Record<string, any[]> = {};
           if (userWithCart?.cart) {
             try {
-              currentCart = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as any[]);
+              cartObj = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as Record<string, any[]>);
+              if (cartObj && typeof cartObj === "object" && !Array.isArray(cartObj)) {
+                currentCart = cartObj[sessionId] || [];
+              } else {
+                currentCart = [];
+                cartObj = {};
+              }
             } catch (e) {
               console.error(e);
             }
@@ -521,9 +554,10 @@ Response JSON:`;
                 });
               }
               // Sync updated cart back to user in database
+              cartObj[sessionId] = currentCart;
               await (prisma.user as any).update({
                 where: { id: currentUserId },
-                data: { cart: currentCart }
+                data: { cart: cartObj }
               });
             }
           }
@@ -579,29 +613,44 @@ Response JSON:`;
 
         if (isCheckoutQuery) {
           let currentCart: any[] = [];
+          let cartObj: Record<string, any[]> = {};
           const currentUserId = session?.userId || userId || "guest";
           const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
           if (userWithCart?.cart) {
             try {
-              currentCart = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as any[]);
+              cartObj = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as Record<string, any[]>);
+              if (cartObj && typeof cartObj === "object" && !Array.isArray(cartObj)) {
+                currentCart = cartObj[sessionId] || [];
+              } else {
+                currentCart = [];
+                cartObj = {};
+              }
             } catch (e) {
               console.error(e);
             }
           }
 
-          // Auto-populate cart from selection boxes if empty
+          // Auto-populate cart from selection boxes (merge instead of overwrite)
           if (fetchedSelectedProducts.length > 0) {
-            currentCart = fetchedSelectedProducts.map((p: any) => ({
-              id: p.id,
-              name: p.name || p.title || "Kapruka Product",
-              price: p.price || 0,
-              quantity: 1,
-              imageUrl: p.imageUrl || p.image,
-              inStock: p.inStock !== false
-            }));
+            for (const p of fetchedSelectedProducts as any[]) {
+              const existingIdx = currentCart.findIndex(item => item.id === p.id);
+              if (existingIdx > -1) {
+                currentCart[existingIdx].quantity += 1;
+              } else {
+                currentCart.push({
+                  id: p.id,
+                  name: p.name || p.title || "Kapruka Product",
+                  price: p.price || 0,
+                  quantity: 1,
+                  imageUrl: p.imageUrl || p.image,
+                  inStock: p.inStock !== false
+                });
+              }
+            }
+            cartObj[sessionId] = currentCart;
             await (prisma.user as any).update({
               where: { id: currentUserId },
-              data: { cart: currentCart }
+              data: { cart: cartObj }
             });
           }
 
@@ -630,9 +679,10 @@ Response JSON:`;
           );
 
           currentCart = freshCart;
+          cartObj[sessionId] = currentCart;
           await (prisma.user as any).update({
             where: { id: currentUserId },
-            data: { cart: currentCart }
+            data: { cart: cartObj }
           });
 
           send({ type: "thought", step: "checking_stock", status: "completed", content: "Stock check complete.", durationMs: 0 });
@@ -672,19 +722,35 @@ Response JSON:`;
           message.toLowerCase().trim() === "yes, deliver here" ||
           message.toLowerCase().trim() === "use new address";
 
-        const isUserDeviating = !!(activePhase && !isCheckoutCommand && (
+        const isUserDeviating = !!(activePhase && (
           (intent === "product" && llmSearchTerms.length > 0) ||
           (intent === "qa") ||
-          (intent === "delivery" && activePhase.phase !== "address_ask" && activePhase.phase !== "delivery_ask" && !message.toLowerCase().includes("confirm location") && !/yes|no|saved|new/i.test(message)) ||
-          (intent === "import") ||
-          (intent === "service")
+          (intent === "service") ||
+          (!isCheckoutCommand && intent === "delivery" && activePhase.phase !== "address_ask" && activePhase.phase !== "delivery_ask" && !message.toLowerCase().includes("confirm location") && !/yes|no|saved|new/i.test(message))
         ));
 
         if (activePhase && !isUserDeviating) {
           const { phase, orderFlowStep: currentStep } = activePhase;
           const accData = getAccumulatedOrderData();
           const product = (accData.product || (currentStep as any).product) as any;
-          const cartItems = (accData.cartItems || (currentStep as any).cartItems) as any[] | null;
+          let cartItems = (accData.cartItems || (currentStep as any).cartItems) as any[] | null;
+
+          // Load fresh cart from database if it's a cart-based checkout
+          if (cartItems && cartItems.length > 0) {
+            const currentUserId = session?.userId || userId || "guest";
+            const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
+            if (userWithCart?.cart) {
+              try {
+                const cartObj = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as Record<string, any[]>);
+                if (cartObj && typeof cartObj === "object" && !Array.isArray(cartObj)) {
+                  cartItems = cartObj[sessionId] || cartItems || [];
+                }
+              } catch (e) {
+                console.error("Failed to load fresh cart in continuation:", e);
+              }
+            }
+          }
+
           const stockQty = (accData.stockQty ?? (currentStep as any).stockQty ?? 50) as number;
 
           send({ type: "thought", step: "order_agent", status: "running", content: `Order agent: processing phase "${phase}"...` });
@@ -735,7 +801,12 @@ Response JSON:`;
               let finalCart = cartItems;
               if (userWithCart?.cart) {
                 try {
-                  finalCart = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as any[]);
+                  const cartObj = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as Record<string, any[]>);
+                  if (cartObj && typeof cartObj === "object" && !Array.isArray(cartObj)) {
+                    finalCart = cartObj[sessionId] || cartItems || [];
+                  } else {
+                    finalCart = cartItems || [];
+                  }
                 } catch (e) {
                   console.error(e);
                 }
@@ -926,9 +997,20 @@ Response JSON:`;
                   
                   // Clear the user's cart in DB after successful order checkout!
                   const currentUserId = session?.userId || userId || "guest";
+                  const userWithCart = await (prisma.user as any).findUnique({ where: { id: currentUserId } });
+                  let cartObj: Record<string, any[]> = {};
+                  if (userWithCart?.cart) {
+                    try {
+                      cartObj = typeof userWithCart.cart === "string" ? JSON.parse(userWithCart.cart as string) : (userWithCart.cart as Record<string, any[]>);
+                      if (Array.isArray(cartObj)) cartObj = {};
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }
+                  delete cartObj[sessionId];
                   await (prisma.user as any).update({
                     where: { id: currentUserId },
-                    data: { cart: [] }
+                    data: { cart: cartObj }
                   });
                 }
               } catch (err) { console.error("[OrderAgent] place order failed:", err); }
@@ -1439,27 +1521,7 @@ Response JSON:`;
           }
         }
 
-        // ── Pillar 4: Import Cost Estimator ───────────────────────────────
-        if (intent === "import") {
-          send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Cross-Border Import Estimator..." });
 
-          const url = extractUrlFromMessage(message);
-          const usdPrice = extractUsdPrice(message);
-
-          send({ type: "thought", step: "intent_routing", status: "completed", content: `Detected import query${url ? ` with URL: ${url.substring(0, 60)}...` : ""}`, durationMs: 0 });
-          send({ type: "thought", step: "calculating_import", status: "running", content: "Applying Sri Lanka Customs duty schedule (Customs Duty + PAL 10% + CESS 2.5% + VAT 18%)..." });
-          send({ type: "tool_call", name: "kapruka_import_estimate", args: { url: url || "unknown", usd_price: usdPrice } });
-
-          const t = Date.now();
-          const estimate = await pillar4_estimateImportCost(url || message, usdPrice);
-          const dur = Date.now() - t;
-
-          if (estimate) {
-            steps.push({ step: "calculating_import", status: "completed", content: `Estimated landed cost: LKR ${estimate.totalLandedLKR.toLocaleString()} for ${estimate.productTitle}`, durationMs: dur });
-            send({ type: "thought", step: "calculating_import", status: "completed", content: `Import cost calculated. Category: ${estimate.productTitle}. Total: LKR ${estimate.totalLandedLKR.toLocaleString()}`, durationMs: dur });
-            send({ type: "import_estimate", result: estimate });
-          }
-        }
 
         // ── Pillar 5: Services Platform ────────────────────────────────────
         if (intent === "service") {
@@ -1779,11 +1841,7 @@ const STATIC_FOLLOW_UPS: Record<Intent, string[]> = {
     "What are the delivery charges to Galle?",
     "Track my recent Kapruka order",
   ],
-  import: [
-    "Calculate import cost for electronics",
-    "What are Sri Lanka customs duty rates?",
-    "Can Kapruka Global Shop help me import this?",
-  ],
+
   service: [
     "Find an electrician in Colombo",
     "Book a cleaning service for this weekend",
@@ -1805,8 +1863,7 @@ function generateFallback(intent: Intent, message: string, products: KaprukaProd
         : `I searched the Kapruka catalog for "${message}". Please refine your search with more specific keywords or a price range in LKR.`;
     case "delivery":
       return "I can check Kapruka Grasshoppers delivery availability and rates to any Sri Lankan city. Please mention the destination city and delivery date.";
-    case "import":
-      return "I can estimate the Sri Lanka landed cost (including Customs Duty, PAL, CESS, and VAT) for any product you want to import. Please share the product URL or USD price.";
+
     case "service":
       return "I can connect you with verified home service technicians in your area. Please tell me your city and the type of service you need (e.g., AC repair, plumbing, electrical).";
     case "qa":
