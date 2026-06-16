@@ -103,9 +103,9 @@ AI classified intent: "${intent}"
 → Examples: "show me birthday cakes", "can you deliver to Kandy?", "what's the return policy?", "compare those two phones"
 
 "checkout_start"
-→ Use when: User explicitly wants to BEGIN a new checkout process.
+→ Use when: User explicitly wants to BEGIN a new checkout process from scratch.
 → Examples: "order this", "I want to buy this", "place the order", "proceed to checkout"
-→ Do NOT use if checkout is already active (use checkout_continue instead)
+→ Do NOT use if checkout is already active (use cart_modify if they want to add/remove items from the active checkout, or checkout_continue to proceed with checkout)
 
 "checkout_continue"
 → Use ONLY when: An ACTIVE CHECKOUT exists AND the user's message is a DIRECT, sensible answer to the CURRENT PHASE QUESTION.
@@ -119,7 +119,7 @@ AI classified intent: "${intent}"
 → CRITICAL RULE: "yes" or "no" alone are ambiguous. Check if they make sense for the CURRENT PHASE. If not, use checkout_pause.
 
 "checkout_pause"
-→ Use when: Active checkout exists BUT the user wants to do something UNRELATED to the current phase.
+→ Use when: Active checkout exists BUT the user wants to do something UNRELATED to the current phase (like searching, comparison, platform QA, or asking details about products they want to see first).
 → Examples (REGARDLESS of phase):
     "compare these items" → pause, answer
     "show me some flowers" → pause, search
@@ -132,15 +132,14 @@ AI classified intent: "${intent}"
 → When in doubt between checkout_continue and checkout_pause: ALWAYS choose checkout_pause.
 
 "cart_modify"
-→ Use when: User wants to change what is IN the cart (remove an item, change a quantity).
+→ Use when: User wants to change the cart contents (remove an item, change a quantity, or add products they have selected or just viewed/discussed in the chat).
 → Examples:
     "remove the shoes from cart"
     "delete the second item"
     "change the cake quantity to 2"
-    "I don't want the flowers anymore"
-    "make it 3 cakes instead"
-    "take the chocolates out"
-→ Do NOT use for adding a brand new product the user hasn't seen yet (use checkout_pause for that)
+    "add the first flower bouquet to my order"
+    "please add all of those to the order"
+    "add the cake to my cart"
 
 "checkout_cancel"
 → Use when: User EXPLICITLY wants to STOP and CLEAR everything. Clear language required.
