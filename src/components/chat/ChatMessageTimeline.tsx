@@ -7,7 +7,7 @@ import { cleanProductTitle } from "@/lib/product";
 
 import DeliveryCard from "./cards/DeliveryCard";
 import TrackingCard from "./cards/TrackingCard";
-import ImportEstimateCard from "./cards/ImportEstimateCard";
+
 import ServiceListingCard from "./cards/ServiceListingCard";
 import CheckoutCard from "./cards/CheckoutCard";
 import OrderFlowCard from "./cards/OrderFlowCard";
@@ -892,15 +892,7 @@ export default function ChatTimeline({
                           )
                         }
 
-                        {/* ── Pillar 4: Import Estimate Card ── */}
-                        {msg.importEstimate &&
-                          renderClosableToolCard(
-                            msg.id,
-                            "Import estimate",
-                            <Box size={16} className="text-[#402970] shrink-0" />,
-                            <ImportEstimateCard estimate={msg.importEstimate} />
-                          )
-                        }
+
 
                         {/* ── Pillar 5: Service Listing Card ── */}
                         {msg.serviceListing &&

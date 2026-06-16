@@ -6,7 +6,12 @@ export async function POST(req: NextRequest) {
   try {
     const { inputText, chatHistory } = await req.json().catch(() => ({}));
 
-    if (!inputText || typeof inputText !== "string" || inputText.trim().length < 3) {
+    if (!inputText || typeof inputText !== "string") {
+      return NextResponse.json({ suggestions: [] });
+    }
+
+    const words = inputText.trim().split(/\s+/).filter(Boolean);
+    if (words.length < 3 || words.length > 5) {
       return NextResponse.json({ suggestions: [] });
     }
 

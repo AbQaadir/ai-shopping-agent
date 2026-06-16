@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const sessionId = searchParams.get("id");
+    const sessionId = searchParams.get("sessionId") || searchParams.get("id");
     const userId = searchParams.get("userId");
     const cartOnly = searchParams.get("cartOnly") === "true";
 
@@ -19,7 +19,22 @@ export async function GET(req: NextRequest) {
           select: { cart: true },
         });
       }
-      return NextResponse.json(user?.cart || []);
+      
+      let cartItems: any[] = [];
+      if (user?.cart) {
+        try {
+          const cartObj = typeof user.cart === "string" ? JSON.parse(user.cart as string) : (user.cart as Record<string, any[]>);
+          if (sessionId && cartObj && typeof cartObj === "object" && !Array.isArray(cartObj)) {
+            cartItems = cartObj[sessionId] || [];
+          } else if (!sessionId && Array.isArray(cartObj)) {
+            // Migration fallback: return flat array only if no sessionId is specified
+            cartItems = cartObj;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      return NextResponse.json(cartItems);
     }
 
     if (sessionId) {
@@ -56,7 +71,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { userId, cart } = body;
+    const { userId, sessionId, cart } = body;
 
     if (!userId) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
@@ -69,9 +84,25 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
+    let cartObj: Record<string, any[]> = {};
+    if (userExists?.cart) {
+      try {
+        cartObj = typeof userExists.cart === "string" ? JSON.parse(userExists.cart as string) : (userExists.cart as Record<string, any[]>);
+        if (Array.isArray(cartObj)) {
+          cartObj = {};
+        }
+      } catch (e) {
+        cartObj = {};
+      }
+    }
+
+    if (sessionId) {
+      cartObj[sessionId] = cart;
+    }
+
     const updatedUser = await (prisma.user as any).update({
       where: { id: userId },
-      data: { cart },
+      data: { cart: cartObj },
     });
 
     return NextResponse.json(updatedUser);

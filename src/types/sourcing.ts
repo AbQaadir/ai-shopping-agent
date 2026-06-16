@@ -98,21 +98,7 @@ export interface TrackingResult {
   steps: TrackingStep[];
 }
 
-export interface ImportEstimate {
-  originalUrl: string;
-  productTitle: string;
-  usdPrice: number;
-  usdToLkrRate: number;
-  cifValueLKR: number;
-  customsDutyLKR: number;
-  customsDutyPct: number;
-  palLKR: number;
-  cessLKR: number;
-  vatLKR: number;
-  totalLandedLKR: number;
-  breakdown: string;
-  disclaimer: string;
-}
+
 
 export interface ServiceProvider {
   id: string;
@@ -182,8 +168,7 @@ export interface Message {
   trackingResult?: TrackingResult;
   citySuggestions?: Array<{ name: string; alias?: string; province?: string }>;
 
-  // Pillar 4: import
-  importEstimate?: ImportEstimate;
+
 
   // Pillar 5: services
   serviceListing?: ServiceListing;
