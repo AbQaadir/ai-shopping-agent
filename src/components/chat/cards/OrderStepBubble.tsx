@@ -406,8 +406,14 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 
   const initMap = async () => {
     if (typeof window === "undefined" || !(window as any).google || !mapRef.current || !geo) return;
+    if (mapInstanceRef.current) return;
     const google = (window as any).google;
-    const center = { lat: geo.lat, lng: geo.lng };
+    let center = { lat: geo.lat, lng: geo.lng };
+    let initialAddress = geo.formattedAddress;
+    let initialCity = "Colombo";
+
+    // Detect if we fell back to Colombo coordinates because server geocoding failed/is restricted
+    const isFallback = geo.lat === 6.9271 && geo.lng === 79.8612 && geo.label !== "Colombo" && geo.label !== "Colombo, Sri Lanka";
 
     try {
       let MapClass: any;
@@ -436,6 +442,39 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
         if (google.maps.marker && (google.maps.marker as any).AdvancedMarkerElement) {
           MarkerClass = (google.maps.marker as any).AdvancedMarkerElement;
           isAdvanced = true;
+        }
+      }
+
+      if (isFallback) {
+        // Run forward geocoding client-side using the browser context to bypass HTTP referrer restrictions
+        const geocoder = new GeocoderClass();
+        try {
+          const results = await new Promise<any>((resolve, reject) => {
+            geocoder.geocode({ address: geo.formattedAddress + ", Sri Lanka" }, (res: any, status: any) => {
+              if (status === "OK" && res && res.length > 0) {
+                resolve(res);
+              } else {
+                reject(status);
+              }
+            });
+          });
+
+          const loc = results[0].geometry.location;
+          center = {
+            lat: typeof loc.lat === "function" ? loc.lat() : loc.lat,
+            lng: typeof loc.lng === "function" ? loc.lng() : loc.lng,
+          };
+          initialAddress = results[0].formatted_address;
+          const comps = results[0].address_components || [];
+          const cityComp = comps.find(
+            (c: any) =>
+              c.types.includes("locality") ||
+              c.types.includes("sublocality_level_1") ||
+              c.types.includes("administrative_area_level_3")
+          );
+          initialCity = cityComp?.long_name || "Colombo";
+        } catch (geocodeErr) {
+          console.error("Client-side forward geocoding failed, using default coordinates:", geocodeErr);
         }
       }
 
@@ -499,8 +538,9 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
         });
       };
 
-      setConfirmedAddress(geo.formattedAddress);
-      updateAddr(center);
+      setConfirmedAddress(initialAddress);
+      setConfirmedCity(isFallback ? initialCity : (geo.label || "Colombo"));
+
       if (isActive) {
         map.addListener("click", (e: any) => updateAddr(e.latLng));
         if (isAdvanced) {
@@ -564,7 +604,7 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
       script.removeEventListener("error", onError);
       clearTimeout(timeout);
     };
-  }, []);
+  }, [geo?.lat, geo?.lng, geo?.label, geo?.formattedAddress]);
 
   const handleConfirmLocation = () => {
     if (submittedRef.current) return;

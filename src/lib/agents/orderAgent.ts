@@ -117,7 +117,7 @@ Reason about what the user said and determine:
    qty_ask (single product): Did they mention a quantity? → quantity: <number>
    qty_ask (cart): Did they change any item quantity? → updatedCartItems: [updated cart array]
    delivery_ask: usesSavedAddress: true or false
-   address_ask: addressText: "<the entire message — it IS the address>"
+   address_ask: addressText: "Extract a clean, concise address or landmark, omitting conversational prefixes (like 'I want to deliver near', 'send it to', 'please deliver at', etc.)."
    map_open: The message will be "Confirm location: <address>, <city>" → parse confirmedAddress implicitly (just set nextPhase)
    payment_ask: paymentMethod: "cod" or "card"
    

@@ -22,6 +22,8 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 // ── New Agentic Architecture ──────────────────────────────────────────────
 import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";
 import { orderAgent } from "@/lib/agents/orderAgent";
@@ -688,8 +690,8 @@ User query to classify: "${message}"`;
           if ((agentOutput.requiresGeocode || isTransitioningToMap) && addressToGeocode) {
             send({ type: "thought", step: "geocoding", status: "running", content: `Geocoding: "${addressToGeocode}"...` });
             const geo = await geocodeLocation(addressToGeocode);
-            send({ type: "thought", step: "geocoding", status: "completed", content: geo ? `Found: ${geo.label}` : "Default: Colombo", durationMs: 0 });
-            updatedState.geocodedLocation = geo ?? { lat: 6.9271, lng: 79.8612, formattedAddress: "Colombo, Sri Lanka", label: "Colombo" };
+            send({ type: "thought", step: "geocoding", status: "completed", content: geo ? `Found: ${geo.label}` : `Default: Colombo (Query: "${addressToGeocode}")`, durationMs: 0 });
+            updatedState.geocodedLocation = geo ?? { lat: 6.9271, lng: 79.8612, formattedAddress: addressToGeocode, label: addressToGeocode };
           }
 
           // Handle map_open confirmation: parse "Confirm location: <address>, <city>" from UI
