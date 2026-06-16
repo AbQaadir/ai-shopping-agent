@@ -295,7 +295,7 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
     setCity(val);
     if (val.length >= 2) {
       try {
-        const res = await fetch(`/api/delivery?q=${encodeURIComponent(val)}`);
+        const res = await fetch(`/api/delivery?q=${encodeURIComponent(val)}&_t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           setCitySuggestions(data);

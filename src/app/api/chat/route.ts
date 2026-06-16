@@ -23,6 +23,8 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 // ── New Agentic Architecture ──────────────────────────────────────────────
 import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";

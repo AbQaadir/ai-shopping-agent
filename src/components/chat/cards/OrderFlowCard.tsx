@@ -271,7 +271,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
     setCity(val);
     if (val.length >= 2) {
       try {
-        const res = await fetch(`/api/delivery?q=${encodeURIComponent(val)}`);
+        const res = await fetch(`/api/delivery?q=${encodeURIComponent(val)}&_t=${Date.now()}`);
         if (res.ok) { setCitySuggestions(await res.json()); setShowSuggestions(true); }
       } catch {}
     } else {
