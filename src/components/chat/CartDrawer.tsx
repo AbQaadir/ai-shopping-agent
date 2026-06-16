@@ -48,7 +48,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         onClick={onClose}
       />
 
-      <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+      <div className="absolute inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
         {/* Sliding Panel */}
         <div className="w-screen max-w-md transform transition-all duration-300 ease-in-out bg-white/90 backdrop-blur-xl border-l border-white/20 shadow-2xl flex flex-col h-full rounded-l-3xl animate-slideLeft">
           

@@ -657,7 +657,7 @@ export default function ChatTimeline({
 
   return (
     <div
-      className="flex-1 overflow-y-auto px-4 pt-16 space-y-6 flex flex-col items-center w-full"
+      className="flex-1 overflow-y-auto px-4 pt-4 md:pt-16 pb-32 md:pb-36 space-y-6 flex flex-col items-center w-full"
       style={{ scrollbarGutter: "stable" }}
     >
       <div className="w-full max-w-3xl space-y-6 flex flex-col">

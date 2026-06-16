@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Paperclip, ArrowUp, X, Menu, ShoppingCart, Search, Plus, Send } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
+import PillarSuggestionGrid from "./PillarSuggestionGrid";
 
 interface LandingWorkspaceProps {
   onSend: (text: string, files: File[]) => void;
@@ -169,7 +170,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         </button>
       </div>
 
-      <div className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center gap-6 sm:gap-10 relative overflow-y-auto animate-fadeIn">
+      <div className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-4 sm:py-10 flex flex-col justify-center gap-4 sm:gap-10 relative overflow-y-auto animate-fadeIn">
  
       {/* Background glow */}
       <div className="absolute top-[10%] sm:top-[15%] left-1/2 -translate-x-1/2 w-[320px] sm:w-[700px] h-[180px] sm:h-[350px] bg-gradient-to-tr from-[#402970]/8 to-purple-400/8 rounded-full blur-[80px] sm:blur-[120px] pointer-events-none -z-10" />
@@ -247,7 +248,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           {attachedFiles.length > 0 && (
             <div className="flex flex-wrap gap-1.5 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-slate-100 shadow-sm self-start animate-fadeIn animate-slideInRight">
               {attachedFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-medium text-slate-600">
+                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-medium text-slate-650">
                   <span className="truncate max-w-[120px]">{file.name}</span>
                   <button onClick={() => setAttachedFiles((p) => p.filter((_, i) => i !== idx))} className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer">
                     <X size={10} />
@@ -312,8 +313,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           </div>
         </div>
       </div>
- 
 
+      <PillarSuggestionGrid onSuggestionClick={onSuggestionClick} />
     </div>
   </div>
   );

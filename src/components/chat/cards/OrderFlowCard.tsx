@@ -511,7 +511,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                 <User size={10} /> Recipient Name
@@ -543,7 +543,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
             <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1 mb-1">
               <MapPin size={10} /> Select Delivery Location on Map
             </label>
-            <div className="w-full border border-slate-200 rounded-xl overflow-hidden relative shadow-inner bg-slate-100 h-[320px] sm:h-[400px] flex items-center justify-center">
+            <div className="w-full border border-slate-200 rounded-xl overflow-hidden relative shadow-inner bg-slate-100 h-[250px] sm:h-[400px] flex items-center justify-center">
               {useGoogleMaps ? (
                 <div ref={mapRef} className="w-full h-full" />
               ) : (
@@ -556,7 +556,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
           </div>
 
           {/* Address inputs */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Delivery Address</label>
               <input

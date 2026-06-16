@@ -113,8 +113,63 @@ export default function ChatWorkspace({
     /* Full-height flex column — exactly fills the space below the app header */
     <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-white relative">
 
+      {/* Mobile Header Navigation */}
+      <header className="md:hidden w-full h-14 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-3 select-none shrink-0 z-20">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all cursor-pointer active:scale-95 outline-none"
+            title="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <button
+            onClick={onBackToLanding}
+            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all cursor-pointer active:scale-95 outline-none flex items-center"
+            title="Go back"
+          >
+            <ChevronLeft size={20} />
+          </button>
+        </div>
+
+        <div className="flex items-center">
+          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+            Sourcing Session
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {/* Share */}
+          <button
+            onClick={handleShareClick}
+            className={`p-2 rounded-xl transition-all cursor-pointer active:scale-95 outline-none flex items-center ${
+              isCopied
+                ? "bg-emerald-50 text-emerald-600 border border-emerald-150 font-bold"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
+            }`}
+            title="Share session"
+          >
+            {isCopied ? <Check size={20} className="stroke-[3]" /> : <Share2 size={20} />}
+          </button>
+
+          {/* Cart */}
+          <button
+            onClick={() => setIsCartDrawerOpen(true)}
+            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all cursor-pointer active:scale-95 outline-none relative"
+            title="Open cart"
+          >
+            <ShoppingCart size={20} />
+            {cartItems.length > 0 && (
+              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#402970] text-white flex items-center justify-center text-[9px] font-extrabold shadow-sm animate-pulse">
+                {cartItems.reduce((acc, i) => acc + i.quantity, 0)}
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
+
       {/* Floating mobile trigger & back button */}
-      <div className="absolute top-4 left-6 z-20 flex items-center gap-2.5 bg-white/85 backdrop-blur-md p-1.5 rounded-xl border border-slate-100/80 shadow-xs select-none">
+      <div className="hidden md:flex absolute top-4 left-6 z-20 flex items-center gap-2.5 bg-white/85 backdrop-blur-md p-1.5 rounded-xl border border-slate-100/80 shadow-xs select-none">
         {/* Mobile menu trigger */}
         <button
           onClick={() => setIsMobileSidebarOpen(true)}
@@ -134,7 +189,7 @@ export default function ChatWorkspace({
       </div>
 
       {/* Floating control buttons */}
-      <div className="absolute top-4 right-6 z-20 select-none flex items-center gap-3">
+      <div className="hidden md:flex absolute top-4 right-6 z-20 select-none flex items-center gap-3">
         {/* Floating cart button */}
         <button
           onClick={() => setIsCartDrawerOpen(true)}
@@ -155,7 +210,7 @@ export default function ChatWorkspace({
           className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none ${
             isCopied
               ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-extrabold scale-95"
-              : "bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350"
+              : "bg-white/85 backdrop-blur-md border-slate-200 text-slate-655 hover:text-slate-900 hover:border-slate-355"
           }`}
         >
           {isCopied ? <Check size={13} className="stroke-[3]" /> : <Share2 size={13} />}

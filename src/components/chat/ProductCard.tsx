@@ -194,7 +194,7 @@ export default function ProductCard({
           className={`absolute inset-0 flex items-end justify-center pb-2.5 transition-opacity duration-200 ${
             isSelected
               ? "opacity-100 bg-[#402970]/10"
-              : "opacity-0 group-hover:opacity-100 bg-[#402970]/5"
+              : "opacity-100 md:opacity-0 md:group-hover:opacity-100 bg-transparent md:bg-[#402970]/5"
           }`}
         >
           <button
