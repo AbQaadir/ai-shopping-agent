@@ -108,28 +108,19 @@ AI classified intent: "${intent}"
 → Do NOT use if checkout is already active (use cart_modify if they want to add/remove items from the active checkout, or checkout_continue to proceed with checkout)
 
 "checkout_continue"
-→ Use ONLY when: An ACTIVE CHECKOUT exists AND the user's message is a DIRECT, sensible answer to the CURRENT PHASE QUESTION.
-→ Phase-specific signals:
-    qty_ask: User confirms quantities. "looks good", "confirm", "yes proceed", "change to 2" = continue.
-    delivery_ask: User chooses between saved address or new. "yes saved", "use my address", "new address", "different place" = continue.
-    address_ask: User provides ANY location text at all. The entire message is the address. Always = continue.
-    map_open: UI sends "Confirm location: ..." message. Always = continue.
-    payment_ask: User says cash/cod or card/online. "cash on delivery", "card please", "cod" = continue.
-→ CRITICAL RULE: If the message is a QUESTION, a SEARCH REQUEST, a comparison, or about something DIFFERENT from the current phase — it is NOT checkout_continue.
-→ CRITICAL RULE: "yes" or "no" alone are ambiguous. Check if they make sense for the CURRENT PHASE. If not, use checkout_pause.
+→ Use when: An ACTIVE CHECKOUT exists AND the user's message is either a direct response to the current phase question, OR a request to navigate, correct, go back, or adjust any detail in the checkout flow (e.g., "change my address", "go back to the map", "use cash instead of card", "actually, deliver near Bogahakumbura", "can we open the map again?", "change quantities").
+→ Do NOT use for completely unrelated shopping queries or platform support questions.
 
 "checkout_pause"
-→ Use when: Active checkout exists BUT the user wants to do something UNRELATED to the current phase (like searching, comparison, platform QA, or asking details about products they want to see first).
-→ Examples (REGARDLESS of phase):
+→ Use when: Active checkout exists BUT the user wants to do something completely UNRELATED to the checkout process itself (like searching/browsing new products to add to cart, comparing products, asking about general platform FAQs/policies, or checking delivery options for other cities).
+→ Examples:
     "compare these items" → pause, answer
     "show me some flowers" → pause, search
-    "tell me more about the cake" → pause, answer
     "what is the return policy?" → pause, answer Q&A
     "can you deliver to Galle?" → pause, check delivery
     "actually wait, can I see more options?" → pause, search
-    "how much is the shipping?" → pause, answer
 → The checkout session stays ALIVE — it is not cancelled.
-→ When in doubt between checkout_continue and checkout_pause: ALWAYS choose checkout_pause.
+→ When in doubt between checkout_continue and checkout_pause: if it's about the current order/checkout details (address, payment, quantity), prioritize checkout_continue.
 
 "cart_modify"
 → Use when: User wants to change the cart contents (remove an item, change a quantity, or add products they have selected or just viewed/discussed in the chat).
@@ -148,11 +139,11 @@ AI classified intent: "${intent}"
 
 ═══ DECISION RULES ═══
 1. If no active checkout → "shop" or "checkout_start" only
-2. If active checkout + message fits current phase question → "checkout_continue"
-3. If active checkout + message is about something else → "checkout_pause"
-4. If active checkout + user wants cart change → "cart_modify"
-5. If active checkout + clear cancellation language → "checkout_cancel"
-6. When uncertain between checkout_continue and checkout_pause → ALWAYS use "checkout_pause"
+2. If active checkout + message relates to responding to or adjusting/navigating/correcting checkout information → "checkout_continue"
+3. If active checkout + user wants cart change (add/remove/alter items) → "cart_modify"
+4. If active checkout + clear cancellation language → "checkout_cancel"
+5. If active checkout + message is completely unrelated to the checkout process itself → "checkout_pause"
+6. When uncertain between checkout_continue and checkout_pause for checkout/order details → ALWAYS choose "checkout_continue"
 
 Respond ONLY as valid JSON:
 {"action": "<action>", "reason": "<one sentence explanation>"}`;

@@ -104,21 +104,27 @@ Reason about what the user said and determine:
      → "map_open" always (any text they type IS the address, set requiresGeocode=true)
    
    "map_open" phase:
-     → "payment_ask" always (the "Confirm location: ..." message means they pinned the location)
+     → "payment_ask" ONLY if the user confirmed their location (typically the message starts with "Confirm location:").
+     → "map_open" (with stay=false and requiresGeocode=true) if they type a new address/location text or ask to open/pin/change the map location. Set addressText: "<the new location text>".
+     → "map_open" + stay=true if they just send other text or questions, reminding them to drag the pin and tap confirm.
    
    "payment_ask" phase:
      → "confirmed" if user chose a payment method (set requiresOrderPlace=true)
      → "payment_ask" + stay=true if unclear
 
+   GENERAL NAVIGATION (Phase regression/correction):
+   - If the user explicitly asks to change their address, use a different location, go back to the map, or pin the location (e.g. "change my address", "deliver to Colombo", "open map", "pin location again"), transition to "map_open" (if they type/provide a rough location, set requiresGeocode=true and addressText: "<location>") or "address_ask" (if they didn't specify where).
+   - If the user wants to adjust quantities or change the items at any point, transition back to "qty_ask".
+
 2. stay — Is the response staying at the current phase?
-   Set true only if the user was unclear and you're repeating the phase question.
+   Set true only if the user was unclear and you're repeating the phase question, or they typed text in "map_open" without confirming.
 
 3. extractedData — Extract structured values:
    qty_ask (single product): Did they mention a quantity? → quantity: <number>
    qty_ask (cart): Did they change any item quantity? → updatedCartItems: [updated cart array]
    delivery_ask: usesSavedAddress: true or false
-   address_ask: addressText: "<the entire message — it IS the address>"
-   map_open: The message will be "Confirm location: <address>, <city>" → parse confirmedAddress implicitly (just set nextPhase)
+   address_ask / navigation: addressText: "<the address or location text provided>"
+   map_open: The message starts with "Confirm location: <address>, <city>" → parse confirmedAddress implicitly (just set nextPhase: "payment_ask")
    payment_ask: paymentMethod: "cod" or "card"
    
    COD signals: cash, cod, cash on delivery, on delivery, pay on arrival
@@ -135,8 +141,11 @@ Reason about what the user said and determine:
    - delivery_ask → payment_ask: Acknowledge saved address. Ask how to pay.
    - delivery_ask → address_ask: Ask them to type a rough location/landmark.
    - address_ask → map_open: "I've opened the map near [label you'd geocode to]. Drag the pin to your exact door and tap Confirm when ready."
+   - map_open (when they type text instead of confirming): "I have launched the map interface for you to easily pin your exact location near [addressText]. Please use the map on your screen to drag and confirm."
    - map_open → payment_ask: Acknowledge address confirmed. Ask payment method (COD or card).
-   - payment_ask → confirmed: This is just a placeholder — actual confirmation message is generated later.
+   - payment_ask → confirmed: This is just a placeholder.
+   - Going back to map/address: "No problem, let's update your location. I've opened the map near [location]. Please pin your location."
+   - Going back to quantities: "Certainly. Let's adjust your quantities. Please check your items below and confirm when ready."
    - stay=true: Politely re-ask the same phase question.
 
 Respond ONLY as valid JSON matching exactly this schema:

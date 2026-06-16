@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Paperclip, ArrowUp, X, Menu, ShoppingCart, Search, Plus, Send } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
-import PillarSuggestionGrid from "./PillarSuggestionGrid";
+
 
 interface LandingWorkspaceProps {
   onSend: (text: string, files: File[]) => void;
@@ -314,7 +314,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         </div>
       </div>
 
-      <PillarSuggestionGrid onSuggestionClick={onSuggestionClick} />
+
     </div>
   </div>
   );

@@ -8,7 +8,6 @@ import {
   ruleBasedIntent,
 } from "@/lib/nlp";
 import {
-  parseRequirements,
   pillar1_getProductDetails,
   pillar1_searchProducts,
   pillar2_checkDelivery,
@@ -846,7 +845,7 @@ User query to classify: "${message}"`;
         let fullResponseText = "";
         let groundingSourcesList: Array<{ title: string; uri: string }> = [];
         let pastOrdersContext = "";
-        let criteria: any = null;
+        let notFoundTerms: string[] = [];
 
         // ── Pillar 1: Product Search ─────────────────────────────────────
         if (intent === "product") {
@@ -861,7 +860,7 @@ User query to classify: "${message}"`;
             send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
           } else {
             send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
-            criteria = parseRequirements(message);
+            // No longer using regex/heuristic parseRequirements
 
             const isReorderQuery = /reorder|ordered|bought|purchased|past order|history/.test(message.toLowerCase());
 
@@ -918,120 +917,129 @@ User query to classify: "${message}"`;
                 return [words[words.length - 1], term];
               };
 
-              const baseLlmTerms: SearchTermConfig[] = (
-                llmSearchTerms.length > 0
-                  ? llmSearchTerms
-                  : criteria.keywords.length > 0
-                    ? [{ term: criteria.keywords[0], minPrice: null, maxPrice: null }]
-                    : [{ term: message.split(" ").find((w: string) => w.length > 2) || message.split(" ")[0], minPrice: null, maxPrice: null }]
-              ).slice(0, 3);
+              const maxPriceLKR = llmSearchTerms.find((t) => t.maxPrice !== null)?.maxPrice ?? null;
+              const baseLlmTerms: SearchTermConfig[] = llmSearchTerms.slice(0, 3);
 
-              const searchDisplay = baseLlmTerms.map((t: SearchTermConfig) => {
+              const searchDisplay = baseLlmTerms.length > 0 ? baseLlmTerms.map((t: SearchTermConfig) => {
                 let limitStr = "";
                 if (t.minPrice !== null && t.maxPrice !== null) limitStr = ` (Rs. ${t.minPrice} - ${t.maxPrice})`;
                 else if (t.minPrice !== null) limitStr = ` (above Rs. ${t.minPrice})`;
                 else if (t.maxPrice !== null) limitStr = ` (under Rs. ${t.maxPrice})`;
                 return `"${t.term}"${limitStr}`;
-              }).join(", ");
+              }).join(", ") : "None";
 
-              const step1 = { step: "intent_routing", status: "completed", content: `Identified as: Product Search. Terms: ${searchDisplay}${criteria.maxPrice ? `. Max price: Rs. ${criteria.maxPrice.toLocaleString()}` : ""}`, durationMs: 0 };
+              const step1 = { 
+                step: "intent_routing", 
+                status: "completed", 
+                content: baseLlmTerms.length > 0
+                  ? `Identified as: Product Search. Terms: ${searchDisplay}${maxPriceLKR ? `. Max price: Rs. ${maxPriceLKR.toLocaleString()}` : ""}`
+                  : "Identified as: Conversational Product Query (No search terms).",
+                durationMs: 0 
+              };
               steps.push(step1);
               send({ type: "thought", ...step1 });
 
-              const runSearchPipeline = async (termConfig: SearchTermConfig, pipelineIndex: number): Promise<{ term: string; products: KaprukaProduct[]; discardedCount: number }> => {
-                const baseTerm = termConfig.term;
-                const variants = reorderForKapruka(baseTerm);
-                const queryMaxPrice = termConfig.maxPrice ?? criteria.maxPrice;
+              let pipelinesDur = 0;
+              let totalDiscardedAll = 0;
+              const notFoundOriginalTerms: string[] = [];
 
-                send({ type: "tool_call", name: "kapruka_search_products", args: { query: baseTerm, max_price: queryMaxPrice } });
-                send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "running", content: `Searching Kapruka for "${baseTerm}"...` });
+              if (baseLlmTerms.length > 0) {
+                const runSearchPipeline = async (termConfig: SearchTermConfig, pipelineIndex: number): Promise<{ term: string; products: KaprukaProduct[]; discardedCount: number }> => {
+                  const baseTerm = termConfig.term;
+                  const variants = reorderForKapruka(baseTerm);
+                  const queryMaxPrice = termConfig.maxPrice ?? maxPriceLKR;
 
-                const t1 = Date.now();
-                const variantSettled = await Promise.allSettled(
-                  variants.map((v, vi) =>
-                    new Promise<KaprukaProduct[]>((resolve, reject) => {
-                      setTimeout(() => {
-                        pillar1_searchProducts(v, { maxPriceLKR: queryMaxPrice ?? undefined, smeFirst: false, limit: 30, currency: currency || "LKR" })
-                          .then(resolve).catch(reject);
-                      }, vi * 120);
-                    })
-                  )
-                );
-                const searchDur = Date.now() - t1;
+                  send({ type: "tool_call", name: "kapruka_search_products", args: { query: baseTerm, max_price: queryMaxPrice } });
+                  send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "running", content: `Searching Kapruka for "${baseTerm}"...` });
 
-                const seenIds = new Set<string>();
-                const rawProducts: KaprukaProduct[] = [];
-                for (const settled of variantSettled) {
-                  if (settled.status === "fulfilled") {
-                    for (const p of settled.value) {
-                      if (!seenIds.has(p.id)) { seenIds.add(p.id); rawProducts.push(p); }
+                  const t1 = Date.now();
+                  const variantSettled = await Promise.allSettled(
+                    variants.map((v, vi) =>
+                      new Promise<KaprukaProduct[]>((resolve, reject) => {
+                        setTimeout(() => {
+                          pillar1_searchProducts(v, { maxPriceLKR: queryMaxPrice ?? undefined, smeFirst: false, limit: 30, currency: currency || "LKR" })
+                            .then(resolve).catch(reject);
+                        }, vi * 120);
+                      })
+                    )
+                  );
+                  const searchDur = Date.now() - t1;
+
+                  const seenIds = new Set<string>();
+                  const rawProducts: KaprukaProduct[] = [];
+                  for (const settled of variantSettled) {
+                    if (settled.status === "fulfilled") {
+                      for (const p of settled.value) {
+                        if (!seenIds.has(p.id)) { seenIds.add(p.id); rawProducts.push(p); }
+                      }
                     }
+                  }
+
+                  let filteredPriceProducts = rawProducts;
+                  let priceFilterDiscarded = 0;
+                  if (termConfig.minPrice !== null || termConfig.maxPrice !== null) {
+                    filteredPriceProducts = rawProducts.filter((p) => {
+                      if (termConfig.minPrice !== null && p.price < termConfig.minPrice) return false;
+                      if (termConfig.maxPrice !== null && p.price > termConfig.maxPrice) return false;
+                      return true;
+                    });
+                    priceFilterDiscarded = rawProducts.length - filteredPriceProducts.length;
+                  }
+
+                  send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "completed", content: `Found ${filteredPriceProducts.length} raw result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.` + (priceFilterDiscarded > 0 ? ` (Filtered out ${priceFilterDiscarded} product(s) outside price limits)` : ""), durationMs: searchDur });
+
+                  // Bypass keyword-based scoring/filtering. Rely on raw search engine relevance and AI validator.
+                  const keywordFiltered: KaprukaProduct[] = filteredPriceProducts.map((p) => ({ ...p, _relevanceScore: 10 }));
+                  const keywordDiscarded = priceFilterDiscarded;
+
+                  let validated = keywordFiltered;
+                  let llmDiscarded = 0;
+
+                  if (ai && keywordFiltered.length > 0) {
+                    send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "running", content: `Validating ${keywordFiltered.length} result${keywordFiltered.length !== 1 ? "s" : ""} for "${baseTerm}"...` });
+                    const t2 = Date.now();
+                    validated = await llmValidateRelevance(keywordFiltered, baseTerm, message, ai, config.gemini.fastModel);
+                    const validationDur = Date.now() - t2;
+                    llmDiscarded = keywordFiltered.length - validated.length;
+                    send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "completed", content: llmDiscarded > 0 ? `Relevance check: ✓ kept ${validated.length}, removed ${llmDiscarded} irrelevant.` : `All ${validated.length} result${validated.length !== 1 ? "s" : ""} passed ✓`, durationMs: validationDur });
+                  }
+
+                  const totalDiscarded = keywordDiscarded + llmDiscarded;
+                  send({ type: "group_ready", term: baseTerm, products: validated, index: pipelineIndex, discardedCount: totalDiscarded });
+                  return { term: baseTerm, products: validated, discardedCount: totalDiscarded };
+                };
+
+                const tPipelines = Date.now();
+                const pipelineResults = await Promise.allSettled(baseLlmTerms.map((tConfig: SearchTermConfig, index: number) => runSearchPipeline(tConfig, index)));
+                pipelinesDur = Date.now() - tPipelines;
+
+                const groups: Array<{ title: string; products: KaprukaProduct[] }> = [];
+
+                for (let i = 0; i < pipelineResults.length; i++) {
+                  const settled = pipelineResults[i];
+                  const baseTerm = baseLlmTerms[i].term;
+                  if (settled.status === "fulfilled" && settled.value.products.length > 0) {
+                    const title = baseTerm.replace(/\b\w/g, (c: string) => c.toUpperCase());
+                    groups.push({ title, products: settled.value.products });
+                    totalDiscardedAll += settled.value.discardedCount;
+                  } else {
+                    notFoundOriginalTerms.push(baseTerm);
                   }
                 }
 
-                let filteredPriceProducts = rawProducts;
-                let priceFilterDiscarded = 0;
-                if (termConfig.minPrice !== null || termConfig.maxPrice !== null) {
-                  filteredPriceProducts = rawProducts.filter((p) => {
-                    if (termConfig.minPrice !== null && p.price < termConfig.minPrice) return false;
-                    if (termConfig.maxPrice !== null && p.price > termConfig.maxPrice) return false;
-                    return true;
-                  });
-                  priceFilterDiscarded = rawProducts.length - filteredPriceProducts.length;
-                }
-
-                send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "completed", content: `Found ${filteredPriceProducts.length} raw result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.` + (priceFilterDiscarded > 0 ? ` (Filtered out ${priceFilterDiscarded} product(s) outside price limits)` : ""), durationMs: searchDur });
-
-                // Bypass keyword-based scoring/filtering. Rely on raw search engine relevance and AI validator.
-                const keywordFiltered: KaprukaProduct[] = filteredPriceProducts.map((p) => ({ ...p, _relevanceScore: 10 }));
-                const keywordDiscarded = priceFilterDiscarded;
-
-                let validated = keywordFiltered;
-                let llmDiscarded = 0;
-
-                if (ai && keywordFiltered.length > 0) {
-                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "running", content: `Validating ${keywordFiltered.length} result${keywordFiltered.length !== 1 ? "s" : ""} for "${baseTerm}"...` });
-                  const t2 = Date.now();
-                  validated = await llmValidateRelevance(keywordFiltered, baseTerm, message, ai, config.gemini.fastModel);
-                  const validationDur = Date.now() - t2;
-                  llmDiscarded = keywordFiltered.length - validated.length;
-                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "completed", content: llmDiscarded > 0 ? `Relevance check: ✓ kept ${validated.length}, removed ${llmDiscarded} irrelevant.` : `All ${validated.length} result${validated.length !== 1 ? "s" : ""} passed ✓`, durationMs: validationDur });
-                }
-
-                const totalDiscarded = keywordDiscarded + llmDiscarded;
-                send({ type: "group_ready", term: baseTerm, products: validated, index: pipelineIndex, discardedCount: totalDiscarded });
-                return { term: baseTerm, products: validated, discardedCount: totalDiscarded };
-              };
-
-              const tPipelines = Date.now();
-              const pipelineResults = await Promise.allSettled(baseLlmTerms.map((tConfig: SearchTermConfig, index: number) => runSearchPipeline(tConfig, index)));
-              const pipelinesDur = Date.now() - tPipelines;
-
-              const groups: Array<{ title: string; products: KaprukaProduct[] }> = [];
-              const notFoundOriginalTerms: string[] = [];
-              let totalDiscardedAll = 0;
-
-              for (let i = 0; i < pipelineResults.length; i++) {
-                const settled = pipelineResults[i];
-                const baseTerm = baseLlmTerms[i].term;
-                if (settled.status === "fulfilled" && settled.value.products.length > 0) {
-                  const title = baseTerm.replace(/\b\w/g, (c: string) => c.toUpperCase());
-                  groups.push({ title, products: settled.value.products });
-                  totalDiscardedAll += settled.value.discardedCount;
-                } else {
-                  notFoundOriginalTerms.push(baseTerm);
-                }
+                productGroups = groups;
+                products = groups.flatMap((g) => g.products);
+                notFoundTerms = notFoundOriginalTerms;
               }
-
-              productGroups = groups;
-              products = groups.flatMap((g) => g.products);
 
               const step2 = {
                 step: "searching_kapruka",
                 status: "completed",
-                content: products.length > 0
-                  ? `All ${baseLlmTerms.length} search pipeline${baseLlmTerms.length > 1 ? "s" : ""} complete in ${pipelinesDur}ms — ${products.length} validated product${products.length !== 1 ? "s" : ""}${totalDiscardedAll > 0 ? `, ${totalDiscardedAll} irrelevant filtered out` : ""}${notFoundOriginalTerms.length > 0 ? `. Not found: ${notFoundOriginalTerms.map((t: string) => `"${t}"`).join(", ")}` : ""}.`
-                  : "No matching products found after relevance filtering.",
+                content: baseLlmTerms.length > 0
+                  ? (products.length > 0
+                    ? `All ${baseLlmTerms.length} search pipeline${baseLlmTerms.length > 1 ? "s" : ""} complete in ${pipelinesDur}ms — ${products.length} validated product${products.length !== 1 ? "s" : ""}${totalDiscardedAll > 0 ? `, ${totalDiscardedAll} irrelevant filtered out` : ""}${notFoundOriginalTerms.length > 0 ? `. Not found: ${notFoundOriginalTerms.map((t: string) => `"${t}"`).join(", ")}` : ""}.`
+                    : "No matching products found after relevance filtering.")
+                  : "Skipped search because no keywords were extracted.",
                 durationMs: pipelinesDur,
                 terms: baseLlmTerms.map((t) => t.term),
               };
@@ -1040,7 +1048,7 @@ User query to classify: "${message}"`;
               send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
               send({ type: "product_groups", groups: productGroups });
 
-              (criteria as typeof criteria & { _notFoundTerms?: string[] })._notFoundTerms = notFoundOriginalTerms;
+              // Using local notFoundTerms array instead of criteria
             }
           }
         }
@@ -1051,7 +1059,8 @@ User query to classify: "${message}"`;
           if (smeQuery) {
             send({ type: "thought", step: "sme_filter", status: "running", content: "Highlighting local Sri Lankan SME products..." });
             const t3 = Date.now();
-            const smeProducts = await pillar3_searchSMEProducts(message, { maxPriceLKR: criteria?.maxPrice, limit: 50, currency: currency || "USD" });
+            const maxPriceLKR = llmSearchTerms.find((t) => t.maxPrice !== null)?.maxPrice ?? null;
+            const smeProducts = await pillar3_searchSMEProducts(message, { maxPriceLKR: maxPriceLKR ?? undefined, limit: 50, currency: currency || "USD" });
             const dur3 = Date.now() - t3;
             if (smeProducts.length > 0) {
               products = smeProducts;
@@ -1153,7 +1162,6 @@ User query to classify: "${message}"`;
                   }).join("\n\n") +
                   `\n\n[Instruction] The user has selected the above products and is asking: "${message}". Answer their question directly, conversationally, and specifically using ONLY the product data above. Be warm, helpful, and direct. Do NOT use [INTRO] or [DETAILS] tags.`;
               } else {
-                const notFoundTerms: string[] = (criteria as typeof criteria & { _notFoundTerms?: string[] })?._notFoundTerms ?? [];
                 if (productGroups && productGroups.length > 0) {
                   contextNote = `\n\n[Validated Product Search Results — All items below have been relevance-validated]\n`;
                   for (const group of productGroups) {
@@ -1176,7 +1184,12 @@ Make sure the category name in the tags matches the search result headers above 
                   }
                   contextNote += `\n\n[Response Instructions]\nUse \`[INTRO: Product search]\` followed by a 1-sentence introduction.\nUse \`[DETAILS: Product search]\` followed by 2-3 sentences.`;
                 } else {
-                  contextNote = `\n\n[Search Result] NO products were found after relevance filtering. Apologize politely and suggest alternatives.`;
+                  const baseLlmTerms: SearchTermConfig[] = llmSearchTerms.slice(0, 3);
+                  if (baseLlmTerms.length === 0) {
+                    contextNote = `\n\n[System Context] No product search keywords were specified in the user's message. Please respond conversationally and helpfully as an e-commerce assistant. Do NOT use search tags (like [INTRO] or [DETAILS]).`;
+                  } else {
+                    contextNote = `\n\n[Search Result] NO products were found after relevance filtering for terms: ${baseLlmTerms.map((t) => t.term).join(", ")}. Apologize politely and suggest alternatives.`;
+                  }
                 }
               }
             }
