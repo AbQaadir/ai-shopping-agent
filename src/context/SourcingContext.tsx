@@ -97,7 +97,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       try {
-        const res = await fetch(`/api/session?cartOnly=true&userId=${activeUserId}&sessionId=${activeHistoryId}`);
+        const res = await fetch(`/api/session?cartOnly=true&userId=${activeUserId}&sessionId=${activeHistoryId}&_t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           setCartItems(Array.isArray(data) ? data : []);
@@ -114,7 +114,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   const fetchHistory = useCallback(async () => {
     try {
-      const res = await fetch(`/api/session?userId=${activeUserId}`);
+      const res = await fetch(`/api/session?userId=${activeUserId}&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         const items = data.map((session: { id: string; title: string; createdAt: string }) => ({
@@ -161,7 +161,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const res = await fetch(`/api/session?id=${id}&userId=${activeUserId}`);
+      const res = await fetch(`/api/session?id=${id}&userId=${activeUserId}&_t=${Date.now()}`);
       if (res.ok) {
         const sessionData = await res.json();
         
