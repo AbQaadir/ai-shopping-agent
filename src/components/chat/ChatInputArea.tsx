@@ -135,32 +135,7 @@ export default function ChatInputArea({
 
   const handleCompareClick = () => {
     if (selectedProducts.length === 0) return;
-    
-    let promptText = "Please compare the following selected products in detail:\n\n";
-    selectedProducts.forEach((prod, index) => {
-      const name = prod.name || prod.title || "Unknown Product";
-      const priceStr = prod.price ? `Rs. ${prod.price.toLocaleString()}` : (prod.priceDisplay || "N/A");
-      const supplier = prod.supplier || "N/A";
-      const rating = prod.rating ? `${prod.rating} / 5` : "N/A";
-      const years = prod.years ? `${prod.years} years on platform` : "N/A";
-      const moq = prod.moq || "N/A";
-      const stock = prod.inStock !== false ? "In Stock" : "Out of Stock";
-      
-      promptText += `${index + 1}. **${name}**\n`;
-      promptText += `   - Price: ${priceStr}\n`;
-      promptText += `   - Supplier: ${supplier} (${years})\n`;
-      promptText += `   - Rating: ${rating}\n`;
-      promptText += `   - Min Order Quantity (MOQ): ${moq}\n`;
-      promptText += `   - Availability: ${stock}\n`;
-      if (prod.description) {
-        promptText += `   - Description: ${prod.description}\n`;
-      }
-      promptText += `\n`;
-    });
-    
-    promptText += "Analyze these items and provide a structured comparison (e.g. comparing cost effectiveness, quality/ratings, and delivery readiness). Conclude with a clear recommendation on which product offers the best value.";
-    
-    onSubmit(promptText);
+    onSubmit("Please compare the selected products.");
   };
 
   return (
