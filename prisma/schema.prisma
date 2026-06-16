@@ -66,14 +66,44 @@ model OrderItem {
 }
 
 model ChatSession {
-  id        String        @id @default(uuid())
-  title     String        @default("New Sourcing Task")
-  status    String        @default("active") // active, archived
-  userId    String?
-  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-  messages  ChatMessage[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id              String           @id @default(uuid())
+  title           String           @default("New Sourcing Task")
+  status          String           @default("active") // active, archived
+  userId          String?
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages        ChatMessage[]
+  checkoutSession CheckoutSession?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+/// Active checkout state for a chat session.
+/// Single source of truth — replaces walking thoughtProcess.orderFlowStep across messages.
+/// Created on checkout_start, updated on each phase transition, deleted on confirmed/cancelled.
+model CheckoutSession {
+  id               String      @id @default(uuid())
+  chatSessionId    String      @unique
+  chatSession      ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+
+  // Current checkout phase
+  // qty_ask | delivery_ask | address_ask | map_open | payment_ask | confirmed | cancelled
+  phase            String
+
+  // Cart items for this session (always live/current)
+  cartItems        Json        // CartItem[]
+
+  // Single-product checkout (non-cart flow)
+  product          Json?       // InlineProduct
+
+  // Accumulated data as user progresses
+  confirmedQty     Int?
+  confirmedAddress Json?       // { name, phone, address, city }
+  savedAddress     Json?       // user default address loaded at checkout start
+  geocodedLocation Json?       // { lat, lng, formattedAddress, label }
+  paymentMethod    String?     // "cod" | "card"
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 }
 
 model ChatMessage {
