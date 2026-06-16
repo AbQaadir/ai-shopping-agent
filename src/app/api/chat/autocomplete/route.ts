@@ -82,6 +82,7 @@ Output format MUST be: ["Completion 1", "Completion 2", "Completion 3"]`;
       responseText = responseText.replace(/```json/i, "").replace(/```/g, "");
     }
     responseText = responseText.trim();
+    responseText = extractFirstJsonArray(responseText);
 
     let suggestions: string[] = [];
     try {
@@ -98,4 +99,40 @@ Output format MUST be: ["Completion 1", "Completion 2", "Completion 3"]`;
     console.error("[Autocomplete API] Critical error:", error);
     return NextResponse.json({ suggestions: [] }, { status: 500 });
   }
+}
+
+function extractFirstJsonArray(text: string): string {
+  const start = text.indexOf("[");
+  if (start === -1) return text;
+  
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === "\\") {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === "[") {
+        depth++;
+      } else if (char === "]") {
+        depth--;
+        if (depth === 0) {
+          return text.substring(start, i + 1);
+        }
+      }
+    }
+  }
+  return text;
 }

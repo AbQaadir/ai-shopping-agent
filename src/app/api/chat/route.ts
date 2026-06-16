@@ -1295,7 +1295,13 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
               contents: suggestPrompt,
               config: { responseMimeType: "application/json" },
             });
-            const parsed = JSON.parse(sug.text || "[]");
+            let sugText = sug.text || "[]";
+            if (sugText.includes("```")) {
+              sugText = sugText.replace(/```json/i, "").replace(/```/g, "");
+            }
+            sugText = sugText.trim();
+            sugText = extractFirstJsonArray(sugText);
+            const parsed = JSON.parse(sugText);
             if (Array.isArray(parsed) && parsed.length >= 3) {
               followUpQuestions = parsed.slice(0, 3);
             }
@@ -1524,4 +1530,40 @@ Respond ONLY with valid JSON: {"keep_ids":["id1","id2",...],"reason":"one-line e
     console.error(`[LLM Validator] Failed for "${searchTerm}":`, (err as Error).message);
     return products;
   }
+}
+
+function extractFirstJsonArray(text: string): string {
+  const start = text.indexOf("[");
+  if (start === -1) return text;
+  
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === "\\") {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === "[") {
+        depth++;
+      } else if (char === "]") {
+        depth--;
+        if (depth === 0) {
+          return text.substring(start, i + 1);
+        }
+      }
+    }
+  }
+  return text;
 }
