@@ -46,6 +46,21 @@ export default function ProductGrid({
     currentPage * ITEMS_PER_PAGE
   );
 
+  const visiblePages = React.useMemo(() => {
+    let startPage = Math.max(1, currentPage - 1);
+    let endPage = Math.min(totalPages, startPage + 2);
+    if (endPage - startPage < 2) {
+      startPage = Math.max(1, endPage - 2);
+    }
+    const pages = [];
+    for (let i = startPage; i <= endPage; i++) {
+      if (i >= 1 && i <= totalPages) {
+        pages.push(i);
+      }
+    }
+    return pages;
+  }, [currentPage, totalPages]);
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -108,7 +123,7 @@ export default function ProductGrid({
               <ChevronLeft size={14} />
             </button>
 
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            {visiblePages.map((page) => (
               <button
                 key={page}
                 onClick={() => handlePageChange(page)}

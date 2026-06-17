@@ -116,8 +116,9 @@ export default function GlobalSidebar({
 
         {/* History Section Header */}
         <div className="space-y-1 pt-2">
-          <div
-            className={`w-full flex items-center px-3 py-3 text-slate-800 font-bold text-sm select-none ${
+          <button
+            onClick={() => { if (isCollapsed) setIsCollapsed(false); }}
+            className={`w-full flex items-center px-3 py-3 text-slate-800 font-bold text-sm select-none outline-none cursor-pointer hover:bg-slate-50/50 rounded-xl transition-colors ${
               isCollapsed ? "justify-center gap-0" : "justify-between gap-3"
             }`}
             title="History"
@@ -130,7 +131,7 @@ export default function GlobalSidebar({
                 History
               </span>
             </div>
-          </div>
+          </button>
 
           {/* History List */}
           {!isCollapsed && history.length > 0 && (

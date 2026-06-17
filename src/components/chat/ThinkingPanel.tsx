@@ -69,21 +69,22 @@ function extractQueryFromContent(content: string, fallback: string): string {
 }
 
 // Helper to extract clean query string or value from tool call arguments
-function getToolCallQuery(toolName: string, args: any): string | null {
-  if (!args) return null;
-  const params = args.params || args;
+function getToolCallQuery(toolName: string, args: unknown): string | null {
+  if (!args || typeof args !== "object") return null;
+  const params = (args as Record<string, unknown>).params || args;
+  const obj = params as Record<string, unknown>;
   
   if (toolName === "kapruka_search_products" || toolName === "kapruka_search_products_sme") {
-    return params.query || params.q || null;
+    return (obj.query || obj.q || null) as string | null;
   }
   if (toolName === "kapruka_check_delivery" || toolName === "kapruka_list_delivery_cities" || toolName === "kapruka_service_search") {
-    return params.city || params.query || null;
+    return (obj.city || obj.query || null) as string | null;
   }
   if (toolName === "kapruka_track_order") {
-    return params.order_id || params.order_number || null;
+    return (obj.order_id || obj.order_number || null) as string | null;
   }
   if (toolName === "kapruka_import_estimate") {
-    return params.url || null;
+    return (obj.url || null) as string | null;
   }
   return null;
 }
@@ -93,11 +94,7 @@ export default function ThinkingPanel({
   activeToolCall,
   activeToolCalls,
   isGenerating,
-  hasText,
-  inlineProducts,
-  productGroups,
   activeQueryText = "",
-  onViewDetails,
 }: ThinkingPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(true);
 
@@ -107,66 +104,7 @@ export default function ThinkingPanel({
   // Filter out duplicate log items
   const visibleSteps = steps.filter(s => s.content && s.step !== "generating_response");
 
-  // Filter products by term using pre-filtered backend groups (if available)
-  // Falls back to local noun matching when groups aren't available yet
-  const getProductsForTerm = (term: string): InlineProduct[] => {
-    // Primary: use pre-validated productGroups from the backend
-    if (productGroups && productGroups.length > 0) {
-      const cleanTerm = term.trim().toLowerCase();
-      // Exact title match
-      const exact = productGroups.find(g => g.title.toLowerCase() === cleanTerm);
-      if (exact) return exact.products;
-      // Fuzzy: group title contains term or term contains group title
-      const fuzzy = productGroups.find(g =>
-        g.title.toLowerCase().includes(cleanTerm) ||
-        cleanTerm.includes(g.title.toLowerCase())
-      );
-      if (fuzzy) return fuzzy.products;
-    }
-    // Fallback: local noun-based filter (used during streaming before group_ready arrives)
-    return filterProductsForTerm(term);
-  };
 
-  // Filter products for a specific search term, handling plural/singular mismatches
-  const filterProductsForTerm = (term: string): InlineProduct[] => {
-    if (!inlineProducts) return [];
-    
-    const cleanTerm = term.trim().toLowerCase();
-    const words = cleanTerm.split(/\s+/);
-    const noun = words[words.length - 1]; // last word is the head noun
-    if (!noun) return [];
-
-    const nounVariants = [noun];
-    if (noun.endsWith("ies") && noun.length > 3) {
-      nounVariants.push(noun.slice(0, -3) + "y");
-    } else if (noun.endsWith("es") && noun.length > 3) {
-      nounVariants.push(noun.slice(0, -2));
-      nounVariants.push(noun.slice(0, -1));
-    } else if (noun.endsWith("s") && noun.length > 3) {
-      nounVariants.push(noun.slice(0, -1));
-    } else {
-      nounVariants.push(noun + "s");
-      nounVariants.push(noun + "es");
-    }
-
-    return inlineProducts.filter(p => {
-      const nameLower = (p.name || p.title || "").toLowerCase();
-      // Strict Noun Check (Word boundary match)
-      return nounVariants.some(variant => {
-        const regex = new RegExp(`\\b${variant}\\b`, "i");
-        return regex.test(nameLower);
-      });
-    });
-  };
-
-  // Convert raw search term back to a natural capitalised name
-  const cleanQueryName = (term: string): string => {
-    const words = term.trim().split(/\s+/);
-    if (words.length === 2) {
-      return `${words[1]} ${words[0]}`.replace(/\b\w/g, c => c.toUpperCase());
-    }
-    return term.replace(/\b\w/g, c => c.toUpperCase());
-  };
 
   return (
     <div className="w-full select-none pb-2 transition-all duration-300">
@@ -247,7 +185,6 @@ export default function ThinkingPanel({
                   {hasTerms ? (
                     <div className="flex flex-col gap-1.5">
                       {step.terms!.map((term, tIdx) => {
-                        const filtered = getProductsForTerm(term);
                         return (
                           <div
                             key={tIdx}
@@ -263,14 +200,7 @@ export default function ThinkingPanel({
                                 <span>Completed</span>
                               </div>
                             </div>
-                            {onViewDetails && filtered.length > 0 && (
-                              <button
-                                onClick={() => onViewDetails(filtered, cleanQueryName(term))}
-                                className="text-[11px] font-extrabold text-[#402970] hover:underline cursor-pointer select-none pr-3"
-                              >
-                                View details
-                              </button>
-                            )}
+
                           </div>
                         );
                       })}
@@ -289,14 +219,7 @@ export default function ThinkingPanel({
                           </span>
                         )}
                       </div>
-                      {onViewDetails && inlineProducts && inlineProducts.length > 0 && (step.step === "searching_kapruka" || step.step === "sme_filter") && (
-                        <button
-                          onClick={() => onViewDetails(inlineProducts, query || activeQueryText || "Products")}
-                          className="text-[11px] font-extrabold text-[#402970] hover:underline cursor-pointer select-none pr-3 shrink-0"
-                        >
-                          View details
-                        </button>
-                      )}
+
                     </div>
                   ) : null}
                 </div>
