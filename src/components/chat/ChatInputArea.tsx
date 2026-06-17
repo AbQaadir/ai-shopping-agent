@@ -165,7 +165,7 @@ export default function ChatInputArea({
 
   return (
     <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 select-none z-20">
-      <div className="max-w-3xl mx-auto w-full relative">
+      <div className="max-w-3xl mx-auto w-full relative group">
         {/* Autocomplete Dropdown floating below the input card */}
         {showDropdown && suggestions.length > 0 && (
           <div 
@@ -227,9 +227,15 @@ export default function ChatInputArea({
             })}
           </div>
         )}
-        <div className={`w-full bg-white flex flex-col transition-all duration-300 border ${
+        
+        {/* Background glow for chat input */}
+        <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 blur-lg transition-all duration-300 pointer-events-none ${
+          selectedProducts.length > 0 ? "rounded-[28px]" : "rounded-full"
+        } ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"}`} />
+
+        <div className={`w-full bg-white flex flex-col transition-all duration-300 border relative ${
           selectedProducts.length > 0 
-            ? "rounded-[24px] p-3.5 gap-3" 
+            ? "rounded-[24px] p-3.5" 
             : "rounded-full py-1.5 pl-2 pr-1.5"
         } ${
           isFocused
@@ -237,8 +243,14 @@ export default function ChatInputArea({
             : "border-slate-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)]"
         }`}>
           {/* Selected products row */}
-          {selectedProducts.length > 0 && (
-            <div className="w-full flex flex-col gap-2.5 pb-2.5 border-b border-slate-100 animate-fadeIn">
+          <div
+            className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-300 ease-in-out w-full border-slate-100 ${
+              selectedProducts.length > 0
+                ? "grid-rows-[1fr] opacity-100 pb-2.5 mb-3 border-b"
+                : "grid-rows-[0fr] opacity-0 pb-0 mb-0 border-b-0"
+            }`}
+          >
+            <div className="overflow-hidden flex flex-col gap-2.5">
               <div className="flex flex-row gap-3 overflow-x-auto pb-1 scrollbar-thin">
                 {selectedProducts.map((prod) => (
                   <div
@@ -317,7 +329,7 @@ export default function ChatInputArea({
                 )}
               </div>
             </div>
-          )}
+          </div>
 
           {/* Attached files */}
           {attachedFiles.length > 0 && (

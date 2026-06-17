@@ -581,7 +581,7 @@ function renderMessageTextBlock(
   }
 
   return (
-    <div className="text-sm text-slate-800 leading-relaxed space-y-1.5 select-text">
+    <div className="text-sm text-slate-800 font-medium leading-relaxed space-y-1.5 select-text">
       {processedElements}
     </div>
   );

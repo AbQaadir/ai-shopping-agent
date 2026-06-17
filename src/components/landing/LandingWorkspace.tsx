@@ -258,7 +258,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           )}
 
           <div className="w-full relative">
-            <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 rounded-full blur-md transition-opacity duration-300 pointer-events-none ${isFocused ? "opacity-15" : "opacity-[0.07] group-hover:opacity-[0.14]"}`} />
+            <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 rounded-full blur-lg transition-opacity duration-300 pointer-events-none ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"}`} />
             
             <div className={`w-full bg-white rounded-full border transition-all duration-300 py-1.5 pl-2 pr-1.5 flex items-center gap-2 relative ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"}`}>
               {/* Attachment Button */}
