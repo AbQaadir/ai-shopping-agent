@@ -215,25 +215,29 @@ function parseJSON<T>(text: string): T {
 export async function searchProducts(
   query: string,
   options: {
-    category?: string;
     maxPrice?: number;
     inStockOnly?: boolean;
     page?: number;
-    limit?: number;
     currency?: string;
   } = {}
 ): Promise<MCPToolResult<KaprukaProduct[]>> {
   const params: Record<string, unknown> = {
     q: query,
     response_format: "json",
-    limit: options.limit || 12,
+    limit: 50,
   };
-  if (options.category) params.category = options.category;
   if (options.maxPrice !== undefined) params.max_price = options.maxPrice;
   if (options.inStockOnly !== undefined) params.in_stock_only = options.inStockOnly;
   if (options.currency) params.currency = options.currency;
 
   return safeCallMCPTool("kapruka_search_products", { params }, (text) => {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+      // If the MCP server returns a plain text string (e.g. "No products found..."),
+      // we treat it as a successful query with 0 results.
+      return [];
+    }
+
     interface RawProduct {
       id: string;
       name: string;

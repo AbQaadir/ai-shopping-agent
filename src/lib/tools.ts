@@ -44,17 +44,15 @@ export type {
  */
 export async function pillar1_searchProducts(
   query: string,
-  options: { maxPriceLKR?: number; category?: string; smeFirst?: boolean; limit?: number; currency?: string } = {}
+  options: { maxPriceLKR?: number; smeFirst?: boolean; currency?: string } = {}
 ): Promise<KaprukaProduct[]> {
   const trimmedQuery = query.trim();
   if (!trimmedQuery) {
     return [];
   }
   const result = await searchProducts(trimmedQuery, {
-    category: options.category,
     maxPrice: options.maxPriceLKR,
     inStockOnly: false,
-    limit: options.limit || 50,
     currency: options.currency,
   });
 
@@ -80,7 +78,7 @@ export async function pillar1_searchProducts(
     products.sort((a, b) => (b.isSME ? 1 : 0) - (a.isSME ? 1 : 0));
   }
 
-  return products.slice(0, options.limit || 50);
+  return products.slice(0, 50);
 }
 
 /**
@@ -168,7 +166,7 @@ export async function pillar3_searchSMEProducts(
   query: string,
   options: { maxPriceLKR?: number; limit?: number; currency?: string } = {}
 ): Promise<KaprukaProduct[]> {
-  return pillar1_searchProducts(query, { smeFirst: true, maxPriceLKR: options.maxPriceLKR, limit: options.limit || 50, currency: options.currency });
+  return pillar1_searchProducts(query, { smeFirst: true, maxPriceLKR: options.maxPriceLKR, currency: options.currency });
 }
 
 
