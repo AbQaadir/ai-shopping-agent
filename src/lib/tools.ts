@@ -20,12 +20,16 @@ import {
   checkDelivery,
   trackOrder,
   listDeliveryCities,
+  getCachedCategories,
   KaprukaProduct,
   KaprukaOrderResult,
   KaprukaDeliveryResult,
   KaprukaTrackingResult,
   KaprukaCity,
+  KaprukaCategoryDeep,
 } from "./mcpClient";
+
+import { scrapeProductsFromCategoryUrl, scrapeMultipleCategoryUrls } from "./categoryPageScraper";
 
 // Re-export shared types so API route can use them
 export type {
@@ -34,7 +38,11 @@ export type {
   KaprukaDeliveryResult,
   KaprukaTrackingResult,
   KaprukaCity,
+  KaprukaCategoryDeep,
 };
+
+// Re-export functions for category browse
+export { getCachedCategories, scrapeMultipleCategoryUrls };
 
 // ── Pillar 1 — Domestic E-Commerce ────────────────────────────────────────
 
@@ -475,4 +483,39 @@ export function parseRequirements(message: string): SourcingCriteria {
 
   criteria.keywords = keywords;
   return criteria;
+}
+
+// ── Pillar 6 — Category Browse ────────────────────────────────────────────
+
+/**
+ * Browse a Kapruka category page by URL.
+ * Primary: scrapes the HTML page for product data.
+ * Fallback: if scraping fails or returns 0 results, searches via MCP.
+ */
+export async function pillar6_browseCategory(
+  categoryUrl: string,
+  categoryName: string
+): Promise<KaprukaProduct[]> {
+  try {
+    const products = await scrapeProductsFromCategoryUrl(categoryUrl);
+    if (products.length > 0) {
+      // Normalise scraped products to KaprukaProduct shape
+      return products.slice(0, 50).map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        currency: p.currency || "LKR",
+        imageUrl: p.imageUrl,
+        url: p.url,
+        inStock: p.inStock,
+        category: p.category || categoryName,
+        description: p.description,
+      }));
+    }
+    console.warn(`[Pillar6] Scrape returned 0 for "${categoryName}", falling back to MCP search`);
+    return await pillar1_searchProducts(categoryName, {});
+  } catch (err) {
+    console.error(`[Pillar6] Scrape failed for "${categoryName}":`, (err as Error).message);
+    return await pillar1_searchProducts(categoryName, {});
+  }
 }

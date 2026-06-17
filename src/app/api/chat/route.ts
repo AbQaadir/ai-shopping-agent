@@ -28,6 +28,8 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
 // ── New Agentic Architecture ──────────────────────────────────────────────
+import { getCachedCategories, scrapeMultipleCategoryUrls } from "@/lib/tools";
+import { categoryBrowseAgent } from "@/lib/agents/categoryBrowseAgent";
 import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";
 import { orderAgent } from "@/lib/agents/orderAgent";
 import { cartModifierAgent, type CartModification } from "@/lib/agents/cartModifierAgent";
@@ -65,6 +67,16 @@ A simple, brief 1-sentence introduction about the products found in this categor
 A detailed description (2-3 sentences) summarizing and comparing the products, their prices in LKR, stock status, and guiding the user on how they can select/order them.
 
 If multiple categories were searched, output the [INTRO] and [DETAILS] tags for each category sequentially. Only use these tags if product search results are returned. If no products are found, write a standard response apologizing politely.`,
+
+  category_browse: `You are Kapuruka's AI shopping assistant for Sri Lanka.
+The user asked a broad or generic shopping query. We matched their query to specific Kapruka catalog categories and pulled the live products from those pages.
+For EACH matched category, you MUST format your response using EXACTLY these tags to frame your description:
+[INTRO: <Category Name>]
+A simple, brief 1-sentence introduction about the products found in this category (e.g. "[INTRO: Shoes] I found some beautiful shoes from the Kapruka catalog...").
+[DETAILS: <Category Name>]
+A detailed description (2-3 sentences) summarizing and comparing the products, their prices in LKR, stock status, and guiding the user on how they can select/order them.
+
+If multiple categories were searched, output the [INTRO] and [DETAILS] tags for each category sequentially. Only use these tags if product search results are returned.`,
 
   delivery: `You are Kapuruka's Grasshoppers logistics assistant for Sri Lanka.
 You help users check delivery availability, rates, and track orders.
@@ -191,7 +203,8 @@ Analyze the user query in the context of the recent conversation history, and pe
    Set "isRelated" to true if it is related, or false if it is unrelated.
 
 2. Classify the user message into exactly ONE intent:
-   - "product": Searching for, comparing, or buying products on Kapruka.com (e.g. cakes, gifts, clothes, books, electronics), asking for details/specifications of a product in the conversation, reordering, or responding to any active step in the checkout pipeline (such as specifying quantities, selecting/updating delivery addresses, choosing payment methods like cash on delivery or card, or confirming to place the order with "yes please").
+   - "product": Searching for specific products (e.g. "iphone 15", "red roses", "black forest cake") where we should perform a direct text search against product names.
+   - "category_browse": A broad or generic shopping query (e.g. "diwali gifts", "wedding gifts", "anniversary ideas", "show me cakes", "i want to buy flowers") where it's better to show a whole category page of curated items rather than doing a text search for specific keywords.
    - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order.
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
    - "qa": General platform questions (returns, policies, general account help) or general knowledge/informational queries that require web search grounding. Note: Do NOT classify any checkout responses, payment method selections for an active order, or checkout confirmations (e.g. cash on delivery) as "qa".
@@ -215,7 +228,7 @@ ${matchedCategoriesText}
 Use the candidate categories above to understand the listing taxonomy and prepare/translate the search query keyword ("term") to match the category's typical product noun (e.g., translate "phone cases" to "backcover" or "cover" or "casing" if the matched category is mobile_phone_accessories, and "cake" or "bento cake" to "cake" or "ribbon cake").
 
 Respond ONLY with JSON matching this structure:
-{"intent": "product"|"delivery"|"service"|"qa", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reason": "brief explanation"}
+{"intent": "product"|"category_browse"|"delivery"|"service"|"qa", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reason": "brief explanation"}
 
 [Recent Conversation History]
 ${historySnippet || "No previous history."}
@@ -240,7 +253,7 @@ User query to classify: "${message}"`;
         }
 
         const parsed = JSON.parse(responseText);
-        if (parsed?.intent && ["product", "delivery", "service", "qa"].includes(parsed.intent)) {
+        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
         }
         if (typeof parsed?.isRelated === "boolean") {
@@ -866,6 +879,87 @@ User query to classify: "${message}"`;
         let pastOrdersContext = "";
         let criteria: any = null;
 
+        // ── Pillar 6: Category Browse ──────────────────────────────
+        if (intent === "category_browse" && ai) {
+          send({ type: "thought", step: "intent_routing", status: "completed", content: "Identified as: Category Browse.", durationMs: 0 });
+          send({ type: "thought", step: "category_browse", status: "running", content: "Fetching product categories..." });
+          const tCat = Date.now();
+          const categoryTree = await getCachedCategories();
+          
+          if (categoryTree.length > 0) {
+            const agentDecision = await categoryBrowseAgent(
+              message,
+              categoryTree,
+              historySnippet,
+              ai,
+              config.gemini.fastModel
+            );
+
+            if (agentDecision.categoryGroups && agentDecision.categoryGroups.length > 0) {
+              const groups: { title: string; products: KaprukaProduct[] }[] = [];
+              let totalScraped = 0;
+
+              for (const group of agentDecision.categoryGroups) {
+                const urlsToScrape = group.categories.map(c => ({
+                  url: c.url,
+                  label: c.subcategory !== "Main Category Page" ? c.subcategory : c.mainCategory
+                }));
+
+                const scrapedResults = await scrapeMultipleCategoryUrls(urlsToScrape, 3, 150);
+                
+                // Merge and deduplicate products within this semantic group
+                const mergedProducts: KaprukaProduct[] = [];
+                const seenIds = new Set<string>();
+                for (const result of scrapedResults) {
+                  for (const p of result.products) {
+                    if (!seenIds.has(p.id)) {
+                      seenIds.add(p.id);
+                      mergedProducts.push(p);
+                    }
+                  }
+                }
+
+                if (mergedProducts.length > 0) {
+                   let validatedProducts = mergedProducts;
+                   if (ai) {
+                     send({ type: "thought", step: "validating_relevance", term: group.groupName, status: "running", content: `Validating ${mergedProducts.length} scraped products from ${group.groupName}...` });
+                     const tVal = Date.now();
+                     validatedProducts = await llmValidateRelevance(mergedProducts, group.groupName, message, ai, config.gemini.fastModel, true);
+                     const discarded = mergedProducts.length - validatedProducts.length;
+                     send({ type: "thought", step: "validating_relevance", term: group.groupName, status: "completed", content: discarded > 0 ? `Relevance check: ✓ kept ${validatedProducts.length}, removed ${discarded}.` : `All ${validatedProducts.length} passed ✓`, durationMs: Date.now() - tVal });
+                   }
+
+                   if (validatedProducts.length > 0) {
+                     groups.push({ title: group.groupName, products: validatedProducts });
+                     totalScraped += validatedProducts.length;
+                   }
+                }
+              }
+
+              if (groups.length > 0) {
+                productGroups = groups;
+                products = groups.flatMap((g) => g.products);
+                
+                const stepCat = { step: "category_browse", status: "completed", content: `Found ${totalScraped} products across ${groups.length} categories in ${Date.now() - tCat}ms.`, durationMs: Date.now() - tCat };
+                steps.push(stepCat);
+                send({ type: "thought", ...stepCat });
+                send({ type: "tool_result", toolName: "kapruka_category_browse", result: { products } });
+                send({ type: "product_groups", groups: productGroups });
+              } else {
+                 // Fallback to text search if scraping failed entirely
+                 intent = "product";
+                 send({ type: "thought", step: "category_browse", status: "completed", content: "Could not scrape products, falling back to standard search.", durationMs: Date.now() - tCat });
+              }
+            } else {
+              intent = "product"; // fallback to text search if LLM failed
+              send({ type: "thought", step: "category_browse", status: "completed", content: "No matching categories found, falling back to standard search.", durationMs: Date.now() - tCat });
+            }
+          } else {
+             intent = "product";
+             send({ type: "thought", step: "category_browse", status: "completed", content: "Category tree unavailable, falling back to standard search.", durationMs: Date.now() - tCat });
+          }
+        }
+
         // ── Pillar 1: Product Search ─────────────────────────────────────
         if (intent === "product") {
           if (hasSelectedProducts && fetchedSelectedProducts.length > 0) {
@@ -1162,7 +1256,7 @@ User query to classify: "${message}"`;
 
             let contextNote = "";
 
-            if (intent === "product") {
+            if (intent === "product" || intent === "category_browse") {
               if (hasSelectedProducts && products.length > 0) {
                 contextNote = `\n\n[Selected Products Context — User is asking about these specific products]\n` +
                   products.map((p, idx) => {
@@ -1379,6 +1473,11 @@ const STATIC_FOLLOW_UPS: Record<Intent, string[]> = {
     "Filter by local Sri Lankan brands",
     "How do I buy and pay for this?",
   ],
+  category_browse: [
+    "Show me the best selling ones",
+    "Filter by local Sri Lankan brands",
+    "Are these available for same day delivery?",
+  ],
   delivery: [
     "Can you deliver perishables to Kandy?",
     "What are the delivery charges to Galle?",
@@ -1403,6 +1502,10 @@ function generateFallback(intent: Intent, message: string, products: KaprukaProd
       return products.length > 0
         ? `I found ${products.length} matching products on Kapruka for "${message}". Click "Buy Now" on any product to start checkout.`
         : `I searched the Kapruka catalog for "${message}". Please refine your search with more specific keywords.`;
+    case "category_browse":
+      return products.length > 0
+        ? `I found ${products.length} products in matching Kapruka categories. Click "Buy Now" on any product to start checkout.`
+        : `I searched Kapruka categories for "${message}" but couldn't find matches. Please be more specific.`;
     case "delivery":
       return "I can check Kapruka Grasshoppers delivery availability and rates to any Sri Lankan city.";
     case "service":
@@ -1471,32 +1574,39 @@ async function llmValidateRelevance(
   searchTerm: string,
   userQuery: string,
   aiClient: GoogleGenAI,
-  fastModel: string
+  fastModel: string,
+  isCategoryBrowse: boolean = false
 ): Promise<KaprukaProduct[]> {
   if (products.length === 0) return [];
   const productsToCheck = products.slice(0, 50);
   const productList = productsToCheck.map((p, i) => `${i + 1}. [${p.id}] ${p.name}`).join("\n");
+
+  const constraintText = isCategoryBrowse 
+    ? "" 
+    : `\nConstraint:\n- You must NOT discard more than 10 products. If there are more than 10 irrelevant products, only select the 10 most irrelevant ones to DISCARD, and mark all others as KEEP.`;
 
   const prompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
 
 User's query: "${userQuery}"
 Search term: "${searchTerm}"
 
-For each product below, decide:
-- KEEP: The product IS what the user wants (actual item, not a storage/cleaning/accessory variant)
-- DISCARD: The product only shares a keyword but is categorically different
+For each product below, decide if it should be kept and assign a relevance score (1-100).
+- KEEP (Score > 0): The product IS what the user wants or strongly related.
+- DISCARD: The product only shares a keyword but is categorically different, or is completely irrelevant.
+
+Score criteria:
+- 90-100: Exact match to user intent.
+- 50-89: Good match, highly relevant.
+- 1-49: Loosely related but still valid.
 
 Examples:
-- Searching "shoes" → sandals, boots, sneakers = KEEP. Shoe rack, shoe polish, shoe box = DISCARD.
-- Searching "cake" → birthday cake, chocolate cake = KEEP. Cake mold, cake box, birthday candle = DISCARD.
-
-Constraint:
-- You must NOT discard more than 10 products. If there are more than 10 irrelevant products, only select the 10 most irrelevant ones to DISCARD, and mark all others as KEEP.
+- Searching "shoes" → sandals, boots, sneakers = KEEP (high score). Shoe rack, shoe box = DISCARD.
+- Searching "cake" → birthday cake = KEEP. Cake mold = DISCARD.${constraintText}
 
 Products:
 ${productList}
 
-Respond ONLY with valid JSON: {"keep_ids":["id1","id2",...],"reason":"one-line explanation"}`;
+Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"one-line explanation"}`;
 
   try {
     const result = await aiClient.models.generateContent({
@@ -1507,27 +1617,44 @@ Respond ONLY with valid JSON: {"keep_ids":["id1","id2",...],"reason":"one-line e
         responseSchema: {
           type: "OBJECT",
           properties: {
-            keep_ids: { type: "ARRAY", items: { type: "STRING" } },
+            kept_items: { 
+              type: "ARRAY", 
+              items: { 
+                type: "OBJECT",
+                properties: {
+                  id: { type: "STRING" },
+                  score: { type: "INTEGER" }
+                },
+                required: ["id", "score"]
+              } 
+            },
             reason: { type: "STRING" },
           },
-          required: ["keep_ids", "reason"],
+          required: ["kept_items", "reason"],
         },
       },
     });
 
     let text = (result.text || "{}").trim().replace(/```json/i, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(text);
-    const keepIds = new Set<string>(Array.isArray(parsed?.keep_ids) ? parsed.keep_ids : []);
-    if (keepIds.size === 0) {
+    const keptItems = Array.isArray(parsed?.kept_items) ? parsed.kept_items : [];
+    
+    if (keptItems.length === 0 && productsToCheck.length > 0) {
       console.warn(`[LLM Validator] "${searchTerm}": validator returned 0 IDs — using raw set.`);
       return products;
     }
-    const filtered = productsToCheck.filter((p) => keepIds.has(p.id));
+
+    const scoreMap = new Map<string, number>();
+    for (const item of keptItems) {
+      scoreMap.set(item.id, item.score);
+    }
+
+    const filtered = productsToCheck.filter((p) => scoreMap.has(p.id));
     const remainder = products.slice(50);
     const combined = [...filtered, ...remainder].map((p) => {
       return {
         ...p,
-        _relevanceScore: keepIds.has(p.id) ? 10 : 1
+        _relevanceScore: scoreMap.get(p.id) ?? (remainder.includes(p) ? 5 : 1)
       };
     });
 
