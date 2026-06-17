@@ -8,7 +8,7 @@ export const fetchCache = "force-no-store";
 
 export async function POST(req: NextRequest) {
   try {
-    const { inputText, chatHistory } = await req.json().catch(() => ({}));
+    const { inputText } = await req.json().catch(() => ({}));
 
     if (!inputText || typeof inputText !== "string") {
       return NextResponse.json({ suggestions: [] });
@@ -38,14 +38,7 @@ export async function POST(req: NextRequest) {
     const ai = new GoogleGenAI({ apiKey });
     const model = config.gemini.autoCompleteModel;
 
-    // Build chat history snippet for context
-    let historySnippet = "";
-    if (chatHistory && Array.isArray(chatHistory) && chatHistory.length > 0) {
-      historySnippet = chatHistory
-        .slice(-4) // Take last 4 messages (2 turns)
-        .map((m: any) => `${m.role.toUpperCase()}: ${m.content.substring(0, 150)}`)
-        .join("\n");
-    }
+
 
     const systemInstruction = `You are Kapuruka's AI shopping assistant autocomplete engine.
 Your task is to generate 3 realistic, context-appropriate completions of the user's partially typed input.
@@ -57,9 +50,6 @@ Your task is to generate 3 realistic, context-appropriate completions of the use
 - Do NOT provide markdown styling or explanations. Return exactly a JSON array.`;
 
     const prompt = `
-[Recent Chat History Context]
-${historySnippet || "No previous history."}
-
 [User partially typed input]
 "${inputText}"
 

@@ -67,7 +67,6 @@ export default function ChatInputArea({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             inputText,
-            chatHistory,
           }),
           signal: controller.signal,
         });
