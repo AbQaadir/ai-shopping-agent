@@ -1,5 +1,6 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
+import { findRelevantCategories } from "@/lib/categories";
 import {
   extractCityFromMessage,
   extractDate,
@@ -175,6 +176,12 @@ export async function POST(req: NextRequest) {
       isRelated = true;
     } else if (ai) {
       try {
+        // Run local Category Matcher (RACR) to get matching store categories
+        const matchedCats = findRelevantCategories(message, 3);
+        const matchedCategoriesText = matchedCats.length > 0 
+          ? matchedCats.map(c => `- ${c.slug} (Path: ${c.path})`).join("\n")
+          : "None found";
+
         const classifierPrompt = `You are a query classifier and search term extractor for Kapruka (Sri Lankan e-commerce assistant).
 Analyze the user query in the context of the recent conversation history, and perform these tasks:
 
@@ -191,14 +198,21 @@ Analyze the user query in the context of the recent conversation history, and pe
 
 3. Extract focused product search terms and price filters ("searchTerms") as a JSON array of objects matching this schema:
    {
-     "term": string (MAX 2 words — the core product noun only. Strip colors/descriptors like "gold", "silver", "black", occasion/verbs/filler words like "wedding", "cheap", "buy", "for me" — e.g. "gold phone cases" -> "phone cases", "chocolate birthday cake" -> "cake" or "chocolate cake"),
+     "term": string (MAX 2 words — the core product noun only. Strip colors/descriptors like "gold", "silver", "black", occasion/verbs/filler words like "wedding", "cheap", "buy", "for me". CRITICAL: Translate generic shopping nouns to local Sri Lankan database listing nouns, especially: "phone case" or "phone cover" -> "backcover" or "cover" or "casing"),
      "minPrice": number | null (minimum price limit specified by user, e.g. "above 5000" -> 5000, "between 2000 and 5000" -> 2000. Set to null if there is no minimum price limit),
      "maxPrice": number | null (maximum price limit specified by user, e.g. "under 3000" -> 3000, "between 2000 and 5000" -> 5000. Set to null if there is no maximum price limit)
    }
+
    CRITICAL RULES:
    - Do NOT include any currency symbols or conversions in minPrice/maxPrice — just extract the raw numbers as numbers.
    - Extract ONE object per distinct product the user wants (max 3 objects total).
    - If not a product/service intent, set "searchTerms" to [].
+
+[Candidate Store Categories matching query]
+${matchedCategoriesText}
+
+[Instructions for translation and noun preparation]
+Use the candidate categories above to understand the listing taxonomy and prepare/translate the search query keyword ("term") to match the category's typical product noun (e.g., translate "phone cases" to "backcover" or "cover" or "casing" if the matched category is mobile_phone_accessories, and "cake" or "bento cake" to "cake" or "ribbon cake").
 
 Respond ONLY with JSON matching this structure:
 {"intent": "product"|"delivery"|"service"|"qa", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reason": "brief explanation"}
@@ -955,7 +969,7 @@ User query to classify: "${message}"`;
                   variants.map((v, vi) =>
                     new Promise<KaprukaProduct[]>((resolve, reject) => {
                       setTimeout(() => {
-                        pillar1_searchProducts(v, { maxPriceLKR: queryMaxPrice ?? undefined, smeFirst: false, limit: 30, currency: currency || "LKR" })
+                        pillar1_searchProducts(v, { maxPriceLKR: queryMaxPrice ?? undefined, smeFirst: false, currency: currency || "LKR" })
                           .then(resolve).catch(reject);
                       }, vi * 120);
                     })
@@ -986,21 +1000,12 @@ User query to classify: "${message}"`;
 
                 send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "completed", content: `Found ${filteredPriceProducts.length} raw result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.` + (priceFilterDiscarded > 0 ? ` (Filtered out ${priceFilterDiscarded} product(s) outside price limits)` : ""), durationMs: searchDur });
 
-                // Bypass keyword-based scoring/filtering. Rely on raw search engine relevance and AI validator.
+                // Bypass keyword-based scoring/filtering. Rely on raw search engine relevance and bypass LLM validator.
                 const keywordFiltered: KaprukaProduct[] = filteredPriceProducts.map((p) => ({ ...p, _relevanceScore: 10 }));
                 const keywordDiscarded = priceFilterDiscarded;
 
-                let validated = keywordFiltered;
-                let llmDiscarded = 0;
-
-                if (ai && keywordFiltered.length > 0) {
-                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "running", content: `Validating ${keywordFiltered.length} result${keywordFiltered.length !== 1 ? "s" : ""} for "${baseTerm}"...` });
-                  const t2 = Date.now();
-                  validated = await llmValidateRelevance(keywordFiltered, baseTerm, message, ai, config.gemini.fastModel);
-                  const validationDur = Date.now() - t2;
-                  llmDiscarded = keywordFiltered.length - validated.length;
-                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "completed", content: llmDiscarded > 0 ? `Relevance check: ✓ kept ${validated.length}, removed ${llmDiscarded} irrelevant.` : `All ${validated.length} result${validated.length !== 1 ? "s" : ""} passed ✓`, durationMs: validationDur });
-                }
+                const validated = keywordFiltered;
+                const llmDiscarded = 0;
 
                 const totalDiscarded = keywordDiscarded + llmDiscarded;
                 send({ type: "group_ready", term: baseTerm, products: validated, index: pipelineIndex, discardedCount: totalDiscarded });
