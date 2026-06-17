@@ -135,6 +135,69 @@ User query to classify: "${query}"`;
   } catch (err) {
     console.error("Failed to parse response JSON:", err);
   }
+
+  // Step 5: Test relevance validation with mock products
+  console.log("\n=== STEP 5: Testing Relevance Validator ===");
+  const mockProducts = [
+    { id: "PROD1", name: "Traditional Ceylon Tea & Chocolate Hamper", price: 4500, inStock: true },
+    { id: "PROD2", name: "Empty Wicker Gift Basket / Hamper Box", price: 1200, inStock: true },
+    { id: "PROD3", name: "Premium Sri Lankan Fruit & Nut Hamper", price: 6500, inStock: true },
+    { id: "PROD4", name: "Cardboard Box for Shipping Hampers", price: 350, inStock: true },
+    { id: "PROD5", name: "Traditional Sri Lankan Brass Oil Lamp", price: 8000, inStock: true },
+  ] as any[];
+
+  const productListStr = mockProducts.map((p, i) => `${i + 1}. [${p.id}] ${p.name}`).join("\n");
+  const validatorPrompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
+
+User's query: "I want to buy some traditional Sri Lankan gift hampers"
+Search term: "hampers"
+
+For each product below, decide:
+- KEEP: The product IS what the user wants (actual item, not a storage/cleaning/accessory variant)
+- DISCARD: The product only shares a keyword but is categorically different
+
+Examples:
+- Searching "shoes" → sandals, boots, sneakers = KEEP. Shoe rack, shoe polish, shoe box = DISCARD.
+- Searching "cake" → birthday cake, chocolate cake = KEEP. Cake mold, cake box, birthday candle = DISCARD.
+
+Constraint:
+- You must NOT discard more than 10 products. If there are more than 10 irrelevant products, only select the 10 most irrelevant ones to DISCARD, and mark all others as KEEP.
+
+Products:
+${productListStr}
+
+Respond ONLY with valid JSON: {"keep_ids":["id1","id2",...],"reason":"one-line explanation"}`;
+
+  try {
+    const valResponse = await ai.models.generateContent({
+      model: modelName,
+      contents: validatorPrompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            keep_ids: { type: "ARRAY", items: { type: "STRING" } },
+            reason: { type: "STRING" },
+          },
+          required: ["keep_ids", "reason"],
+        },
+      },
+    });
+
+    console.log("Validator Raw Response:");
+    console.log(valResponse.text);
+    const parsedVal = JSON.parse((valResponse.text || "{}").trim());
+    console.log("\nParsed Validator Results:");
+    console.log(`- Reason: ${parsedVal.reason}`);
+    console.log("- Kept Product IDs:", parsedVal.keep_ids);
+    const kept = mockProducts.filter(p => parsedVal.keep_ids.includes(p.id));
+    const discarded = mockProducts.filter(p => !parsedVal.keep_ids.includes(p.id));
+    console.log(`- Kept products count: ${kept.length} (${kept.map(p => p.name).join(", ")})`);
+    console.log(`- Discarded products count: ${discarded.length} (${discarded.map(p => p.name).join(", ")})`);
+  } catch (err) {
+    console.error("Failed relevance validation test:", err);
+  }
 }
 
 run();

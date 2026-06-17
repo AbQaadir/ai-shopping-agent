@@ -1000,12 +1000,21 @@ User query to classify: "${message}"`;
 
                 send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "completed", content: `Found ${filteredPriceProducts.length} raw result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.` + (priceFilterDiscarded > 0 ? ` (Filtered out ${priceFilterDiscarded} product(s) outside price limits)` : ""), durationMs: searchDur });
 
-                // Bypass keyword-based scoring/filtering. Rely on raw search engine relevance and bypass LLM validator.
+                // Rely on raw search engine relevance and run the LLM relevance validator.
                 const keywordFiltered: KaprukaProduct[] = filteredPriceProducts.map((p) => ({ ...p, _relevanceScore: 10 }));
                 const keywordDiscarded = priceFilterDiscarded;
 
-                const validated = keywordFiltered;
-                const llmDiscarded = 0;
+                let validated = keywordFiltered;
+                let llmDiscarded = 0;
+
+                if (ai && keywordFiltered.length > 0) {
+                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "running", content: `Validating ${keywordFiltered.length} result${keywordFiltered.length !== 1 ? "s" : ""} for "${baseTerm}"...` });
+                  const t2 = Date.now();
+                  validated = await llmValidateRelevance(keywordFiltered, baseTerm, message, ai, config.gemini.fastModel);
+                  const validationDur = Date.now() - t2;
+                  llmDiscarded = keywordFiltered.length - validated.length;
+                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "completed", content: llmDiscarded > 0 ? `Relevance check: ✓ kept ${validated.length}, removed ${llmDiscarded} irrelevant.` : `All ${validated.length} result${validated.length !== 1 ? "s" : ""} passed ✓`, durationMs: validationDur });
+                }
 
                 const totalDiscarded = keywordDiscarded + llmDiscarded;
                 send({ type: "group_ready", term: baseTerm, products: validated, index: pipelineIndex, discardedCount: totalDiscarded });
@@ -1482,7 +1491,7 @@ Examples:
 - Searching "cake" → birthday cake, chocolate cake = KEEP. Cake mold, cake box, birthday candle = DISCARD.
 
 Constraint:
-- You must NOT discard more than 5 products. If there are more than 5 irrelevant products, only select the 5 most irrelevant ones to DISCARD, and mark all others as KEEP.
+- You must NOT discard more than 10 products. If there are more than 10 irrelevant products, only select the 10 most irrelevant ones to DISCARD, and mark all others as KEEP.
 
 Products:
 ${productList}
