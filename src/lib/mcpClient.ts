@@ -93,6 +93,16 @@ export interface KaprukaCategory {
   url?: string;
 }
 
+/** Deep category with subcategories from kapruka_list_categories (depth: 2) */
+export interface KaprukaCategoryDeep {
+  name: string;
+  url?: string;
+  subcategories?: Array<{
+    name: string;
+    url?: string;
+  }>;
+}
+
 // ── Core MCP Client (using official SDK) ──────────────────────────────────
 
 /**
@@ -355,6 +365,73 @@ export async function listCategories(): Promise<MCPToolResult<KaprukaCategory[]>
       }));
     }
   );
+}
+
+/**
+ * Pillar 1 — List all Kapruka categories with subcategories (depth: 2).
+ * Returns the full category tree needed by the Category Browse Agent.
+ */
+export async function listCategoriesDeep(): Promise<MCPToolResult<KaprukaCategoryDeep[]>> {
+  return safeCallMCPTool(
+    "kapruka_list_categories",
+    {
+      params: {
+        depth: 2,
+        response_format: "json",
+      },
+    },
+    (text) => {
+      interface RawSubcategory {
+        name: string;
+        url?: string;
+      }
+      interface RawCategoryDeep {
+        name: string;
+        url?: string;
+        subcategories?: RawSubcategory[];
+        children?: RawSubcategory[];
+      }
+      interface RawListCategoriesDeepResponse {
+        categories?: RawCategoryDeep[];
+      }
+      const raw = parseJSON<RawListCategoriesDeepResponse>(text);
+      return (raw.categories || []).map((c) => ({
+        name: c.name,
+        url: c.url,
+        subcategories: (c.subcategories || c.children || []).map((s) => ({
+          name: s.name,
+          url: s.url,
+        })),
+      }));
+    }
+  );
+}
+
+// ── Category Cache (10-minute TTL) ────────────────────────────────────────
+
+let _categoryCache: { data: KaprukaCategoryDeep[]; fetchedAt: number } | null = null;
+const CATEGORY_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Returns the full depth-2 category tree, using a 10-minute in-memory cache
+ * to avoid repeated MCP calls. Falls back to stale cache if a refresh fails.
+ */
+export async function getCachedCategories(): Promise<KaprukaCategoryDeep[]> {
+  if (_categoryCache && Date.now() - _categoryCache.fetchedAt < CATEGORY_CACHE_TTL_MS) {
+    return _categoryCache.data;
+  }
+  const result = await listCategoriesDeep();
+  if (result.success && result.data) {
+    _categoryCache = { data: result.data, fetchedAt: Date.now() };
+    return result.data;
+  }
+  // If refresh failed but we have stale data, use it
+  if (_categoryCache?.data) {
+    console.warn("[MCP] Category refresh failed, using stale cache.");
+    return _categoryCache.data;
+  }
+  console.error("[MCP] Category fetch failed and no cache available.");
+  return [];
 }
 
 /**
