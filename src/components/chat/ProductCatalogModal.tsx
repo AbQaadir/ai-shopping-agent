@@ -131,13 +131,13 @@ function ModalGridCard({
         >
           <button
             onClick={onToggle}
-            className={`px-3.5 py-1.5 rounded-full text-[10px] font-bold shadow-lg cursor-pointer transition-all flex items-center gap-1 ${
+            className={`px-4 py-2 rounded-full text-[11px] font-bold shadow-lg cursor-pointer transition-all flex items-center gap-1.5 ${
               isSelected
                 ? "bg-[#402970] text-white"
                 : "bg-white text-slate-800 hover:bg-slate-50 border border-slate-200"
             }`}
           >
-            <Check size={9} className="stroke-[3.5]" />
+            <Check size={11} className="stroke-[3.5]" />
             {isSelected ? "Selected" : "Select"}
           </button>
         </div>

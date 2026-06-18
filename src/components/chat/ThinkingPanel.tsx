@@ -112,7 +112,7 @@ export default function ThinkingPanel({
       {isGenerating ? (
         <div className="w-full">
           {/* Active Header */}
-          <div className="flex items-center gap-2 text-slate-500 text-[13px] font-medium py-1.5 select-none">
+          <div className="flex items-center gap-2 text-black text-[13px] font-medium py-1.5 select-none">
             <Loader2 size={13} className="text-[#402970] animate-spin shrink-0" />
             <span>Working on your task</span>
           </div>
@@ -125,12 +125,12 @@ export default function ThinkingPanel({
         /* Completed/Interactive Collapsible Header */
         <div
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="flex items-center gap-1.5 cursor-pointer text-[#858585] hover:text-slate-700 text-xs font-semibold py-1.5 transition-colors duration-200 select-none"
+          className="flex items-center gap-1.5 cursor-pointer text-black hover:text-black text-xs font-semibold py-1.5 transition-colors duration-200 select-none"
         >
           <span>Show thought process</span>
           <ChevronDown
             size={13}
-            className={`text-[#858585] transition-transform duration-300 ease-in-out shrink-0 ${
+            className={`text-black transition-transform duration-300 ease-in-out shrink-0 ${
               showContent ? "rotate-180" : "rotate-0"
             }`}
           />
@@ -160,7 +160,7 @@ export default function ThinkingPanel({
                 <Check size={10} className="text-white stroke-[3.5]" />
               </div>
             )}
-            <span className="text-[13px] font-bold text-slate-800">
+            <span className="text-[13px] font-bold text-black">
               Getting everything ready
             </span>
           </div>
@@ -177,7 +177,7 @@ export default function ThinkingPanel({
 
               return (
                 <div key={idx} className="space-y-2.5 animate-step-enter">
-                  <p className="text-slate-600 text-[13px] font-medium leading-relaxed pr-2">
+                  <p className="text-black text-[13px] font-medium leading-relaxed pr-2">
                     {step.content}
                   </p>
 
@@ -191,7 +191,7 @@ export default function ThinkingPanel({
                             className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-3 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)]"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 shadow-xs shrink-0 select-none">
+                              <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-black shadow-xs shrink-0 select-none">
                                 <Box size={13} className="text-[#402970] shrink-0" />
                                 <span>Product search</span>
                               </div>
@@ -208,13 +208,13 @@ export default function ThinkingPanel({
                   ) : badge ? (
                     /* Fallback: single tool capsule (non-parallel steps) */
                     <div className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-4 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all">
-                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-600 truncate min-w-0">
-                        <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 shadow-xs shrink-0 select-none">
+                      <div className="flex items-center gap-2.5 text-xs font-bold text-black truncate min-w-0">
+                        <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-black shadow-xs shrink-0 select-none">
                           <Box size={13} className="text-[#402970] shrink-0" />
                           <span>{badge}</span>
                         </div>
                         {query && (
-                          <span className="text-[11px] text-slate-500 font-medium truncate max-w-[200px] sm:max-w-[350px]">
+                          <span className="text-[11px] text-black font-medium truncate max-w-[200px] sm:max-w-[350px]">
                             {query}
                           </span>
                         )}
@@ -254,17 +254,17 @@ export default function ThinkingPanel({
                 const toolQuery = getToolCallQuery(call.name, call.args);
                 return badge ? (
                   <div className="space-y-2.5 animate-step-enter">
-                    <p className="text-slate-600 text-[13px] font-medium leading-relaxed pr-2">
+                    <p className="text-black text-[13px] font-medium leading-relaxed pr-2">
                       Running task {badge}...
                     </p>
                     <div className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-4 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)]">
-                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-600 truncate min-w-0">
-                        <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 shadow-xs shrink-0 select-none">
+                      <div className="flex items-center gap-2.5 text-xs font-bold text-black truncate min-w-0">
+                        <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-black shadow-xs shrink-0 select-none">
                           <Box size={13} className="text-[#402970] shrink-0" />
                           <span>{badge}</span>
                         </div>
                         {toolQuery && (
-                          <span className="text-[11px] text-slate-500 font-medium truncate max-w-[200px] sm:max-w-[350px]">
+                          <span className="text-[11px] text-black font-medium truncate max-w-[200px] sm:max-w-[350px]">
                             {toolQuery}
                           </span>
                         )}
@@ -277,7 +277,7 @@ export default function ThinkingPanel({
               // Multiple parallel calls: show stacked capsule rows
               return (
                 <div className="space-y-2.5 animate-step-enter">
-                  <p className="text-slate-600 text-[13px] font-medium leading-relaxed pr-2">
+                  <p className="text-black text-[13px] font-medium leading-relaxed pr-2">
                     Running <span className="font-bold text-[#402970]">{filteredCalls.length} parallel</span> product searches...
                   </p>
                   <div className="flex flex-col gap-1.5">
@@ -289,7 +289,7 @@ export default function ThinkingPanel({
                           className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-4 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)] animate-fadeIn"
                           style={{ animationDelay: `${idx * 60}ms` }}
                         >
-                          <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 shadow-xs shrink-0 select-none">
+                          <div className="bg-white border border-slate-200/60 rounded-full px-3 py-1 flex items-center gap-1.5 text-[11px] font-bold text-black shadow-xs shrink-0 select-none">
                             <Box size={13} className="text-[#402970] shrink-0 animate-pulse" />
                             <span>{badge}</span>
                           </div>

@@ -228,14 +228,14 @@ export default function ChatInputArea({
         )}
         
         {/* Background glow for chat input */}
-        <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 blur-lg transition-all duration-300 pointer-events-none ${
-          selectedProducts.length > 0 ? "rounded-[28px]" : "rounded-full"
-        } ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"}`} />
+        <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 blur-lg transition-all duration-300 pointer-events-none rounded-[28px] ${
+          isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"
+        }`} />
 
-        <div className={`w-full bg-white flex flex-col transition-all duration-300 border relative ${
+        <div className={`w-full bg-white flex flex-col transition-all duration-300 border relative rounded-[24px] ${
           selectedProducts.length > 0 
-            ? "rounded-[24px] p-3.5" 
-            : "rounded-full py-1.5 pl-2 pr-1.5"
+            ? "p-3.5" 
+            : "py-1.5 pl-2 pr-1.5"
         } ${
           isFocused
             ? "border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.05)]"
