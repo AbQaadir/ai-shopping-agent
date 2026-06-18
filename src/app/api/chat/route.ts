@@ -464,9 +464,7 @@ User query to classify: "${message}"`;
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
               const existingIdx = currentCart.findIndex((item) => item.id === p.id);
-              if (existingIdx > -1) {
-                currentCart[existingIdx].quantity += 1;
-              } else {
+              if (existingIdx === -1) {
                 currentCart.push({
                   id: p.id,
                   name: p.name || p.title || "Kapruka Product",
