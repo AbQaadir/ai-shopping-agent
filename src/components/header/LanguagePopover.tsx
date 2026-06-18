@@ -54,7 +54,7 @@ export default function LanguagePopover({ onClose, align = "bottom" }: LanguageP
     }`}>
       {/* Arrow indicator pointing up or left */}
       {align === "right" ? (
-        <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 bg-white border-b border-l border-slate-100 rotate-45"></div>
+        <div className="absolute bottom-[18px] -left-1.5 w-3 h-3 bg-white border-b border-l border-slate-100 rotate-45"></div>
       ) : (
         <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-t border-l border-slate-100 rotate-45"></div>
       )}
@@ -124,7 +124,7 @@ export default function LanguagePopover({ onClose, align = "bottom" }: LanguageP
           {isCurrencyOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setIsCurrencyOpen(false)} />
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-100 rounded-lg shadow-lg py-1 z-20 max-h-48 overflow-y-auto animate-fadeIn select-none">
+              <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-slate-100 rounded-lg shadow-lg py-1 z-20 max-h-48 overflow-y-auto animate-fadeIn select-none">
                 {currencies.map((curr) => (
                   <button
                     key={curr.value}
