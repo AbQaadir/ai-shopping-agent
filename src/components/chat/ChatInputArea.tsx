@@ -36,7 +36,7 @@ export default function ChatInputArea({
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { handleAddToCart } = useSourcing();
+  const { handleAddToCart, handleBuyProduct, handleOrderCart } = useSourcing();
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -304,7 +304,7 @@ export default function ChatInputArea({
                 {selectedProducts.length === 1 ? (
                   <>
                     <button
-                      onClick={() => onSubmit("Order this")}
+                      onClick={() => handleBuyProduct(selectedProducts[0])}
                       className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Order →
@@ -313,7 +313,7 @@ export default function ChatInputArea({
                 ) : (
                   <>
                     <button
-                      onClick={() => onSubmit("Order selected")}
+                      onClick={() => handleOrderCart(selectedProducts)}
                       className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Order →

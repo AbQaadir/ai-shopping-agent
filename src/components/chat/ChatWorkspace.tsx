@@ -6,7 +6,8 @@ import {
   ChevronLeft,
   Share2,
   Menu,
-  ShoppingCart
+  ShoppingCart,
+  X
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSourcing } from "@/context/SourcingContext";
@@ -36,7 +37,7 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
-  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems } = useSourcing();
+  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isCopied, setIsCopied] = useState(false);
@@ -226,6 +227,25 @@ export default function ChatWorkspace({
         isOpen={isCartDrawerOpen}
         onClose={() => setIsCartDrawerOpen(false)}
       />
+
+      {/* ── Silent Add-to-Cart Toast ── */}
+      {cartToast && (
+        <div
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2.5 px-4 py-2.5 bg-[#402970] text-white text-xs font-semibold rounded-2xl shadow-lg animate-slideInDown select-none"
+          role="status"
+          aria-live="polite"
+        >
+          <ShoppingCart size={13} className="shrink-0 opacity-80" />
+          <span>{cartToast}</span>
+          <button
+            onClick={clearCartToast}
+            className="ml-1 p-0.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
+            aria-label="Dismiss"
+          >
+            <X size={11} />
+          </button>
+        </div>
+      )}
 
     </div>
   );
