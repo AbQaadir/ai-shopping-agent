@@ -179,10 +179,10 @@ export default function GlobalSidebar({
         <div className="relative pt-1">
           <button
             onClick={() => setShowUserDropdown(!showUserDropdown)}
-            className={`flex items-center justify-between border transition-all duration-300 cursor-pointer outline-none group ${
+            className={`flex items-center transition-all duration-300 cursor-pointer outline-none group border ${
               isCollapsed
-                ? "w-10 h-10 mx-auto rounded-full bg-[#402970]/5 border-[#402970]/10 hover:bg-[#402970]/10 p-0 justify-center"
-                : "w-full p-2.5 rounded-xl border-slate-200/60 bg-white hover:bg-[#402970]/5 hover:border-[#402970]/20 hover:text-[#402970] text-left"
+                ? "w-8 h-8 mx-auto rounded-full bg-[#402970]/5 border-[#402970]/10 hover:bg-[#402970]/10 p-0 justify-center text-[#402970] font-extrabold text-xs"
+                : "w-full p-2.5 rounded-xl border-slate-200/60 bg-white hover:bg-[#402970]/5 hover:border-[#402970]/20 hover:text-[#402970] text-left justify-between"
             }`}
             title={
               activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
@@ -192,35 +192,37 @@ export default function GlobalSidebar({
                 : "Guest Profile"
             }
           >
-            <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed ? "justify-center" : ""}`}>
-              <div className={`rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
-                isCollapsed
-                  ? "w-full h-full bg-transparent text-[#402970] font-extrabold"
-                  : "w-8 h-8 bg-[#402970]/10 text-[#402970] group-hover:bg-[#402970]/20"
-              }`}>
-                {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
-                  ? "KS"
-                  : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
-                  ? "NP"
-                  : "GU"}
-              </div>
-              <div className={`flex flex-col text-left min-w-0 transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap ${
-                isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
-              }`}>
-                <span className="text-xs font-bold text-slate-700 group-hover:text-[#402970] transition-colors truncate">
-                  {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
-                    ? "Kamal Silva"
-                    : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
-                    ? "Nimal Perera"
-                    : "Guest Profile"}
-                </span>
-                <span className="text-[10px] text-slate-400 font-bold tracking-wide group-hover:text-[#402970]/70 transition-colors truncate">
-                  {activeUserId === "guest" ? "Guest Mode" : "Active Profile"}
-                </span>
-              </div>
-            </div>
-            {!isCollapsed && (
-              <ChevronUp size={14} className="text-slate-400 group-hover:text-[#402970] transition-colors shrink-0" />
+            {isCollapsed ? (
+              activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
+                ? "KS"
+                : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
+                ? "NP"
+                : "GU"
+            ) : (
+              <>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 bg-[#402970]/10 text-[#402970] group-hover:bg-[#402970]/20 transition-colors">
+                    {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
+                      ? "KS"
+                      : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
+                      ? "NP"
+                      : "GU"}
+                  </div>
+                  <div className="flex flex-col text-left min-w-0">
+                    <span className="text-xs font-bold text-slate-700 group-hover:text-[#402970] transition-colors truncate">
+                      {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
+                        ? "Kamal Silva"
+                        : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
+                        ? "Nimal Perera"
+                        : "Guest Profile"}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold tracking-wide group-hover:text-[#402970]/70 transition-colors truncate">
+                      {activeUserId === "guest" ? "Guest Mode" : "Active Profile"}
+                    </span>
+                  </div>
+                </div>
+                <ChevronUp size={14} className="text-slate-400 group-hover:text-[#402970] transition-colors shrink-0" />
+              </>
             )}
           </button>
 
