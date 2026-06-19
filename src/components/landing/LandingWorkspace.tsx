@@ -21,6 +21,9 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
+  // Client-side cache to load previously typed prefixes instantly
+  const autocompleteCache = useRef<Record<string, string[]>>({});
+
   useEffect(() => {
     const tx = textareaRef.current;
     if (tx) {
@@ -36,6 +39,22 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       setSelectedIndex(-1);
       return;
     }
+
+    const cacheKey = inputText.trim().toLowerCase();
+
+    // Check client-side cache first
+    if (autocompleteCache.current[cacheKey]) {
+      const cached = autocompleteCache.current[cacheKey];
+      if (cached.length > 0) {
+        setSuggestions(cached);
+        setShowDropdown(true);
+      } else {
+        setSuggestions([]);
+        setShowDropdown(false);
+      }
+      return;
+    }
+
     const controller = new AbortController();
     const fetchSuggestions = async () => {
       try {
@@ -50,8 +69,12 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.suggestions && data.suggestions.length > 0) {
-            setSuggestions(data.suggestions);
+          const suggestionsList = data.suggestions || [];
+          // Save to client-side cache
+          autocompleteCache.current[cacheKey] = suggestionsList;
+
+          if (suggestionsList.length > 0) {
+            setSuggestions(suggestionsList);
             setShowDropdown(true);
           } else {
             setSuggestions([]);
@@ -65,7 +88,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       }
     };
 
-    const debounceTimer = setTimeout(fetchSuggestions, 300);
+    // Reduced from 300ms to 250ms for snappier autocomplete response
+    const debounceTimer = setTimeout(fetchSuggestions, 250);
     return () => {
       clearTimeout(debounceTimer);
       controller.abort();

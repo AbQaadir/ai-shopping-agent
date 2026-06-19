@@ -533,12 +533,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
               if (packet.type === "thought") {
                 // Per-pipeline steps carry a "term" field; use step+term as the unique key
                 const stepKey = packet.term ? `${packet.step}__${packet.term}` : packet.step;
-                
-                // Browser console log for categorization tool step completion
-                if (packet.step === "category_browse" && packet.status === "completed") {
-                  console.log(`%c[Browser] Categorization Tool Status Update: ${packet.content}`, "color: #0070f3; font-weight: bold;");
-                }
-
                 const existingIdx = accumulatedSteps.findIndex(s => {
                   const key = (s as any)._key;
                   return key ? key === stepKey : s.step === packet.step && !(s as any)._key;
@@ -562,9 +556,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 ));
 
               } else if (packet.type === "tool_call") {
-                if (packet.name === "kapruka_category_browse") {
-                  console.log("%c[Browser] Categorization Tool (kapruka_category_browse) started call with arguments:", "color: #f5a623; font-weight: bold;", packet.args);
-                }
                 setMessages(prev => prev.map(m =>
                   m.id === aiMessageId
                     ? {
@@ -582,13 +573,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 ));
 
               } else if (packet.type === "tool_result") {
-                if (packet.toolName === "kapruka_category_browse" || (packet.result?.products && !packet.toolName)) {
-                  console.log(
-                    `%c[Browser] Categorization Tool (kapruka_category_browse) succeeded! Loaded ${packet.result?.products?.length || 0} products.`,
-                    "color: #10b981; font-weight: bold;",
-                    packet.result
-                  );
-                }
                 if (packet.result?.products) {
                   inlineProducts = packet.result.products;
                   setMessages(prev => prev.map(m =>

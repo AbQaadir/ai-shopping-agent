@@ -250,6 +250,7 @@ interface ParsedSection {
   type: "intro" | "details" | "general";
   groupTitle?: string;
   text: string;
+  key: string;
 }
 
 function parseMessageText(text: string): ParsedSection[] {
@@ -261,6 +262,7 @@ function parseMessageText(text: string): ParsedSection[] {
   let lastIndex = 0;
   let currentType: "intro" | "details" | "general" = "general";
   let currentGroupTitle: string | undefined = undefined;
+  let generalCount = 0;
   
   let match;
   while ((match = tagRegex.exec(text)) !== null) {
@@ -268,10 +270,14 @@ function parseMessageText(text: string): ParsedSection[] {
     const contentText = text.substring(lastIndex, matchIndex);
     
     if (contentText.trim() || currentType !== "general") {
+      const key = currentType === "general"
+        ? `general_${generalCount++}`
+        : `${currentType}_${currentGroupTitle}`;
       sections.push({
         type: currentType,
         groupTitle: currentGroupTitle,
-        text: contentText
+        text: contentText,
+        key
       });
     }
     
@@ -282,10 +288,14 @@ function parseMessageText(text: string): ParsedSection[] {
   
   const remainingText = text.substring(lastIndex);
   if (remainingText.trim() || currentType !== "general") {
+    const key = currentType === "general"
+      ? `general_${generalCount++}`
+      : `${currentType}_${currentGroupTitle}`;
     sections.push({
       type: currentType,
       groupTitle: currentGroupTitle,
-      text: remainingText
+      text: remainingText,
+      key
     });
   }
   
@@ -605,6 +615,8 @@ export default function ChatTimeline({
   onBuyProduct,
 }: ChatTimelineProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(messages.length);
 
   // Local state to keep track of closed tool result cards per message ID
   const [closedMessages, setClosedMessages] = React.useState<Record<string, boolean>>({});
@@ -652,11 +664,25 @@ export default function ChatTimeline({
   };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const prevLength = prevLengthRef.current;
+    prevLengthRef.current = messages.length;
+
+    if (messages.length > prevLength) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    } else if (isGenerating) {
+      const container = containerRef.current;
+      if (container) {
+        const threshold = 150;
+        if (container.scrollHeight - container.scrollTop - container.clientHeight <= threshold) {
+          bottomRef.current?.scrollIntoView({ behavior: "auto" });
+        }
+      }
+    }
   }, [messages, isGenerating]);
 
   return (
     <div
+      ref={containerRef}
       className="flex-1 overflow-y-auto px-4 pt-16 space-y-6 flex flex-col items-center w-full"
       style={{ scrollbarGutter: "stable" }}
     >
@@ -774,13 +800,10 @@ export default function ChatTimeline({
                                 : []
                               );
 
-                          // Norm helper for matching
                           const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-                          // Custom mixed layout matching user mockups
                           return (
                             <div className="space-y-4 w-full">
-                              {/* 1. General text sections before the first group */}
                               {parsedSections
                                 .filter((s) => {
                                   if (s.type !== "general") return false;
@@ -788,40 +811,34 @@ export default function ChatTimeline({
                                   const firstTaggedIdx = parsedSections.findIndex(p => p.type === "intro" || p.type === "details");
                                   return firstTaggedIdx !== -1 && rawIdx < firstTaggedIdx;
                                 })
-                                .map((s, sIdx) => {
+                                .map((s) => {
                                   const rawIdx = parsedSections.indexOf(s);
                                   const isLast = rawIdx === parsedSections.length - 1;
                                   return (
-                                    <div key={`gen-top-${sIdx}`} className="animate-fadeIn">
+                                    <div key={s.key} className="animate-fadeIn">
                                       {renderMessageTextBlock(s.text, isLastAIResponse, isLast)}
                                     </div>
                                   );
                                 })}
 
-                              {/* 2. Unified product sections mixed with their intro and details */}
                               {unifiedGroups.map((group, gIdx) => {
                                 const groupNorm = norm(group.title);
-                                
-                                // Find intro matching this group
                                 const introSec = parsedSections.find(s => s.type === "intro" && s.groupTitle && norm(s.groupTitle) === groupNorm);
                                 const introIdx = introSec ? parsedSections.indexOf(introSec) : -1;
                                 const isIntroLast = introIdx === parsedSections.length - 1;
 
-                                // Find details matching this group
                                 const detailsSec = parsedSections.find(s => s.type === "details" && s.groupTitle && norm(s.groupTitle) === groupNorm);
                                 const detailsIdx = detailsSec ? parsedSections.indexOf(detailsSec) : -1;
                                 const isDetailsLast = detailsIdx === parsedSections.length - 1;
 
                                 return (
                                   <div key={`mixed-group-${gIdx}`} className="space-y-4">
-                                    {/* Intro for this group */}
                                     {introSec && introSec.text.trim() && (
-                                      <div className="animate-fadeIn">
+                                      <div key={introSec.key} className="animate-fadeIn">
                                         {renderMessageTextBlock(introSec.text, isLastAIResponse, isIntroLast)}
                                       </div>
                                     )}
 
-                                    {/* Product Grid */}
                                     <ProductSection
                                       title={group.title}
                                       products={group.products}
@@ -832,14 +849,12 @@ export default function ChatTimeline({
                                       renderClosableToolCard={renderClosableToolCard}
                                     />
 
-                                    {/* Details for this group */}
                                     {detailsSec && detailsSec.text.trim() && (
-                                      <div className="animate-fadeIn">
+                                      <div key={detailsSec.key} className="animate-fadeIn">
                                         {renderMessageTextBlock(detailsSec.text, isLastAIResponse, isDetailsLast)}
                                       </div>
                                     )}
 
-                                    {/* Divider if not the last group */}
                                     {gIdx < unifiedGroups.length - 1 && (
                                       <hr className="border-t border-slate-200/80 my-6" />
                                     )}
@@ -859,11 +874,11 @@ export default function ChatTimeline({
                                   if (!title) return true;
                                   return !unifiedGroups.some(g => norm(g.title) === norm(title));
                                 })
-                                .map((s, sIdx) => {
+                                .map((s) => {
                                   const rawIdx = parsedSections.indexOf(s);
                                   const isLast = rawIdx === parsedSections.length - 1;
                                   return (
-                                    <div key={`concl-${sIdx}`} className="animate-fadeIn">
+                                    <div key={s.key} className="animate-fadeIn">
                                       {s.type !== "general" && s.groupTitle && (
                                         <h5 className="text-[13px] font-extrabold text-slate-800 mt-3 mb-1.5 select-none">
                                           {s.groupTitle} ({s.type})
