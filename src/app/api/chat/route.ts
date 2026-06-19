@@ -118,7 +118,29 @@ export async function POST(req: NextRequest) {
 
     // 1. Ensure chat session exists
     let session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+    
+    // Strict Ownership Check
+    if (session && session.userId && session.userId !== userId) {
+      return new Response(JSON.stringify({ error: "Forbidden: You do not have permission to send messages to this shared chat." }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     if (!session) {
+      // Ensure user exists (create a dummy guest user if needed)
+      if (userId && userId !== "guest") {
+        await prisma.user.upsert({
+          where: { id: userId },
+          update: {},
+          create: {
+            id: userId,
+            email: `guest-${userId}@guest.local`,
+            name: "Guest User",
+          },
+        });
+      }
+
       session = await prisma.chatSession.create({
         data: {
           id: sessionId,

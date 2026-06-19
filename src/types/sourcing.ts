@@ -52,6 +52,21 @@ export interface SavedAddress {
   city: string;
 }
 
+/** Categorized saved delivery address per user */
+export interface UserAddress {
+  id: string;
+  type: "home" | "work" | "custom";
+  label: string;          // "Home" | "Work" | user-typed
+  recipientName: string;  // who receives delivery
+  phone: string;          // delivery contact number
+  addressLine: string;    // street / rough address text
+  city: string;
+  lat?: number;           // from Google Maps pin
+  lng?: number;
+  formattedAddress?: string; // full formatted address from geocoder
+  isDefault: boolean;
+}
+
 export interface GeocodedLocation {
   lat: number;
   lng: number;
@@ -66,6 +81,7 @@ export interface OrderFlowStepData {
   stockStatus?: "in_stock" | "out_of_stock" | "limited";
   stockQty?: number;              // estimated available quantity
   savedAddress?: SavedAddress;    // user's default saved address
+  savedAddresses?: UserAddress[]; // all user saved addresses for delivery_ask phase
   geocodedLocation?: GeocodedLocation; // geocoded result for map_open phase
   confirmedQuantity?: number;     // quantity confirmed by user
   confirmedAddress?: SavedAddress; // delivery address confirmed by user

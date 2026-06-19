@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   description: "All tasks in one ask, smart sourcing with AI. Go beyond search — let Kapuruka Work handle your entire sourcing workflow.",
 };
 
+import { AuthProvider } from "@/context/AuthContext";
+import AuthModal from "@/components/auth/AuthModal";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,9 +31,12 @@ export default function RootLayout({
         className="h-full overflow-hidden flex flex-col bg-white text-slate-800 font-sans"
         suppressHydrationWarning
       >
-        <SourcingProvider>
-          {children}
-        </SourcingProvider>
+        <AuthProvider>
+          <SourcingProvider>
+            {children}
+            <AuthModal />
+          </SourcingProvider>
+        </AuthProvider>
       </body>
     </html>
   );

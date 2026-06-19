@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem, ProductGroup } from "@/types/sourcing";
+import { useAuth } from "./AuthContext";
+import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem, ProductGroup, UserAddress } from "@/types/sourcing";
 
 
 interface SourcingContextType {
@@ -22,9 +23,8 @@ interface SourcingContextType {
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   history: HistoryItem[];
   setHistory: React.Dispatch<React.SetStateAction<HistoryItem[]>>;
-
   activeUserId: string;
-  handleSwitchUser: (userId: string) => void;
+  isSharedReadOnly: boolean;
   fetchHistory: () => Promise<void>;
   fetchSessionAndHydrate: (id: string) => Promise<void>;
   handleResetLocal: () => void;
@@ -51,6 +51,9 @@ interface SourcingContextType {
   /** Transient toast shown after a silent Add-to-Cart action. Null when no toast is active. */
   cartToast: string | null;
   clearCartToast: () => void;
+  /** Saved delivery addresses for the logged-in user */
+  userAddresses: UserAddress[];
+  setUserAddresses: React.Dispatch<React.SetStateAction<UserAddress[]>>;
 }
 
 const SourcingContext = createContext<SourcingContextType | undefined>(undefined);
@@ -59,12 +62,28 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isChatting, setIsChatting] = useState(false);
+  const [activeSessionOwnerId, setActiveSessionOwnerId] = useState<string | null>(null);
   const [activeHistoryId, setActiveHistoryId] = useState<string | undefined>(undefined);
   const [activeQueryText, setActiveQueryText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [activeUserId, setActiveUserId] = useState<string>("e17d0577-c93d-4c3e-9080-60b6bbfdf071"); // Kamal Silva default
+  
+  const { user, openAuthModal } = useAuth();
+  const [guestId, setGuestId] = useState<string>("");
+
+  useEffect(() => {
+    let id = localStorage.getItem("kapruka_guest_uuid");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("kapruka_guest_uuid", id);
+    }
+    setGuestId(id);
+  }, []);
+
+  const activeUserId = user?.id || guestId || "guest-pending";
+  const isSharedReadOnly = activeSessionOwnerId !== null && activeSessionOwnerId !== activeUserId && activeUserId !== "guest-pending";
+
   const [country, setCountry] = useState("LK");
   const [currency, setCurrency] = useState("USD");
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
@@ -72,6 +91,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [isViewingCart, setIsViewingCart] = useState<boolean>(false);
   const [cartToast, setCartToast] = useState<string | null>(null);
   const cartToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [userAddresses, setUserAddresses] = useState<UserAddress[]>([]);
 
   const showCartToast = useCallback((msg: string) => {
     setCartToast(msg);
@@ -83,6 +103,22 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setCartToast(null);
     if (cartToastTimerRef.current) clearTimeout(cartToastTimerRef.current);
   }, []);
+
+  // Load user's saved addresses when they log in
+  useEffect(() => {
+    if (!user?.id) {
+      setUserAddresses([]);
+      return;
+    }
+    fetch(`/api/user/profile?userId=${user.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.addresses && Array.isArray(data.addresses)) {
+          setUserAddresses(data.addresses as UserAddress[]);
+        }
+      })
+      .catch(err => console.warn("Failed to load user addresses:", err));
+  }, [user?.id]);
 
   useEffect(() => {
     const detectLocation = async () => {
@@ -148,23 +184,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeUserId]);
 
-  const handleSwitchUser = useCallback((userId: string) => {
-    setActiveUserId(userId);
-    setIsChatting(false);
-    setMessages([]);
-    setActiveHistoryId(undefined);
-    setActiveQueryText("");
-    setIsGenerating(false);
-    setSelectedProducts([]);
-    setCartItems([]);
-    setIsViewingCart(false);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    window.history.pushState(null, "", "/");
-  }, []);
-
   const fetchSessionAndHydrate = useCallback(async (id: string) => {
     try {
       setMessages([]);
@@ -175,6 +194,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       if (cachedItem) {
         setMessages(cachedItem.messages);
         setActiveQueryText(cachedItem.query);
+        setActiveSessionOwnerId(null);
+        window.history.replaceState(null, "", `/c/${id}`);
         return;
       }
 
@@ -273,6 +294,9 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         setMessages(mappedMessages);
         setActiveQueryText(sessionData.title);
         setIsChatting(true);
+        
+        setActiveSessionOwnerId(sessionData.userId);
+        window.history.replaceState(null, "", `/c/${id}`);
 
         setHistory(prev => {
           const exists = prev.some((h) => h.id === id);
@@ -309,6 +333,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setSelectedProducts([]);
     setCartItems([]);
     setIsViewingCart(false);
+    setActiveSessionOwnerId(null);
   }, []);
 
   // Synchronize state when browser Back/Forward navigation occurs
@@ -349,7 +374,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setIsMobileSidebarOpen(false);
     setSelectedProducts([]);
     // Update path without unmounting the dashboard component tree
-    window.history.pushState(null, "", `/c/${id}`);
+    window.history.pushState(null, "", `/`);
     setActiveHistoryId(id);
     fetchSessionAndHydrate(id);
   };
@@ -364,6 +389,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleSendMessage = async (text: string, files: File[]) => {
+    if (!user) {
+      const userMessageCount = messages.filter(m => m.sender === "user").length;
+      if (userMessageCount >= 3) {
+        openAuthModal("message_limit");
+        return;
+      }
+    }
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -407,6 +440,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           const newSession = await sessionRes.json();
           currentSessionId = newSession.id;
           setActiveHistoryId(currentSessionId);
+          window.history.pushState(null, "", `/c/${currentSessionId}`);
           
           const newHistoryItem: HistoryItem = {
             id: currentSessionId,
@@ -681,8 +715,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
       setIsGenerating(false);
 
-      if (currentSessionId && !window.location.pathname.startsWith(`/c/${currentSessionId}`)) {
-        window.history.replaceState(null, "", `/c/${currentSessionId}`);
+      if (currentSessionId && !window.location.pathname.startsWith(`/`)) {
+        // Keeping URL to just /
       }
 
       const finalMappedAi: Message = {
@@ -781,6 +815,10 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
    * The LLM never sees an "add to cart" message — only the checkout trigger.
    */
   const handleBuyProduct = useCallback(async (product: InlineProduct) => {
+    if (!user) {
+      openAuthModal("checkout");
+      return;
+    }
     // --- Step 1: Ensure we have a session ---
     let currentSessionId = activeHistoryId;
     if (!currentSessionId) {
@@ -801,7 +839,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
             queryType: "product",
             messages: []
           }, ...prev]);
-          window.history.replaceState(null, "", `/c/${currentSessionId}`);
         } else {
           currentSessionId = `session-${Date.now()}`;
           setActiveHistoryId(currentSessionId);
@@ -887,6 +924,11 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
    * The agent never sees this action — it is a pure UI/DB operation.
    */
   const handleAddToCart = useCallback(async (products: InlineProduct[]) => {
+    if (!user) {
+      openAuthModal("checkout");
+      return;
+    }
+
     if (products.length === 0) return;
 
     // --- Ensure a session exists (needed to key the cart in DB) ---
@@ -958,13 +1000,17 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       ? `✓ "${itemNames[0].substring(0, 40)}" added to cart`
       : `✓ ${itemNames.length} items added to cart`;
     showCartToast(toastMsg);
-  }, [activeHistoryId, activeUserId, cartItems, showCartToast]);
+  }, [activeHistoryId, activeUserId, cartItems, showCartToast, user, openAuthModal]);
 
   /**
-   * "Order" button handler for MULTIPLE selected products.
    * Adds all selected products to cart silently, then triggers checkout_start.
    */
   const handleOrderCart = useCallback(async (products: InlineProduct[]) => {
+    if (!user) {
+      openAuthModal("checkout");
+      return;
+    }
+
     if (products.length === 0) return;
 
     // --- Ensure session ---
@@ -1053,8 +1099,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         history,
         setHistory,
         activeUserId,
-        handleSwitchUser,
-
+        isSharedReadOnly,
         fetchHistory,
         fetchSessionAndHydrate,
         handleResetLocal,
@@ -1081,6 +1126,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         handleAddToCart,
         cartToast,
         clearCartToast,
+        userAddresses,
+        setUserAddresses,
       }}
     >
       {children}
