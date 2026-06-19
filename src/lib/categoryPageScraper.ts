@@ -301,6 +301,7 @@ function extractFromDom($: cheerio.CheerioAPI): ScrapedProduct[] {
  * ```
  */
 export async function scrapeProductsFromCategoryUrl(url: string): Promise<ScrapedProduct[]> {
+  console.log(`[categoryPageScraper] Fetching category page: ${url}`);
   const response = await fetch(url, {
     headers: { 'User-Agent': USER_AGENT },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -319,11 +320,15 @@ export async function scrapeProductsFromCategoryUrl(url: string): Promise<Scrape
   // Method 1 — __NEXT_DATA__
   const nextDataProducts = extractFromNextData($);
   if (nextDataProducts !== null && nextDataProducts.length > 0) {
+    console.log(`[categoryPageScraper] Successfully extracted ${nextDataProducts.length} products using __NEXT_DATA__.`);
     return nextDataProducts;
   }
 
   // Method 2 — DOM fallback
-  return extractFromDom($);
+  console.log('[categoryPageScraper] __NEXT_DATA__ payload missing or empty. Falling back to DOM parsing...');
+  const domProducts = extractFromDom($);
+  console.log(`[categoryPageScraper] Successfully extracted ${domProducts.length} products using DOM fallback.`);
+  return domProducts;
 }
 
 /**
