@@ -499,6 +499,7 @@ export async function pillar6_browseCategory(
   try {
     const products = await scrapeProductsFromCategoryUrl(categoryUrl);
     if (products.length > 0) {
+      console.log(`[Pillar6] Successfully scraped and parsed ${products.length} products for category "${categoryName}" from URL: ${categoryUrl}`);
       // Normalise scraped products to KaprukaProduct shape
       return products.slice(0, 50).map((p) => ({
         id: p.id,
