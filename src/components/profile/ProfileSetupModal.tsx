@@ -57,19 +57,26 @@ export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModal
       const data = await res.json();
       if (data.results?.[0]) {
         const loc = data.results[0].geometry.location;
-        setMapCenter({ lat: loc.lat, lng: loc.lng });
-        setMarkerPos({ lat: loc.lat, lng: loc.lng });
+        const latLng = { lat: loc.lat, lng: loc.lng };
+        setMarkerPos(latLng);
         setFormattedAddress(data.results[0].formatted_address);
         // Extract city from address components
         const cityComp = data.results[0].address_components.find(
           (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
         );
         setCity(cityComp?.long_name || addressText);
+        // Reveal the map and pan to the found location imperatively
         setMapLoaded(true);
-        if (mapRef.current) mapRef.current.panTo({ lat: loc.lat, lng: loc.lng });
+        if (mapRef.current) {
+          mapRef.current.panTo(latLng);
+          mapRef.current.setZoom(14);
+        } else {
+          // Map not yet mounted — update center state as fallback
+          setMapCenter(latLng);
+        }
       }
     } catch {
-      // fallback — just show map at center
+      // fallback — just reveal the map at default center
       setMapLoaded(true);
     } finally {
       setIsGeocoding(false);
@@ -290,10 +297,11 @@ export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModal
               <p className="text-[10px] text-slate-400">Drag the pin on the map to set your exact location.</p>
             </div>
 
-            {/* Google Map */}
+            {/* Google Map — always rendered so mapRef is populated before Find is clicked */}
             <div className="w-full h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center relative">
+              {/* Placeholder overlay shown until the user presses Find */}
               {!mapLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs flex-col gap-2">
+                <div className="absolute inset-0 z-10 flex items-center justify-center text-slate-400 text-xs flex-col gap-2 bg-slate-100 rounded-xl pointer-events-none">
                   <MapPin size={28} className="text-slate-300" />
                   <span>Type a location above and click &quot;Find&quot;</span>
                 </div>
@@ -302,7 +310,7 @@ export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModal
                 <GoogleMap
                   mapContainerStyle={{ width: "100%", height: "100%" }}
                   center={mapCenter}
-                  zoom={15}
+                  zoom={8}
                   onClick={handleMapClick}
                   onLoad={(map) => { mapRef.current = map; }}
                   options={{ disableDefaultUI: true, zoomControl: true, clickableIcons: false }}

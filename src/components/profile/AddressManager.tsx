@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
 import { Home, Briefcase, Tag, MapPin, Star, Pencil, Trash2, CheckCircle2, ChevronRight, Loader2, Plus, X } from "lucide-react";
 import type { UserAddress } from "@/types/sourcing";
@@ -43,6 +43,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
   const [recipientName, setRecipientName] = useState(initial?.recipientName || "");
   const [recipientPhone, setRecipientPhone] = useState(initial?.phone || "");
   const [mapShown, setMapShown] = useState(!!initial?.lat);
+  const mapRef = useRef<google.maps.Map | null>(null);
 
   const handleGeocode = async () => {
     if (!addressText.trim()) return;
@@ -54,14 +55,22 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
       const data = await res.json();
       if (data.results?.[0]) {
         const loc = data.results[0].geometry.location;
-        setMapCenter({ lat: loc.lat, lng: loc.lng });
-        setMarkerPos({ lat: loc.lat, lng: loc.lng });
+        const latLng = { lat: loc.lat, lng: loc.lng };
+        setMarkerPos(latLng);
         setFormattedAddress(data.results[0].formatted_address);
         const cityComp = data.results[0].address_components.find(
           (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
         );
         setCity(cityComp?.long_name || addressText);
+        // Reveal map, then pan imperatively
         setMapShown(true);
+        if (mapRef.current) {
+          mapRef.current.panTo(latLng);
+          mapRef.current.setZoom(14);
+        } else {
+          // Map not yet mounted — fall back to updating center state
+          setMapCenter(latLng);
+        }
       }
     } catch { /* silent */ } finally {
       setIsGeocoding(false);
@@ -131,28 +140,27 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
         </button>
       </div>
 
-      {/* Map */}
-      {mapShown && (
-        <div className="w-full h-36 rounded-lg overflow-hidden border border-slate-200">
-          <LoadScript googleMapsApiKey={MAPS_API_KEY}>
-            <GoogleMap
-              mapContainerStyle={{ width: "100%", height: "100%" }}
-              center={mapCenter}
-              zoom={15}
-              onClick={handleMapClick}
-              options={{ disableDefaultUI: true, zoomControl: true }}
-            >
-              {markerPos && (
-                <Marker position={markerPos} draggable onDragEnd={e => {
-                  if (!e.latLng) return;
-                  const lat = e.latLng.lat(); const lng = e.latLng.lng();
-                  setMarkerPos({ lat, lng }); handleReverseGeocode(lat, lng);
-                }} />
-              )}
-            </GoogleMap>
-          </LoadScript>
-        </div>
-      )}
+      {/* Map — always in DOM so mapRef is populated; toggled visible by mapShown */}
+      <div className={`w-full rounded-lg overflow-hidden border border-slate-200 transition-all duration-300 ${mapShown ? "h-36" : "h-0 border-0"}`}>
+        <LoadScript googleMapsApiKey={MAPS_API_KEY}>
+          <GoogleMap
+            mapContainerStyle={{ width: "100%", height: "100%" }}
+            center={mapCenter}
+            zoom={mapShown ? 8 : 8}
+            onClick={handleMapClick}
+            onLoad={(map) => { mapRef.current = map; }}
+            options={{ disableDefaultUI: true, zoomControl: true }}
+          >
+            {markerPos && (
+              <Marker position={markerPos} draggable onDragEnd={e => {
+                if (!e.latLng) return;
+                const lat = e.latLng.lat(); const lng = e.latLng.lng();
+                setMarkerPos({ lat, lng }); handleReverseGeocode(lat, lng);
+              }} />
+            )}
+          </GoogleMap>
+        </LoadScript>
+      </div>
 
       {formattedAddress && (
         <p className="text-[10px] text-[#402970] font-semibold bg-[#402970]/5 rounded-lg px-2.5 py-1.5 border border-[#402970]/10 truncate">
