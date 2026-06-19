@@ -74,7 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signInWithGoogle = async () => {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    // Strip trailing slash so we never produce a double-slash URL like
+    // "https://example.com//auth/callback" which Supabase rejects,
+    // causing it to fall back to the dashboard Site URL (localhost).
+    const siteUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
+    ).replace(/\/$/, "");
     const callbackUrl = `${siteUrl}/auth/callback`;
 
     await supabase.auth.signInWithOAuth({
@@ -84,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
   };
+
 
 
   const signOut = async () => {
