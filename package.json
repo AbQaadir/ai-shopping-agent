@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "migrate": "prisma migrate deploy",
     "start": "next start",
     "lint": "eslint",
     "clean": "node -e \"const fs = require('fs'); fs.rmSync('.next', { recursive: true, force: true }); console.log('Cleaned Next.js cache and build directory (.next).');\""
