@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Globe, Menu, ShoppingCart, User } from "lucide-react";
+import { Globe, Menu, ShoppingCart, User, LogOut, Share2, Link as LinkIcon, CheckCircle2 } from "lucide-react";
 import LocationPopover from "./LocationPopover";
 import LanguagePopover from "./LanguagePopover";
 import { useSourcing } from "@/context/SourcingContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface GlobalHeaderProps {
   onNewSourcing: () => void;
@@ -16,11 +17,30 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
   const [showLocationPopover, setShowLocationPopover] = useState(false);
   const [showLanguagePopover, setShowLanguagePopover] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const { activeUserId, handleSwitchUser, country, currency } = useSourcing();
+  const [copied, setCopied] = useState(false);
+  const { country, currency, isChatting, isSharedReadOnly } = useSourcing();
+  const { user, signInWithGoogle, signOut } = useAuth();
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <header className="w-full bg-white/70 backdrop-blur-md border-b border-slate-100 sticky top-0 z-10">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3 sm:gap-4">
+    <div className="sticky top-0 z-10">
+      {isSharedReadOnly && (
+        <div className="w-full bg-[#f8f9ff] border-b border-[#402970]/10 py-2 px-4 flex items-center justify-center gap-2 text-xs font-semibold text-[#402970]">
+          <span className="w-2 h-2 rounded-full bg-[#402970] animate-pulse"></span>
+          You are viewing a shared chat.
+          <button onClick={onNewSourcing} className="underline decoration-[#402970]/30 hover:decoration-[#402970] underline-offset-2 ml-1 cursor-pointer">
+            Start a new chat
+          </button>
+          to ask your own questions.
+        </div>
+      )}
+      <header className="w-full bg-white/70 backdrop-blur-md border-b border-slate-100">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3 sm:gap-4">
 
         {/* Left Section: Brand & AI Mode */}
         <div className="flex items-center gap-2 sm:gap-6">
@@ -107,79 +127,56 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#402970]"></span>
           </a>
 
+          {/* Share Button (Only if chatting and not read-only) */}
+          {isChatting && !isSharedReadOnly && (
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 hover:border-[#402970]/30 hover:bg-[#402970]/5 text-slate-600 hover:text-[#402970] transition-colors text-xs font-semibold"
+            >
+              {copied ? <CheckCircle2 size={14} className="text-green-600" /> : <Share2 size={14} />}
+              {copied ? "Copied" : "Share"}
+            </button>
+          )}
+
           {/* User Profile Switcher */}
           <div className="relative">
             <button
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
+              onClick={() => {
+                if (!user) {
+                  signInWithGoogle();
+                } else {
+                  setShowUserDropdown(!showUserDropdown);
+                }
+              }}
               className="flex items-center gap-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/15 text-[#402970] font-bold px-4 py-2 rounded-full transition-all duration-200 text-xs cursor-pointer select-none"
             >
               <User size={14} className="stroke-[2.5]" />
               <span>
-                {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
-                  ? "Kamal Silva"
-                  : activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
-                  ? "Nimal Perera"
-                  : "Guest Profile"}
+                {user ? user.user_metadata.full_name || "User Profile" : "Sign In"}
               </span>
             </button>
 
-            {showUserDropdown && (
+            {showUserDropdown && user && (
               <>
                 <div
                   className="fixed inset-0 z-20"
                   onClick={() => setShowUserDropdown(false)}
                 />
                 <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-100 rounded-xl shadow-xl z-30 p-1 flex flex-col gap-0.5 animate-fadeIn">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 px-3 py-1.5 tracking-wider">
-                    Select Active User
+                  <span className="text-[10px] uppercase font-bold text-slate-400 px-3 py-1.5 tracking-wider truncate">
+                    {user.email}
                   </span>
                   <button
                     onClick={() => {
-                      handleSwitchUser("e17d0577-c93d-4c3e-9080-60b6bbfdf071");
+                      signOut();
                       setShowUserDropdown(false);
                     }}
-                    className={`w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                      activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071"
-                        ? "bg-[#402970]/5 text-[#402970]"
-                        : "hover:bg-slate-50 text-slate-700"
-                    }`}
+                    className="w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center justify-between cursor-pointer hover:bg-slate-50 text-slate-700"
                   >
-                    Kamal Silva (Vase order)
-                    {activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071" && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleSwitchUser("b91d2a14-e58f-4ad1-97b0-cce218fd7d32");
-                      setShowUserDropdown(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                      activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32"
-                        ? "bg-[#402970]/5 text-[#402970]"
-                        : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    Nimal Perera (Chair order)
-                    {activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32" && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleSwitchUser("guest");
-                      setShowUserDropdown(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                      activeUserId === "guest"
-                        ? "bg-[#402970]/5 text-[#402970]"
-                        : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    Guest User (No orders)
-                    {activeUserId === "guest" && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#402970]" />
-                    )}
+                    <span className="flex items-center gap-2">
+                      <LogOut size={14} />
+                      Log out
+                    </span>
                   </button>
                 </div>
               </>
@@ -188,6 +185,7 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
         </div>
 
       </div>
-    </header>
+      </header>
+    </div>
   );
 }

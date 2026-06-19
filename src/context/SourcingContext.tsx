@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem, ProductGroup } from "@/types/sourcing";
+import { useAuth } from "./AuthContext";
+import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem, ProductGroup, UserAddress } from "@/types/sourcing";
 
 
 interface SourcingContextType {
@@ -22,9 +23,8 @@ interface SourcingContextType {
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   history: HistoryItem[];
   setHistory: React.Dispatch<React.SetStateAction<HistoryItem[]>>;
-
   activeUserId: string;
-  handleSwitchUser: (userId: string) => void;
+  isSharedReadOnly: boolean;
   fetchHistory: () => Promise<void>;
   fetchSessionAndHydrate: (id: string) => Promise<void>;
   handleResetLocal: () => void;
@@ -33,6 +33,7 @@ interface SourcingContextType {
   handleStopGeneration: () => void;
   handleSendMessage: (text: string, files: File[]) => Promise<void>;
   handleBuyProduct: (product: InlineProduct) => void;
+  handleOrderCart: (products: InlineProduct[]) => void;
   handleSuggestionClick: (suggestion?: string) => void;
   handleDirectSend: (text: string) => void;
   country: string;
@@ -47,6 +48,12 @@ interface SourcingContextType {
   setIsViewingCart: React.Dispatch<React.SetStateAction<boolean>>;
   handleUpdateCart: (newCart: CartItem[]) => Promise<void>;
   handleAddToCart: (products: InlineProduct[]) => Promise<void>;
+  /** Transient toast shown after a silent Add-to-Cart action. Null when no toast is active. */
+  cartToast: string | null;
+  clearCartToast: () => void;
+  /** Saved delivery addresses for the logged-in user */
+  userAddresses: UserAddress[];
+  setUserAddresses: React.Dispatch<React.SetStateAction<UserAddress[]>>;
 }
 
 const SourcingContext = createContext<SourcingContextType | undefined>(undefined);
@@ -55,17 +62,63 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isChatting, setIsChatting] = useState(false);
+  const [activeSessionOwnerId, setActiveSessionOwnerId] = useState<string | null>(null);
   const [activeHistoryId, setActiveHistoryId] = useState<string | undefined>(undefined);
   const [activeQueryText, setActiveQueryText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [activeUserId, setActiveUserId] = useState<string>("e17d0577-c93d-4c3e-9080-60b6bbfdf071"); // Kamal Silva default
+  
+  const { user, openAuthModal } = useAuth();
+  const [guestId, setGuestId] = useState<string>("");
+
+  useEffect(() => {
+    let id = localStorage.getItem("kapruka_guest_uuid");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("kapruka_guest_uuid", id);
+    }
+    setGuestId(id);
+  }, []);
+
+  const activeUserId = user?.id || guestId || "guest-pending";
+  const isSharedReadOnly = activeSessionOwnerId !== null && activeSessionOwnerId !== activeUserId && activeUserId !== "guest-pending";
+
   const [country, setCountry] = useState("LK");
   const [currency, setCurrency] = useState("USD");
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isViewingCart, setIsViewingCart] = useState<boolean>(false);
+  const [cartToast, setCartToast] = useState<string | null>(null);
+  const cartToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [userAddresses, setUserAddresses] = useState<UserAddress[]>([]);
+
+  const showCartToast = useCallback((msg: string) => {
+    setCartToast(msg);
+    if (cartToastTimerRef.current) clearTimeout(cartToastTimerRef.current);
+    cartToastTimerRef.current = setTimeout(() => setCartToast(null), 3000);
+  }, []);
+
+  const clearCartToast = useCallback(() => {
+    setCartToast(null);
+    if (cartToastTimerRef.current) clearTimeout(cartToastTimerRef.current);
+  }, []);
+
+  // Load user's saved addresses when they log in
+  useEffect(() => {
+    if (!user?.id) {
+      setUserAddresses([]);
+      return;
+    }
+    fetch(`/api/user/profile?userId=${user.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.addresses && Array.isArray(data.addresses)) {
+          setUserAddresses(data.addresses as UserAddress[]);
+        }
+      })
+      .catch(err => console.warn("Failed to load user addresses:", err));
+  }, [user?.id]);
 
   useEffect(() => {
     const detectLocation = async () => {
@@ -131,23 +184,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeUserId]);
 
-  const handleSwitchUser = useCallback((userId: string) => {
-    setActiveUserId(userId);
-    setIsChatting(false);
-    setMessages([]);
-    setActiveHistoryId(undefined);
-    setActiveQueryText("");
-    setIsGenerating(false);
-    setSelectedProducts([]);
-    setCartItems([]);
-    setIsViewingCart(false);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    window.history.pushState(null, "", "/");
-  }, []);
-
   const fetchSessionAndHydrate = useCallback(async (id: string) => {
     try {
       setMessages([]);
@@ -158,6 +194,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       if (cachedItem) {
         setMessages(cachedItem.messages);
         setActiveQueryText(cachedItem.query);
+        setActiveSessionOwnerId(null);
+        window.history.replaceState(null, "", `/c/${id}`);
         return;
       }
 
@@ -256,6 +294,9 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         setMessages(mappedMessages);
         setActiveQueryText(sessionData.title);
         setIsChatting(true);
+        
+        setActiveSessionOwnerId(sessionData.userId);
+        window.history.replaceState(null, "", `/c/${id}`);
 
         setHistory(prev => {
           const exists = prev.some((h) => h.id === id);
@@ -292,6 +333,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setSelectedProducts([]);
     setCartItems([]);
     setIsViewingCart(false);
+    setActiveSessionOwnerId(null);
   }, []);
 
   // Synchronize state when browser Back/Forward navigation occurs
@@ -332,7 +374,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setIsMobileSidebarOpen(false);
     setSelectedProducts([]);
     // Update path without unmounting the dashboard component tree
-    window.history.pushState(null, "", `/c/${id}`);
+    window.history.pushState(null, "", `/`);
     setActiveHistoryId(id);
     fetchSessionAndHydrate(id);
   };
@@ -347,6 +389,14 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleSendMessage = async (text: string, files: File[]) => {
+    if (!user) {
+      const userMessageCount = messages.filter(m => m.sender === "user").length;
+      if (userMessageCount >= 3) {
+        openAuthModal("message_limit");
+        return;
+      }
+    }
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -390,6 +440,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           const newSession = await sessionRes.json();
           currentSessionId = newSession.id;
           setActiveHistoryId(currentSessionId);
+          window.history.pushState(null, "", `/c/${currentSessionId}`);
           
           const newHistoryItem: HistoryItem = {
             id: currentSessionId,
@@ -664,8 +715,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
       setIsGenerating(false);
 
-      if (currentSessionId && !window.location.pathname.startsWith(`/c/${currentSessionId}`)) {
-        window.history.replaceState(null, "", `/c/${currentSessionId}`);
+      if (currentSessionId && !window.location.pathname.startsWith(`/`)) {
+        // Keeping URL to just /
       }
 
       const finalMappedAi: Message = {
@@ -756,12 +807,80 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [handleSendMessage]);
 
-  const handleBuyProduct = useCallback((product: InlineProduct) => {
+  /**
+   * "Order" button handler for a SINGLE product.
+   * Step 1: silently add the product to the cart (DB + local state).
+   * Step 2: set it as the selected product so route.ts receives selectedProductIds.
+   * Step 3: send "checkout cart" to trigger checkout_start.
+   * The LLM never sees an "add to cart" message — only the checkout trigger.
+   */
+  const handleBuyProduct = useCallback(async (product: InlineProduct) => {
+    if (!user) {
+      openAuthModal("checkout");
+      return;
+    }
+    // --- Step 1: Ensure we have a session ---
+    let currentSessionId = activeHistoryId;
+    if (!currentSessionId) {
+      try {
+        const sessionRes = await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: product.title || product.name || "Order", userId: activeUserId }),
+        });
+        if (sessionRes.ok) {
+          const newSession = await sessionRes.json();
+          currentSessionId = newSession.id;
+          setActiveHistoryId(currentSessionId);
+          setHistory(prev => [{
+            id: currentSessionId!,
+            query: product.title || product.name || "Order",
+            date: new Date().toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
+            queryType: "product",
+            messages: []
+          }, ...prev]);
+        } else {
+          currentSessionId = `session-${Date.now()}`;
+          setActiveHistoryId(currentSessionId);
+        }
+      } catch {
+        currentSessionId = `session-${Date.now()}`;
+        setActiveHistoryId(currentSessionId);
+      }
+    }
+
+    // --- Step 2: Add product to cart (silent — no LLM) ---
+    const updatedCart = [...cartItems];
+    const existingIdx = updatedCart.findIndex(item => item.id === product.id);
+    if (existingIdx > -1) {
+      updatedCart[existingIdx] = { ...updatedCart[existingIdx], quantity: updatedCart[existingIdx].quantity + 1 };
+    } else {
+      updatedCart.push({
+        id: product.id,
+        name: product.title || product.name || "Kapruka Product",
+        price: product.price || 0,
+        quantity: 1,
+        imageUrl: product.imageUrl || product.image,
+        inStock: product.inStock !== false,
+      });
+    }
+    setCartItems(updatedCart);
+    try {
+      await fetch("/api/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: activeUserId, sessionId: currentSessionId, cart: updatedCart }),
+      });
+    } catch (e) {
+      console.error("[handleBuyProduct] Failed to persist cart:", e);
+    }
+
+    // --- Step 3: Pass product id so route.ts gets it as selectedProductIds, then trigger checkout ---
     setSelectedProducts([product]);
     setTimeout(() => {
-      handleSendMessage("order this", []);
+      handleSendMessage("checkout cart", []);
     }, 50);
-  }, [handleSendMessage]);
+  }, [activeHistoryId, activeUserId, cartItems, handleSendMessage]);
 
   const handleUpdateCart = useCallback(async (newCart: CartItem[]) => {
     setCartItems(newCart);
@@ -799,28 +918,38 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeUserId]);
 
+  /**
+   * "Add to Cart" handler — SILENT, no LLM involved.
+   * Merges products into the local cart state, persists to DB, and shows a toast.
+   * The agent never sees this action — it is a pure UI/DB operation.
+   */
   const handleAddToCart = useCallback(async (products: InlineProduct[]) => {
+    if (!user) {
+      openAuthModal("checkout");
+      return;
+    }
+
     if (products.length === 0) return;
 
+    // --- Ensure a session exists (needed to key the cart in DB) ---
     let currentSessionId = activeHistoryId;
     if (!currentSessionId) {
       try {
         const sessionRes = await fetch("/api/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: products[0].title || products[0].name || "Cart Sourcing Session", userId: activeUserId })
+          body: JSON.stringify({ title: products[0].title || products[0].name || "Cart Session", userId: activeUserId }),
         });
         if (sessionRes.ok) {
           const newSession = await sessionRes.json();
           currentSessionId = newSession.id;
           setActiveHistoryId(currentSessionId);
-          
           const newHistoryItem: HistoryItem = {
             id: currentSessionId!,
-            query: products[0].title || products[0].name || "Cart Sourcing Session",
+            query: products[0].title || products[0].name || "Cart Session",
             date: new Date().toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
             queryType: "product",
-            messages: []
+            messages: [],
           };
           setHistory(prev => [newHistoryItem, ...prev]);
           window.history.replaceState(null, "", `/c/${currentSessionId}`);
@@ -829,17 +958,18 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           setActiveHistoryId(currentSessionId);
         }
       } catch (err) {
-        console.error("Failed to auto-create session for cart:", err);
+        console.error("[handleAddToCart] Failed to auto-create session:", err);
         currentSessionId = `session-${Date.now()}`;
         setActiveHistoryId(currentSessionId);
       }
     }
 
+    // --- Merge products into cart (deduplicated by id) ---
     const updatedCart = [...cartItems];
     for (const prod of products) {
-      const existingItemIdx = updatedCart.findIndex(item => item.id === prod.id);
-      if (existingItemIdx > -1) {
-        updatedCart[existingItemIdx].quantity += 1;
+      const existingIdx = updatedCart.findIndex(item => item.id === prod.id);
+      if (existingIdx > -1) {
+        updatedCart[existingIdx] = { ...updatedCart[existingIdx], quantity: updatedCart[existingIdx].quantity + 1 };
       } else {
         updatedCart.push({
           id: prod.id,
@@ -847,13 +977,13 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           price: prod.price || 0,
           quantity: 1,
           imageUrl: prod.imageUrl || prod.image,
-          inStock: prod.inStock !== false
+          inStock: prod.inStock !== false,
         });
       }
     }
-
     setCartItems(updatedCart);
-    
+
+    // --- Persist to DB (User.cart[sessionId]) ---
     try {
       await fetch("/api/session", {
         method: "PATCH",
@@ -861,11 +991,92 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ userId: activeUserId, sessionId: currentSessionId, cart: updatedCart }),
       });
     } catch (e) {
-      console.error("Failed to sync cart add to db:", e);
+      console.error("[handleAddToCart] Failed to persist cart to DB:", e);
     }
 
-    const itemsListStr = products.map((p) => p.title || p.name || "product").join(", ");
-    await handleSendMessage(`add selected products to cart: ${itemsListStr}`, []);
+    // --- Show a toast (no LLM, no message sent) ---
+    const itemNames = products.map(p => p.title || p.name || "item");
+    const toastMsg = itemNames.length === 1
+      ? `✓ "${itemNames[0].substring(0, 40)}" added to cart`
+      : `✓ ${itemNames.length} items added to cart`;
+    showCartToast(toastMsg);
+  }, [activeHistoryId, activeUserId, cartItems, showCartToast, user, openAuthModal]);
+
+  /**
+   * Adds all selected products to cart silently, then triggers checkout_start.
+   */
+  const handleOrderCart = useCallback(async (products: InlineProduct[]) => {
+    if (!user) {
+      openAuthModal("checkout");
+      return;
+    }
+
+    if (products.length === 0) return;
+
+    // --- Ensure session ---
+    let currentSessionId = activeHistoryId;
+    if (!currentSessionId) {
+      try {
+        const sessionRes = await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "Order", userId: activeUserId }),
+        });
+        if (sessionRes.ok) {
+          const newSession = await sessionRes.json();
+          currentSessionId = newSession.id;
+          setActiveHistoryId(currentSessionId);
+          setHistory(prev => [{
+            id: currentSessionId!,
+            query: "Order",
+            date: new Date().toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" }),
+            queryType: "product",
+            messages: [],
+          }, ...prev]);
+          window.history.replaceState(null, "", `/c/${currentSessionId}`);
+        } else {
+          currentSessionId = `session-${Date.now()}`;
+          setActiveHistoryId(currentSessionId);
+        }
+      } catch {
+        currentSessionId = `session-${Date.now()}`;
+        setActiveHistoryId(currentSessionId);
+      }
+    }
+
+    // --- Merge all products into cart silently ---
+    const updatedCart = [...cartItems];
+    for (const prod of products) {
+      const existingIdx = updatedCart.findIndex(item => item.id === prod.id);
+      if (existingIdx > -1) {
+        updatedCart[existingIdx] = { ...updatedCart[existingIdx], quantity: updatedCart[existingIdx].quantity + 1 };
+      } else {
+        updatedCart.push({
+          id: prod.id,
+          name: prod.title || prod.name || "Kapruka Product",
+          price: prod.price || 0,
+          quantity: 1,
+          imageUrl: prod.imageUrl || prod.image,
+          inStock: prod.inStock !== false,
+        });
+      }
+    }
+    setCartItems(updatedCart);
+    try {
+      await fetch("/api/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: activeUserId, sessionId: currentSessionId, cart: updatedCart }),
+      });
+    } catch (e) {
+      console.error("[handleOrderCart] Failed to persist cart:", e);
+    }
+
+    // --- Set selected products so route.ts gets their ids, then trigger checkout ---
+    setSelectedProducts(products);
+    setTimeout(() => {
+      handleSendMessage("checkout cart", []);
+    }, 50);
   }, [activeHistoryId, activeUserId, cartItems, handleSendMessage]);
 
   return (
@@ -888,8 +1099,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         history,
         setHistory,
         activeUserId,
-        handleSwitchUser,
-
+        isSharedReadOnly,
         fetchHistory,
         fetchSessionAndHydrate,
         handleResetLocal,
@@ -898,6 +1108,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         handleStopGeneration,
         handleSendMessage,
         handleBuyProduct,
+        handleOrderCart,
         handleSuggestionClick,
         handleDirectSend,
         country,
@@ -906,13 +1117,17 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         setCurrency,
         selectedProducts,
         setSelectedProducts,
-        
+
         cartItems,
         setCartItems,
         isViewingCart,
         setIsViewingCart,
         handleUpdateCart,
-        handleAddToCart
+        handleAddToCart,
+        cartToast,
+        clearCartToast,
+        userAddresses,
+        setUserAddresses,
       }}
     >
       {children}

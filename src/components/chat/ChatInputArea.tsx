@@ -36,7 +36,7 @@ export default function ChatInputArea({
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { handleAddToCart } = useSourcing();
+  const { handleAddToCart, handleBuyProduct, handleOrderCart, isSharedReadOnly } = useSourcing();
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -135,31 +135,7 @@ export default function ChatInputArea({
   const handleCompareClick = () => {
     if (selectedProducts.length === 0) return;
     
-    let promptText = "Please compare the following selected products in detail:\n\n";
-    selectedProducts.forEach((prod, index) => {
-      const name = prod.name || prod.title || "Unknown Product";
-      const priceStr = prod.price ? `Rs. ${prod.price.toLocaleString()}` : (prod.priceDisplay || "N/A");
-      const supplier = prod.supplier || "N/A";
-      const rating = prod.rating ? `${prod.rating} / 5` : "N/A";
-      const years = prod.years ? `${prod.years} years on platform` : "N/A";
-      const moq = prod.moq || "N/A";
-      const stock = prod.inStock !== false ? "In Stock" : "Out of Stock";
-      
-      promptText += `${index + 1}. **${name}**\n`;
-      promptText += `   - Price: ${priceStr}\n`;
-      promptText += `   - Supplier: ${supplier} (${years})\n`;
-      promptText += `   - Rating: ${rating}\n`;
-      promptText += `   - Min Order Quantity (MOQ): ${moq}\n`;
-      promptText += `   - Availability: ${stock}\n`;
-      if (prod.description) {
-        promptText += `   - Description: ${prod.description}\n`;
-      }
-      promptText += `\n`;
-    });
-    
-    promptText += "Analyze these items and provide a structured comparison (e.g. comparing cost effectiveness, quality/ratings, and delivery readiness). Conclude with a clear recommendation on which product offers the best value.";
-    
-    onSubmit(promptText);
+    onSubmit(inputText.trim() ? inputText : "Compare these products");
   };
 
   return (
@@ -304,7 +280,7 @@ export default function ChatInputArea({
                 {selectedProducts.length === 1 ? (
                   <>
                     <button
-                      onClick={() => onSubmit("Order this")}
+                      onClick={() => handleBuyProduct(selectedProducts[0])}
                       className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Order →
@@ -313,7 +289,7 @@ export default function ChatInputArea({
                 ) : (
                   <>
                     <button
-                      onClick={() => onSubmit("Order selected")}
+                      onClick={() => handleOrderCart(selectedProducts)}
                       className="px-3.5 py-1.5 bg-[#402970]/5 border border-[#402970]/10 hover:bg-[#402970]/10 text-[#402970] rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                     >
                       Order →
@@ -350,10 +326,11 @@ export default function ChatInputArea({
           {/* Input Row */}
           <div className={`w-full flex items-center gap-2 ${
             selectedProducts.length > 0 ? "px-1 py-0.5" : ""
-          }`}>
+          } ${isSharedReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
             <button
               onClick={() => fileInputRef.current?.click()}
               onMouseDown={(e) => e.preventDefault()}
+              disabled={isSharedReadOnly}
               className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
               title="Attach files"
             >
@@ -368,6 +345,7 @@ export default function ChatInputArea({
               onChange={handleFileChange}
               className="hidden"
               multiple
+              disabled={isSharedReadOnly}
             />
 
             <textarea
@@ -383,7 +361,8 @@ export default function ChatInputArea({
                   setSelectedIndex(-1);
                 }, 150);
               }}
-              placeholder="Ask follow-up..."
+              placeholder={isSharedReadOnly ? "Read-only mode..." : "Ask follow-up..."}
+              disabled={isSharedReadOnly}
               rows={1}
               className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm py-1.5 leading-normal max-h-[120px] overflow-y-auto scrollbar-none"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -392,7 +371,7 @@ export default function ChatInputArea({
             <button
               onClick={isGenerating ? onStopGeneration : () => onSubmit()}
               onMouseDown={(e) => e.preventDefault()}
-              disabled={!isGenerating && !inputText.trim() && attachedFiles.length === 0}
+              disabled={isSharedReadOnly || (!isGenerating && !inputText.trim() && attachedFiles.length === 0)}
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${
                 isGenerating
                   ? "bg-slate-200 hover:bg-slate-300 text-slate-800 cursor-pointer"

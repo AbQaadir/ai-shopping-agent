@@ -6,7 +6,8 @@ import {
   ChevronLeft,
   Share2,
   Menu,
-  ShoppingCart
+  ShoppingCart,
+  X
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSourcing } from "@/context/SourcingContext";
@@ -14,6 +15,7 @@ import ChatInputArea from "./ChatInputArea";
 import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductCatalogModal from "./ProductCatalogModal";
 import CartDrawer from "./CartDrawer";
+import ShareChatModal from "./ShareChatModal";
 
 interface ChatWorkspaceProps {
   activeHistoryId?: string;
@@ -36,11 +38,11 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
-  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems } = useSourcing();
+  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast, isSharedReadOnly } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [isCopied, setIsCopied] = useState(false);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // Reset internal states when activeHistoryId changes to avoid unmounting ChatWorkspace
   useEffect(() => {
@@ -57,28 +59,18 @@ export default function ChatWorkspace({
   const handleViewMoreProducts = (products: InlineProduct[], queryHint?: string) => {
     setModalProducts(products);
     // Derive a search query hint from the active query text or the queryHint passed in
-    setModalSearchQuery(queryHint || activeQueryText || "Products");
+    setModalSearchQuery(queryHint || activeQueryText);
     setShowProductModal(true);
   };
 
   const handleShareClick = () => {
-    const copyToClipboard = () => {
-      navigator.clipboard.writeText(window.location.href);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    };
+    setIsShareModalOpen(true);
+  };
 
-    if (navigator.share) {
-      navigator.share({
-        title: `Kapuruka Sourcing: ${activeQueryText || 'AI Sourcing Task'}`,
-        text: `Review this AI matched supplier list and conversation history on Kapruka.`,
-        url: window.location.href
-      }).catch(() => {
-        copyToClipboard();
-      });
-    } else {
-      copyToClipboard();
-    }
+  const handleSampleClick = (sampleText: string) => {
+    setInputText(sampleText);
+    // Let the user edit or send manually, but typically we send automatically:
+    handleSubmit(sampleText);
   };
 
   const removeFile = (index: number) => {
@@ -86,19 +78,15 @@ export default function ChatWorkspace({
   };
 
   const handleSubmit = (overrideText?: string) => {
-    const textToSubmit = overrideText !== undefined ? overrideText : inputText;
-    if (textToSubmit.trim() || attachedFiles.length > 0) {
-      onSend(textToSubmit, attachedFiles);
-      setInputText("");
-      setAttachedFiles([]);
-    }
-  };
-
-  const handleSampleClick = (sampleText: string) => {
-    setInputText(sampleText);
+    const textToSend = overrideText !== undefined ? overrideText : inputText;
+    if ((!textToSend.trim() && attachedFiles.length === 0) || isGenerating || isSharedReadOnly) return;
+    onSend(textToSend, attachedFiles);
+    setInputText("");
+    setAttachedFiles([]);
   };
 
   const handleToggleSelectProduct = (product: InlineProduct) => {
+    if (isSharedReadOnly) return;
     setSelectedProducts((prev) => {
       const exists = prev.some((p) => p.id === product.id);
       if (exists) {
@@ -113,8 +101,19 @@ export default function ChatWorkspace({
     /* Full-height flex column — exactly fills the space below the app header */
     <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-white relative">
 
+      {isSharedReadOnly && (
+        <div className="absolute top-0 left-0 right-0 z-30 bg-[#f8f9ff]/90 backdrop-blur-md border-b border-[#402970]/10 py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-semibold text-[#402970] shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-[#402970] animate-pulse"></span>
+          You are viewing a shared chat.
+          <button onClick={onBackToLanding} className="underline decoration-[#402970]/30 hover:decoration-[#402970] underline-offset-2 ml-1 cursor-pointer">
+            Start a new chat
+          </button>
+          to ask your own questions.
+        </div>
+      )}
+
       {/* Floating mobile trigger & back button */}
-      <div className="absolute top-4 left-6 z-20 flex items-center gap-2.5 bg-white/85 backdrop-blur-md p-1.5 rounded-xl border border-slate-100/80 shadow-xs select-none">
+      <div className={`absolute left-6 z-20 flex items-center gap-2.5 bg-white/85 backdrop-blur-md p-1.5 rounded-xl border border-slate-100/80 shadow-xs select-none ${isSharedReadOnly ? 'top-14' : 'top-4'}`}>
         {/* Mobile menu trigger */}
         <button
           onClick={() => setIsMobileSidebarOpen(true)}
@@ -134,7 +133,7 @@ export default function ChatWorkspace({
       </div>
 
       {/* Floating control buttons */}
-      <div className="absolute top-4 right-6 z-20 select-none flex items-center gap-3">
+      <div className={`absolute right-6 z-20 select-none flex items-center gap-3 ${isSharedReadOnly ? 'top-14' : 'top-4'}`}>
         {/* Floating cart button */}
         <button
           onClick={() => setIsCartDrawerOpen(true)}
@@ -150,17 +149,15 @@ export default function ChatWorkspace({
         </button>
 
         {/* Floating share button */}
-        <button
-          onClick={handleShareClick}
-          className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none ${
-            isCopied
-              ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-extrabold scale-95"
-              : "bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350"
-          }`}
-        >
-          {isCopied ? <Check size={13} className="stroke-[3]" /> : <Share2 size={13} />}
-          {isCopied ? "Copied!" : "Share"}
-        </button>
+        {!isSharedReadOnly && (
+          <button
+            onClick={handleShareClick}
+            className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350"
+          >
+            <Share2 size={13} />
+            Share
+          </button>
+        )}
       </div>
 
       {/* ── 2. Body: split-screen chat ── */}
@@ -221,11 +218,38 @@ export default function ChatWorkspace({
         selectedProductIds={selectedProducts.map((p) => p.id)}
       />
 
+      {/* ── Share Chat Modal ── */}
+      <ShareChatModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        chatTitle={activeQueryText}
+      />
+
       {/* Cart drawer overlay */}
       <CartDrawer
         isOpen={isCartDrawerOpen}
         onClose={() => setIsCartDrawerOpen(false)}
       />
+
+      {/* ── Silent Add-to-Cart Toast ── */}
+      {cartToast && (
+        <div
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2.5 px-4 py-2.5 bg-[#402970] text-white text-xs font-semibold rounded-2xl shadow-lg animate-slideInDown select-none"
+          role="status"
+          aria-live="polite"
+        >
+          <ShoppingCart size={13} className="shrink-0 opacity-80" />
+          <span>{cartToast}</span>
+          <button
+            onClick={clearCartToast}
+            className="ml-1 p-0.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
+            aria-label="Dismiss"
+          >
+            <X size={11} />
+          </button>
+        </div>
+      )}
 
     </div>
   );

@@ -5,8 +5,10 @@ import GlobalSidebar from "@/components/sidebar/GlobalSidebar";
 import LandingWorkspace from "@/components/landing/LandingWorkspace";
 import ChatWorkspace from "@/components/chat/ChatWorkspace";
 import GlobalCartWorkspace from "@/components/chat/GlobalCartWorkspace";
+import ProfileSetupModal from "@/components/profile/ProfileSetupModal";
 import { Headset } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface SourcingDashboardProps {
   initialSessionId?: string;
@@ -38,6 +40,8 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     handleBuyProduct,
     handleSuggestionClick,
   } = useSourcing();
+
+  const { showProfileSetup, setShowProfileSetup } = useAuth();
 
   const lastSessionIdRef = useRef<string | undefined>("__initial__");
 
@@ -75,6 +79,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
   }, [initialSessionId, activeHistoryId, messages.length, isChatting, fetchSessionAndHydrate, handleResetLocal, setIsChatting, setActiveHistoryId]);
 
   return (
+    <>
     <div className="h-screen w-screen flex overflow-hidden bg-white">
       {/* 2. Content Area (Sidebar + Sourcing Workspace) */}
       <div className="flex-1 flex min-w-0 overflow-hidden relative">
@@ -136,5 +141,12 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         )}
       </div>
     </div>
+
+    {/* Profile Setup Modal — shown after first Google sign-in */}
+    <ProfileSetupModal
+      isOpen={showProfileSetup}
+      onClose={() => setShowProfileSetup(false)}
+    />
+    </>
   );
 }

@@ -482,13 +482,19 @@ function renderMessageTextBlock(
 
     const isLastLine = showCursor && lineIdx === lastNonEmptyIdx;
 
-    // Headers (###, ##, #)
-    const headerMatch = line.match(/^(\s*)(#{1,3})\s+(.*)/);
+    // Headers (###, ##, #, etc.)
+    const headerMatch = line.match(/^(\s*)(#{1,6})\s+(.*)/);
     if (headerMatch) {
       const level = headerMatch[2].length;
       const content = headerMatch[3];
 
-      if (level === 3) {
+      if (level >= 4) {
+        processedElements.push(
+          <h6 key={lineIdx} className="text-[13px] font-extrabold text-slate-800 mt-3 mb-1 select-none">
+            {renderFormattedText(content)}
+          </h6>
+        );
+      } else if (level === 3) {
         processedElements.push(
           <h5 key={lineIdx} className="text-[14px] font-extrabold text-slate-800 mt-4 mb-1 select-none">
             {renderFormattedText(content)}

@@ -82,9 +82,9 @@ export async function PATCH(req: NextRequest) {
     }
 
     let userExists = await prisma.user.findUnique({ where: { id: userId } });
-    if (!userExists && userId === "guest") {
+    if (!userExists && userId !== "guest") {
       userExists = await prisma.user.create({
-        data: { id: "guest", email: "guest@kapuruka.com", name: "Guest User" }
+        data: { id: userId, email: `guest-${userId}@guest.local`, name: "Guest User" }
       });
     }
 
@@ -120,6 +120,19 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const { title, userId } = body;
+
+    // Ensure user exists (create a dummy guest user if needed)
+    if (userId && userId !== "guest") {
+      await prisma.user.upsert({
+        where: { id: userId },
+        update: {},
+        create: {
+          id: userId,
+          email: `guest-${userId}@guest.local`,
+          name: "Guest User",
+        },
+      });
+    }
 
     const newSession = await prisma.chatSession.create({
       data: {

@@ -1,0 +1,419 @@
+"use client";
+
+import React, { useState, useCallback, useRef } from "react";
+import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
+import { X, Home, Briefcase, Tag, MapPin, CheckCircle2, ChevronRight, Loader2, Phone, User } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useSourcing } from "@/context/SourcingContext";
+import type { UserAddress } from "@/types/sourcing";
+
+const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
+interface ProfileSetupModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const ADDRESS_TYPES = [
+  { value: "home" as const, label: "Home", icon: Home },
+  { value: "work" as const, label: "Work", icon: Briefcase },
+  { value: "custom" as const, label: "Custom", icon: Tag },
+];
+
+const SRI_LANKA_CENTER = { lat: 7.8731, lng: 80.7718 };
+
+export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModalProps) {
+  const { user, setShowProfileSetup } = useAuth();
+  const { setUserAddresses } = useSourcing();
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Step 1 fields
+  const [name, setName] = useState(user?.user_metadata?.full_name || "");
+  const [phone, setPhone] = useState("");
+
+  // Step 2 fields
+  const [addressText, setAddressText] = useState("");
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [mapCenter, setMapCenter] = useState(SRI_LANKA_CENTER);
+  const [markerPos, setMarkerPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [formattedAddress, setFormattedAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [addressType, setAddressType] = useState<"home" | "work" | "custom">("home");
+  const [customLabel, setCustomLabel] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const mapRef = useRef<google.maps.Map | null>(null);
+
+  if (!isOpen) return null;
+
+  const handleGeocode = async () => {
+    if (!addressText.trim()) return;
+    setIsGeocoding(true);
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText + ", Sri Lanka")}&key=${MAPS_API_KEY}`
+      );
+      const data = await res.json();
+      if (data.results?.[0]) {
+        const loc = data.results[0].geometry.location;
+        setMapCenter({ lat: loc.lat, lng: loc.lng });
+        setMarkerPos({ lat: loc.lat, lng: loc.lng });
+        setFormattedAddress(data.results[0].formatted_address);
+        // Extract city from address components
+        const cityComp = data.results[0].address_components.find(
+          (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
+        );
+        setCity(cityComp?.long_name || addressText);
+        setMapLoaded(true);
+        if (mapRef.current) mapRef.current.panTo({ lat: loc.lat, lng: loc.lng });
+      }
+    } catch {
+      // fallback — just show map at center
+      setMapLoaded(true);
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  const handleReverseGeocode = useCallback(async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${MAPS_API_KEY}`
+      );
+      const data = await res.json();
+      if (data.results?.[0]) {
+        setFormattedAddress(data.results[0].formatted_address);
+        const cityComp = data.results[0].address_components.find(
+          (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
+        );
+        setCity(cityComp?.long_name || "");
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const lat = e.latLng.lat();
+    const lng = e.latLng.lng();
+    setMarkerPos({ lat, lng });
+    handleReverseGeocode(lat, lng);
+  }, [handleReverseGeocode]);
+
+  const handleStep1Continue = () => {
+    if (!phone.trim()) return;
+    setRecipientName(name);
+    setRecipientPhone(phone);
+    setStep(2);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!markerPos && !addressText.trim()) return;
+    setIsSaving(true);
+    try {
+      const newAddress: UserAddress = {
+        id: crypto.randomUUID(),
+        type: addressType,
+        label: addressType === "custom" ? (customLabel || "Custom") : (addressType === "home" ? "Home" : "Work"),
+        recipientName: recipientName || name,
+        phone: recipientPhone || phone,
+        addressLine: addressText,
+        city,
+        lat: markerPos?.lat,
+        lng: markerPos?.lng,
+        formattedAddress: formattedAddress || addressText,
+        isDefault: true,
+      };
+
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user?.id,
+          name,
+          phone,
+          addresses: [newAddress],
+          profileComplete: true,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setUserAddresses(Array.isArray(data.addresses) ? data.addresses : [newAddress]);
+        setStep(3);
+      }
+    } catch (err) {
+      console.error("Failed to save profile:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSkip = () => {
+    setShowProfileSetup(false);
+    onClose();
+  };
+
+  const handleDone = () => {
+    setShowProfileSetup(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+      <div className="absolute inset-0" onClick={handleSkip} />
+
+      <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-100 animate-slideUp">
+        {/* Progress bar */}
+        {step < 3 && (
+          <div className="w-full h-1 bg-slate-100">
+            <div
+              className="h-full bg-gradient-to-r from-[#402970] to-[#6a42c0] transition-all duration-500"
+              style={{ width: step === 1 ? "50%" : "100%" }}
+            />
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-base font-bold text-slate-800">
+              {step === 1 && "Complete Your Profile"}
+              {step === 2 && "Add Your Delivery Address"}
+              {step === 3 && "You're All Set! 🎉"}
+            </h3>
+            {step < 3 && (
+              <p className="text-[11px] text-slate-400 mt-0.5">Step {step} of 2</p>
+            )}
+          </div>
+          <button
+            onClick={handleSkip}
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors outline-none cursor-pointer"
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        {/* ── Step 1: Personal Info ─────────────────────────────── */}
+        {step === 1 && (
+          <div className="p-6 flex flex-col gap-5">
+            {/* Welcome */}
+            <div className="flex items-center gap-3 bg-[#402970]/5 rounded-xl p-4 border border-[#402970]/10">
+              <div className="w-12 h-12 rounded-full bg-[#402970]/10 flex items-center justify-center text-[#402970] font-extrabold text-base shrink-0">
+                {name?.substring(0, 2).toUpperCase() || "U"}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-700">Welcome to Kapruka AI!</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Let&apos;s set up your profile so we can deliver orders right to you.
+                </p>
+              </div>
+            </div>
+
+            {/* Name */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                <User size={12} className="text-[#402970]" /> Full Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Your name"
+                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 transition-all"
+              />
+            </div>
+
+            {/* Phone */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                <Phone size={12} className="text-[#402970]" /> Phone Number
+              </label>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-1.5 border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-sm font-bold text-slate-700 shrink-0">
+                  🇱🇰 +94
+                </div>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="77 123 4567"
+                  className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 transition-all"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400">Needed for delivery coordination.</p>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <button onClick={handleSkip} className="text-xs text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+                Skip for now
+              </button>
+              <button
+                onClick={handleStep1Continue}
+                disabled={!phone.trim()}
+                className="flex items-center gap-2 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
+              >
+                Continue <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Address ────────────────────────────────────── */}
+        {step === 2 && (
+          <div className="p-6 flex flex-col gap-4">
+            {/* Address text input */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                <MapPin size={12} className="text-[#402970]" /> Rough Location
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={addressText}
+                  onChange={e => setAddressText(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleGeocode()}
+                  placeholder="e.g. Nugegoda, Colombo"
+                  className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 transition-all"
+                />
+                <button
+                  onClick={handleGeocode}
+                  disabled={isGeocoding || !addressText.trim()}
+                  className="flex items-center gap-1.5 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {isGeocoding ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+                  {isGeocoding ? "Finding…" : "Find"}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400">Drag the pin on the map to set your exact location.</p>
+            </div>
+
+            {/* Google Map */}
+            <div className="w-full h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center relative">
+              {!mapLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs flex-col gap-2">
+                  <MapPin size={28} className="text-slate-300" />
+                  <span>Type a location above and click &quot;Find&quot;</span>
+                </div>
+              )}
+              <LoadScript googleMapsApiKey={MAPS_API_KEY}>
+                <GoogleMap
+                  mapContainerStyle={{ width: "100%", height: "100%" }}
+                  center={mapCenter}
+                  zoom={15}
+                  onClick={handleMapClick}
+                  onLoad={(map) => { mapRef.current = map; }}
+                  options={{ disableDefaultUI: true, zoomControl: true, clickableIcons: false }}
+                >
+                  {markerPos && <Marker position={markerPos} draggable onDragEnd={(e) => {
+                    if (!e.latLng) return;
+                    const lat = e.latLng.lat();
+                    const lng = e.latLng.lng();
+                    setMarkerPos({ lat, lng });
+                    handleReverseGeocode(lat, lng);
+                  }} />}
+                </GoogleMap>
+              </LoadScript>
+            </div>
+
+            {formattedAddress && (
+              <p className="text-[11px] text-[#402970] font-semibold bg-[#402970]/5 rounded-lg px-3 py-2 border border-[#402970]/10 truncate">
+                📍 {formattedAddress}
+              </p>
+            )}
+
+            {/* Address type */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-600">Address Type</label>
+              <div className="flex gap-2">
+                {ADDRESS_TYPES.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => setAddressType(value)}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex-1 justify-center ${
+                      addressType === value
+                        ? "bg-[#402970] border-[#402970] text-white"
+                        : "bg-white border-slate-200 text-slate-600 hover:border-[#402970]/30"
+                    }`}
+                  >
+                    <Icon size={12} /> {label}
+                  </button>
+                ))}
+              </div>
+              {addressType === "custom" && (
+                <input
+                  type="text"
+                  value={customLabel}
+                  onChange={e => setCustomLabel(e.target.value)}
+                  placeholder="e.g. Girlfriend's Place"
+                  className="mt-1 w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 transition-all"
+                />
+              )}
+            </div>
+
+            {/* Recipient */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Recipient Name</label>
+                <input
+                  type="text"
+                  value={recipientName}
+                  onChange={e => setRecipientName(e.target.value)}
+                  placeholder="Who receives here?"
+                  className="border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Contact Phone</label>
+                <input
+                  type="tel"
+                  value={recipientPhone}
+                  onChange={e => setRecipientPhone(e.target.value)}
+                  placeholder="+94 77..."
+                  className="border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <button onClick={handleSkip} className="text-xs text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+                Skip for now
+              </button>
+              <button
+                onClick={handleSaveAddress}
+                disabled={isSaving || (!markerPos && !addressText.trim())}
+                className="flex items-center gap-2 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
+              >
+                {isSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                {isSaving ? "Saving…" : "Save Address"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Done ───────────────────────────────────────── */}
+        {step === 3 && (
+          <div className="p-8 flex flex-col items-center text-center gap-5">
+            <div className="w-20 h-20 rounded-full bg-emerald-50 border-4 border-emerald-100 flex items-center justify-center animate-bounceIn">
+              <CheckCircle2 size={40} className="text-emerald-500" />
+            </div>
+            <div>
+              <h4 className="text-xl font-extrabold text-slate-800 mb-1">Profile Complete!</h4>
+              <p className="text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
+                Your name, phone, and delivery address are saved. You can manage them anytime from the sidebar settings.
+              </p>
+            </div>
+            <button
+              onClick={handleDone}
+              className="bg-[#402970] hover:bg-[#33205a] text-white font-bold text-sm px-8 py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-[#402970]/20"
+            >
+              Start Shopping 🛍️
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

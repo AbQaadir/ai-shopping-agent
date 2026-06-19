@@ -447,7 +447,7 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 
       if (isFallback) {
         // Run forward geocoding client-side using the browser context to bypass HTTP referrer restrictions
-        const geocoder = new GeocoderClass();
+        const geocoder = new google.maps.Geocoder();
         try {
           const results = await new Promise<any>((resolve, reject) => {
             geocoder.geocode({ address: geo.formattedAddress + ", Sri Lanka" }, (res: any, status: any) => {

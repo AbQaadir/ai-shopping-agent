@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
-import { Paperclip, ArrowUp, X, Menu, ShoppingCart, Search, Plus, Send } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
+import { Menu, Paperclip, Search, Send, ShoppingCart, X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 
 interface LandingWorkspaceProps {
   onSend: (text: string, files: File[]) => void;
@@ -36,7 +36,6 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       setSelectedIndex(-1);
       return;
     }
-
     const controller = new AbortController();
     const fetchSuggestions = async () => {
       try {
@@ -72,7 +71,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       controller.abort();
     };
   }, [inputText]);
- 
+
   const handleSubmit = () => {
     if (inputText.trim() || attachedFiles.length > 0) {
       onSend(inputText, attachedFiles);
@@ -80,7 +79,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       setAttachedFiles([]);
     }
   };
- 
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showDropdown && suggestions.length > 0) {
       if (e.key === "ArrowDown") {
@@ -112,11 +111,11 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       handleSubmit();
     }
   };
- 
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setAttachedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
   };
- 
+
   return (
     <div className="flex-1 w-full flex flex-col overflow-hidden h-full relative">
       {/* Desktop Floating Logo (Top-Left) */}
@@ -170,21 +169,21 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       </div>
 
       <div className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center gap-6 sm:gap-10 relative overflow-y-auto animate-fadeIn">
- 
+
       {/* Background glow */}
       <div className="absolute top-[10%] sm:top-[15%] left-1/2 -translate-x-1/2 w-[320px] sm:w-[700px] h-[180px] sm:h-[350px] bg-gradient-to-tr from-[#402970]/8 to-purple-400/8 rounded-full blur-[80px] sm:blur-[120px] pointer-events-none -z-10" />
- 
+
       {/* Hero Section */}
       <div className="flex flex-col items-center text-center max-w-3xl mx-auto w-full gap-4 sm:gap-6 mt-2 sm:mt-4">
         <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight bg-gradient-to-r from-purple-700 via-[#402970] to-indigo-700 bg-clip-text text-transparent max-w-2xl px-2">
           Sri Lanka&apos;s AI Shopping, Delivery & Services
         </h1>
- 
+
         {/* Prompt input */}
         <div className="w-full relative group px-2 sm:px-0">
           {/* Autocomplete Dropdown floating below the input card */}
           {showDropdown && suggestions.length > 0 && (
-            <div 
+            <div
               className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-md rounded-xl border border-slate-100 shadow-[0_12px_30px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col p-1.5 z-30 animate-fadeInScale text-left"
             >
               {suggestions.map((suggestion, index) => {
@@ -212,11 +211,11 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <Search 
-                        size={14} 
+                      <Search
+                        size={14}
                         className={`shrink-0 transition-colors ${
                           selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
-                        }`} 
+                        }`}
                       />
                       <span className="truncate">
                         {hasPrefix ? (
@@ -259,7 +258,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
 
           <div className="w-full relative">
             <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 rounded-full blur-lg transition-opacity duration-300 pointer-events-none ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"}`} />
-            
+
             <div className={`w-full bg-white rounded-full border transition-all duration-300 py-1.5 pl-2 pr-1.5 flex items-center gap-2 relative ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"}`}>
               {/* Attachment Button */}
               <button
@@ -312,7 +311,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           </div>
         </div>
       </div>
- 
+
 
     </div>
   </div>

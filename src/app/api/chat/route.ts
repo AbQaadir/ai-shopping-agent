@@ -118,7 +118,29 @@ export async function POST(req: NextRequest) {
 
     // 1. Ensure chat session exists
     let session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+    
+    // Strict Ownership Check
+    if (session && session.userId && session.userId !== userId) {
+      return new Response(JSON.stringify({ error: "Forbidden: You do not have permission to send messages to this shared chat." }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     if (!session) {
+      // Ensure user exists (create a dummy guest user if needed)
+      if (userId && userId !== "guest") {
+        await prisma.user.upsert({
+          where: { id: userId },
+          update: {},
+          create: {
+            id: userId,
+            email: `guest-${userId}@guest.local`,
+            name: "Guest User",
+          },
+        });
+      }
+
       session = await prisma.chatSession.create({
         data: {
           id: sessionId,
@@ -296,7 +318,7 @@ User query to classify: "${message}"`;
     }
 
     // 7. Load checkout state and saved address
-    const checkoutState = await getCheckoutState(sessionId);
+    let checkoutState = await getCheckoutState(sessionId);
     const savedAddr = USER_DEFAULTS[userId] || null;
 
     // 8. Router Agent decision (replaces all regex intercepts)
@@ -464,9 +486,7 @@ User query to classify: "${message}"`;
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
               const existingIdx = currentCart.findIndex((item) => item.id === p.id);
-              if (existingIdx > -1) {
-                currentCart[existingIdx].quantity += 1;
-              } else {
+              if (existingIdx === -1) {
                 currentCart.push({
                   id: p.id,
                   name: p.name || p.title || "Kapruka Product",
@@ -674,6 +694,34 @@ User query to classify: "${message}"`;
         if (action === "checkout_continue" && checkoutState) {
           send({ type: "thought", step: "order_agent", status: "running", content: `Order Agent: processing phase "${checkoutState.phase}"...` });
 
+          // ── Phase 3: Sync live cart into checkoutState before every agent call ──
+          // Silent Add-to-Cart actions (done from the UI without an LLM message) write to
+          // User.cart[sessionId] directly. Re-read it here so the orderAgent always sees
+          // the latest cart, not a stale snapshot frozen when checkout_start was triggered.
+          const liveCart = await loadUserCart();
+          if (liveCart.length > 0) {
+            // If items were added silently, merge them in (deduplicated by id).
+            const mergedCart = [...checkoutState.cartItems];
+            for (const liveItem of liveCart) {
+              const idx = mergedCart.findIndex(ci => ci.id === liveItem.id);
+              if (idx === -1) {
+                mergedCart.push(liveItem);
+              } else {
+                // Prefer the higher quantity (user may have bumped qty in either system).
+                mergedCart[idx] = {
+                  ...mergedCart[idx],
+                  quantity: Math.max(mergedCart[idx].quantity, liveItem.quantity),
+                };
+              }
+            }
+            if (mergedCart.length !== checkoutState.cartItems.length ||
+              mergedCart.some((m, i) => m.quantity !== checkoutState!.cartItems[i]?.quantity)) {
+              // Cart changed — update the CheckoutSession snapshot and re-save.
+              checkoutState = { ...checkoutState, cartItems: mergedCart };
+              await saveCheckoutState(sessionId, checkoutState);
+            }
+          }
+
           let agentOutput = {
             nextPhase: "stay" as any,
             stay: true,
@@ -686,6 +734,7 @@ User query to classify: "${message}"`;
           if (ai) {
             agentOutput = await orderAgent(message, checkoutState, ai, config.gemini.fastModel);
           }
+
 
           send({ type: "thought", step: "order_agent", status: "completed", content: `Phase transition: ${checkoutState.phase} → ${agentOutput.nextPhase}`, durationMs: 0 });
 
@@ -1424,6 +1473,15 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
 
         send({ type: "follow_ups", questions: followUpQuestions });
 
+        // ── Phase 4: Checkout-pause resume nudge ───────────────────────────
+        // When the user interrupted an active checkout to browse (checkout_pause),
+        // remind them that their checkout is still alive and waiting.
+        if (action === "checkout_pause" && checkoutState) {
+          const pauseNudge = "\n\n---\n💬 *Your checkout is still saved and ready. Whenever you'd like to continue, just say **\"continue checkout\"**.*";
+          fullResponseText += pauseNudge;
+          send({ type: "text", content: pauseNudge });
+        }
+
         // ── Save AI response to DB ─────────────────────────────────────
         await prisma.chatMessage.create({
           data: {
@@ -1448,6 +1506,7 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
         controller.close();
       },
     });
+
 
     return new Response(stream, {
       headers: {

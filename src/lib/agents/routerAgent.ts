@@ -72,8 +72,9 @@ export async function routerAgent(
   if (/^confirm location:/i.test(message.trim())) {
     return { action: "checkout_continue", reason: "UI-generated map pin confirmation" };
   }
-  if (/^(checkout cart|order selected)$/i.test(message.trim())) {
-    return { action: "checkout_start", reason: "Explicit checkout trigger from UI button" };
+  // "checkout cart" is sent by handleBuyProduct and handleOrderCart (after silently adding to cart).
+  if (/^checkout cart$/i.test(message.trim())) {
+    return { action: "checkout_start", reason: "Explicit checkout trigger from Order button" };
   }
 
   const stateBlock = buildCheckoutStateBlock(checkoutState);
@@ -193,6 +194,22 @@ Respond ONLY as valid JSON:
     // Safety: checkout_continue requires active checkout
     if (action === "checkout_continue" && !hasActiveCheckout) {
       return { action: "shop", reason: "checkout_continue requested but no active checkout — routed to shop" };
+    }
+
+    // ── Phase 5: Search-pattern safety guard ────────────────────────────────
+    // If the LLM decided checkout_continue but the message looks like a search/browse
+    // request, override to checkout_pause. This prevents the orderAgent from consuming
+    // queries like "show me other cakes" or "what about the Samsung one" as phase answers.
+    if (action === "checkout_continue" && hasActiveCheckout) {
+      const searchPatterns = /\b(show me|find|search|look for|browse|what about|any other|other options|different|compare|recommend|suggest|available|see more|more options|something else|instead|actually|never mind|wait|hold on)\b/i;
+      const questionWords = /^(what|which|how|where|when|why|is there|are there|can you|do you|could you)/i;
+      if (searchPatterns.test(message) || questionWords.test(message.trim())) {
+        console.log(`[RouterAgent] Safety override: checkout_continue → checkout_pause (search pattern detected in: "${message.substring(0, 60)}")`);
+        return {
+          action: "checkout_pause",
+          reason: `Safety override: message looks like a search/browse query, not a checkout phase answer`,
+        };
+      }
     }
 
     console.log(`[RouterAgent] "${message.substring(0, 60)}" → ${action} (${parsed.reason})`);
