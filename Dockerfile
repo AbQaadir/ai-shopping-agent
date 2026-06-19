@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # Kapuruka AI Agent — Production Dockerfile for Railway
 # Multi-stage build:  deps → builder → runner
 # ============================================================
@@ -25,8 +25,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Provide dummy build-time env so 
-ext build doesn't crash on missing vars.
+# Provide dummy build-time env so next build doesn't crash on missing vars.
 # Real values are injected at runtime by Railway.
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
