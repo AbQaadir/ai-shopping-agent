@@ -6,6 +6,15 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
+// Bounded in-memory server cache to return duplicates instantly
+interface CacheEntry {
+  suggestions: string[];
+  timestamp: number;
+}
+const serverCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes cache TTL
+const MAX_CACHE_SIZE = 1000;
+
 export async function POST(req: NextRequest) {
   try {
     const { inputText } = await req.json().catch(() => ({}));
@@ -17,6 +26,12 @@ export async function POST(req: NextRequest) {
     const words = inputText.trim().split(/\s+/).filter(Boolean);
     if (words.length < 3 || words.length > 5) {
       return NextResponse.json({ suggestions: [] });
+    }
+
+    const cacheKey = inputText.trim().toLowerCase();
+    const cached = serverCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return NextResponse.json({ suggestions: cached.suggestions });
     }
 
     const apiKey = config.gemini.apiKey;
@@ -62,6 +77,8 @@ Output format MUST be: ["Completion 1", "Completion 2", "Completion 3"]`;
       config: {
         systemInstruction,
         responseMimeType: "application/json",
+        maxOutputTokens: 80,
+        temperature: 0.2,
       },
     });
 
@@ -83,6 +100,18 @@ Output format MUST be: ["Completion 1", "Completion 2", "Completion 3"]`;
     } catch (err) {
       console.error("[Autocomplete API] JSON parse failed:", err, "Response was:", responseText);
     }
+
+    // Save to server-side cache
+    if (serverCache.size >= MAX_CACHE_SIZE) {
+      const oldestKey = serverCache.keys().next().value;
+      if (oldestKey) {
+        serverCache.delete(oldestKey);
+      }
+    }
+    serverCache.set(cacheKey, {
+      suggestions: suggestions.slice(0, 3),
+      timestamp: Date.now()
+    });
 
     return NextResponse.json({ suggestions: suggestions.slice(0, 3) });
   } catch (error) {

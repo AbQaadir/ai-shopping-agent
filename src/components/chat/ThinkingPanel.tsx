@@ -176,7 +176,7 @@ export default function ThinkingPanel({
               const hasTerms = isSearchStep && step.terms && step.terms.length > 0;
 
               return (
-                <div key={idx} className="space-y-2.5 animate-step-enter">
+                <div key={step._key || `${step.step}_${idx}`} className="space-y-2.5 animate-step-enter">
                   <p className="text-black text-[13px] font-medium leading-relaxed pr-2">
                     {step.content}
                   </p>
@@ -184,10 +184,10 @@ export default function ThinkingPanel({
                   {/* Individual parallel search term capsules (Mark 1) */}
                   {hasTerms ? (
                     <div className="flex flex-col gap-1.5">
-                      {step.terms!.map((term, tIdx) => {
+                      {step.terms!.map((term) => {
                         return (
                           <div
-                            key={tIdx}
+                            key={term}
                             className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-3 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)]"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -285,7 +285,7 @@ export default function ThinkingPanel({
                       const badge = getToolBadge(call.name);
                       return badge ? (
                         <div
-                          key={idx}
+                          key={`${call.name}_${idx}`}
                           className="p-1.5 bg-slate-50 border border-slate-100/50 rounded-full flex items-center justify-between gap-4 max-w-2xl shadow-[0_1px_2px_rgba(0,0,0,0.01)] animate-fadeIn"
                           style={{ animationDelay: `${idx * 60}ms` }}
                         >
