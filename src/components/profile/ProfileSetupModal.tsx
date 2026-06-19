@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
-import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
+import React, { useState, useRef, useEffect } from "react";
 import { X, Home, Briefcase, Tag, MapPin, CheckCircle2, ChevronRight, Loader2, Phone, User } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSourcing } from "@/context/SourcingContext";
@@ -36,77 +35,226 @@ export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModal
   // Step 2 fields
   const [addressText, setAddressText] = useState("");
   const [isGeocoding, setIsGeocoding] = useState(false);
-  const [mapCenter, setMapCenter] = useState(SRI_LANKA_CENTER);
-  const [markerPos, setMarkerPos] = useState<{ lat: number; lng: number } | null>(null);
   const [formattedAddress, setFormattedAddress] = useState("");
   const [city, setCity] = useState("");
+  const [markerLatLng, setMarkerLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [addressType, setAddressType] = useState<"home" | "work" | "custom">("home");
   const [customLabel, setCustomLabel] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const mapRef = useRef<google.maps.Map | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
-  const handleGeocode = async () => {
-    if (!addressText.trim()) return;
-    setIsGeocoding(true);
-    try {
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText + ", Sri Lanka")}&key=${MAPS_API_KEY}`
-      );
-      const data = await res.json();
-      if (data.results?.[0]) {
-        const loc = data.results[0].geometry.location;
-        const latLng = { lat: loc.lat, lng: loc.lng };
-        setMarkerPos(latLng);
-        setFormattedAddress(data.results[0].formatted_address);
-        // Extract city from address components
-        const cityComp = data.results[0].address_components.find(
-          (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
-        );
-        setCity(cityComp?.long_name || addressText);
-        // Reveal the map and pan to the found location imperatively
-        setMapLoaded(true);
-        if (mapRef.current) {
-          mapRef.current.panTo(latLng);
-          mapRef.current.setZoom(14);
-        } else {
-          // Map not yet mounted — update center state as fallback
-          setMapCenter(latLng);
-        }
+  // Imperative map refs — same pattern as CheckoutCard
+  const mapDivRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerInstanceRef = useRef<any>(null);
+  const geocoderRef = useRef<any>(null);
+  const isAdvancedMarkerRef = useRef(false);
+  const mapsInitialisedRef = useRef(false);
+
+  // ── Helpers ────────────────────────────────────────────────────
+  const extractCity = (components: any[]) => {
+    const comp = components?.find(
+      (c: any) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
+    );
+    return comp?.long_name || "";
+  };
+
+  const updateMarkerAndReverse = (latLng: any) => {
+    if (!latLng) return;
+    const g = (window as any).google;
+    const lat = typeof latLng.lat === "function" ? latLng.lat() : latLng.lat;
+    const lng = typeof latLng.lng === "function" ? latLng.lng() : latLng.lng;
+    const pos = { lat, lng };
+
+    setMarkerLatLng(pos);
+
+    // Move marker imperatively
+    if (markerInstanceRef.current) {
+      if (isAdvancedMarkerRef.current) {
+        markerInstanceRef.current.position = new g.maps.LatLng(lat, lng);
+      } else {
+        markerInstanceRef.current.setPosition(pos);
       }
-    } catch {
-      // fallback — just reveal the map at default center
-      setMapLoaded(true);
-    } finally {
-      setIsGeocoding(false);
+    }
+
+    // Reverse geocode with SDK Geocoder
+    if (geocoderRef.current) {
+      geocoderRef.current.geocode({ location: pos }, (results: any, status: any) => {
+        if (status === "OK" && results[0]) {
+          setFormattedAddress(results[0].formatted_address);
+          setCity(extractCity(results[0].address_components));
+        }
+      });
     }
   };
 
-  const handleReverseGeocode = useCallback(async (lat: number, lng: number) => {
+  // ── Initialise Google Map (imperative) ─────────────────────────
+  const initMap = async () => {
+    if (!mapDivRef.current || mapsInitialisedRef.current) return;
+    const g = (window as any).google;
+    if (!g?.maps) return;
+    mapsInitialisedRef.current = true;
+
     try {
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${MAPS_API_KEY}`
-      );
-      const data = await res.json();
-      if (data.results?.[0]) {
-        setFormattedAddress(data.results[0].formatted_address);
-        const cityComp = data.results[0].address_components.find(
-          (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
-        );
-        setCity(cityComp?.long_name || "");
+      let MapClass: any;
+      let GeocoderClass: any;
+      let MarkerClass: any;
+      let isAdv = false;
+
+      if (g.maps.importLibrary) {
+        const [mapsLib, geoLib, markerLib] = await Promise.all([
+          g.maps.importLibrary("maps"),
+          g.maps.importLibrary("geocoding"),
+          g.maps.importLibrary("marker"),
+        ]);
+        MapClass = mapsLib.Map;
+        GeocoderClass = geoLib.Geocoder;
+        if (markerLib.AdvancedMarkerElement) {
+          MarkerClass = markerLib.AdvancedMarkerElement;
+          isAdv = true;
+        } else {
+          MarkerClass = markerLib.Marker || g.maps.Marker;
+        }
+      } else {
+        MapClass = g.maps.Map;
+        GeocoderClass = g.maps.Geocoder;
+        MarkerClass = g.maps.Marker;
+        if (g.maps.marker?.AdvancedMarkerElement) {
+          MarkerClass = g.maps.marker.AdvancedMarkerElement;
+          isAdv = true;
+        }
       }
-    } catch { /* silent */ }
-  }, []);
 
-  const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
-    if (!e.latLng) return;
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    setMarkerPos({ lat, lng });
-    handleReverseGeocode(lat, lng);
-  }, [handleReverseGeocode]);
+      isAdvancedMarkerRef.current = isAdv;
 
+      const map = new MapClass(mapDivRef.current, {
+        center: SRI_LANKA_CENTER,
+        zoom: 7,
+        mapId: "kapruka_profile_map",
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: true,
+        clickableIcons: false,
+      });
+      mapInstanceRef.current = map;
+
+      // Geocoder
+      geocoderRef.current = new GeocoderClass();
+
+      // Purple draggable marker — hidden until Find is clicked
+      const markerEl = document.createElement("div");
+      markerEl.style.cssText =
+        "width:22px;height:22px;background:#402970;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:grab;display:none";
+
+      let marker: any;
+      if (isAdv) {
+        marker = new MarkerClass({
+          position: SRI_LANKA_CENTER,
+          map,
+          content: markerEl,
+          gmpDraggable: true,
+        });
+        marker.addListener("gmp-dragend", () => updateMarkerAndReverse(marker.position));
+        marker.addListener("dragend", (e: any) => updateMarkerAndReverse(e.latLng || marker.position));
+      } else {
+        marker = new MarkerClass({
+          position: SRI_LANKA_CENTER,
+          map,
+          draggable: true,
+          visible: false,
+          icon: { url: "https://maps.google.com/mapfiles/ms/icons/purple-dot.png" },
+        });
+        marker.addListener("dragend", (e: any) => updateMarkerAndReverse(e.latLng));
+      }
+      markerInstanceRef.current = marker;
+
+      // Map click → move marker
+      map.addListener("click", (e: any) => updateMarkerAndReverse(e.latLng));
+
+      setMapReady(true);
+    } catch (err) {
+      console.error("Maps init error:", err);
+    }
+  };
+
+  // ── Load Maps script when step 2 is shown ─────────────────────
+  useEffect(() => {
+    if (step !== 2 || !MAPS_API_KEY) return;
+
+    if ((window as any).google?.maps) {
+      setTimeout(initMap, 50);
+      return;
+    }
+
+    const scriptId = "google-maps-script";
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}&libraries=places,marker&loading=async`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    if ((script as any)._mapsLoaded) {
+      setTimeout(initMap, 50);
+      return;
+    }
+
+    const onLoad = () => {
+      (script as any)._mapsLoaded = true;
+      setTimeout(initMap, 50);
+    };
+    script.addEventListener("load", onLoad);
+    return () => script!.removeEventListener("load", onLoad);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // ── Find button — SDK Geocoder ─────────────────────────────────
+  const handleGeocode = () => {
+    if (!addressText.trim() || !geocoderRef.current) return;
+    setIsGeocoding(true);
+
+    geocoderRef.current.geocode(
+      { address: addressText + ", Sri Lanka" },
+      (results: any, status: any) => {
+        setIsGeocoding(false);
+        if (status === "OK" && results[0]) {
+          const loc = results[0].geometry.location;
+          const pos = { lat: loc.lat(), lng: loc.lng() };
+          setMarkerLatLng(pos);
+          setFormattedAddress(results[0].formatted_address);
+          setCity(extractCity(results[0].address_components));
+
+          // Pan map and show marker
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.panTo(pos);
+            mapInstanceRef.current.setZoom(14);
+          }
+
+          const marker = markerInstanceRef.current;
+          if (marker) {
+            if (isAdvancedMarkerRef.current) {
+              const g = (window as any).google;
+              marker.position = new g.maps.LatLng(pos.lat, pos.lng);
+              // Show the marker div
+              if (marker.content) (marker.content as HTMLElement).style.display = "block";
+            } else {
+              marker.setPosition(pos);
+              marker.setVisible(true);
+            }
+          }
+        } else {
+          console.warn("Geocode failed:", status);
+        }
+      }
+    );
+  };
+
+  // ── Step handlers ──────────────────────────────────────────────
   const handleStep1Continue = () => {
     if (!phone.trim()) return;
     setRecipientName(name);
@@ -115,19 +263,24 @@ export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModal
   };
 
   const handleSaveAddress = async () => {
-    if (!markerPos && !addressText.trim()) return;
+    if (!markerLatLng && !addressText.trim()) return;
     setIsSaving(true);
     try {
       const newAddress: UserAddress = {
         id: crypto.randomUUID(),
         type: addressType,
-        label: addressType === "custom" ? (customLabel || "Custom") : (addressType === "home" ? "Home" : "Work"),
+        label:
+          addressType === "custom"
+            ? customLabel || "Custom"
+            : addressType === "home"
+            ? "Home"
+            : "Work",
         recipientName: recipientName || name,
         phone: recipientPhone || phone,
         addressLine: addressText,
         city,
-        lat: markerPos?.lat,
-        lng: markerPos?.lng,
+        lat: markerLatLng?.lat,
+        lng: markerLatLng?.lng,
         formattedAddress: formattedAddress || addressText,
         isDefault: true,
       };
@@ -271,7 +424,7 @@ export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModal
         {/* ── Step 2: Address ────────────────────────────────────── */}
         {step === 2 && (
           <div className="p-6 flex flex-col gap-4">
-            {/* Address text input */}
+            {/* Address input + Find button */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                 <MapPin size={12} className="text-[#402970]" /> Rough Location
@@ -287,43 +440,26 @@ export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModal
                 />
                 <button
                   onClick={handleGeocode}
-                  disabled={isGeocoding || !addressText.trim()}
+                  disabled={isGeocoding || !addressText.trim() || !mapReady}
                   className="flex items-center gap-1.5 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shrink-0 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isGeocoding ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
-                  {isGeocoding ? "Finding…" : "Find"}
+                  {isGeocoding ? "Finding…" : !mapReady ? "Loading…" : "Find"}
                 </button>
               </div>
               <p className="text-[10px] text-slate-400">Drag the pin on the map to set your exact location.</p>
             </div>
 
-            {/* Google Map — always rendered so mapRef is populated before Find is clicked */}
-            <div className="w-full h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center relative">
-              {/* Placeholder overlay shown until the user presses Find */}
-              {!mapLoaded && (
+            {/* Map container — always in DOM, map initialised imperatively */}
+            <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+              {/* Placeholder shown until first geocode */}
+              {!markerLatLng && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center text-slate-400 text-xs flex-col gap-2 bg-slate-100 rounded-xl pointer-events-none">
                   <MapPin size={28} className="text-slate-300" />
                   <span>Type a location above and click &quot;Find&quot;</span>
                 </div>
               )}
-              <LoadScript googleMapsApiKey={MAPS_API_KEY}>
-                <GoogleMap
-                  mapContainerStyle={{ width: "100%", height: "100%" }}
-                  center={mapCenter}
-                  zoom={8}
-                  onClick={handleMapClick}
-                  onLoad={(map) => { mapRef.current = map; }}
-                  options={{ disableDefaultUI: true, zoomControl: true, clickableIcons: false }}
-                >
-                  {markerPos && <Marker position={markerPos} draggable onDragEnd={(e) => {
-                    if (!e.latLng) return;
-                    const lat = e.latLng.lat();
-                    const lng = e.latLng.lng();
-                    setMarkerPos({ lat, lng });
-                    handleReverseGeocode(lat, lng);
-                  }} />}
-                </GoogleMap>
-              </LoadScript>
+              <div ref={mapDivRef} style={{ width: "100%", height: "100%" }} />
             </div>
 
             {formattedAddress && (
@@ -391,7 +527,7 @@ export default function ProfileSetupModal({ isOpen, onClose }: ProfileSetupModal
               </button>
               <button
                 onClick={handleSaveAddress}
-                disabled={isSaving || (!markerPos && !addressText.trim())}
+                disabled={isSaving || (!markerLatLng && !addressText.trim())}
                 className="flex items-center gap-2 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
               >
                 {isSaving ? <Loader2 size={14} className="animate-spin" /> : null}
