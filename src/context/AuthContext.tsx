@@ -14,9 +14,6 @@ interface AuthContextType {
   authModalReason: "message_limit" | "checkout" | "login" | null;
   openAuthModal: (reason: "message_limit" | "checkout" | "login") => void;
   closeAuthModal: () => void;
-  /** True after a brand-new Google sign-in where profileComplete === false */
-  showProfileSetup: boolean;
-  setShowProfileSetup: (open: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalReason, setAuthModalReason] = useState<"message_limit" | "checkout" | "login" | null>(null);
-  const [showProfileSetup, setShowProfileSetup] = useState(false);
+
 
   const supabase = createClient();
 
@@ -57,10 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .then((data) => {
             console.log("Database user synced successfully.");
             localStorage.removeItem("kapruka_guest_uuid");
-            // Show profile setup modal if this user hasn't completed their profile
-            if (data.profileComplete === false) {
-              setShowProfileSetup(true);
-            }
+            // User profile sync complete
           })
           .catch((err) => console.error("Database user sync failed:", err));
 
@@ -118,8 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authModalReason,
         openAuthModal,
         closeAuthModal,
-        showProfileSetup,
-        setShowProfileSetup,
       }}
     >
       {children}
