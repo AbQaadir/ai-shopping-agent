@@ -11,8 +11,8 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   isAuthModalOpen: boolean;
-  authModalReason: "message_limit" | "checkout" | null;
-  openAuthModal: (reason: "message_limit" | "checkout") => void;
+  authModalReason: "message_limit" | "checkout" | "login" | null;
+  openAuthModal: (reason: "message_limit" | "checkout" | "login") => void;
   closeAuthModal: () => void;
   /** True after a brand-new Google sign-in where profileComplete === false */
   showProfileSetup: boolean;
@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalReason, setAuthModalReason] = useState<"message_limit" | "checkout" | null>(null);
+  const [authModalReason, setAuthModalReason] = useState<"message_limit" | "checkout" | "login" | null>(null);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
 
   const supabase = createClient();
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  const openAuthModal = (reason: "message_limit" | "checkout") => {
+  const openAuthModal = (reason: "message_limit" | "checkout" | "login") => {
     setAuthModalReason(reason);
     setIsAuthModalOpen(true);
   };

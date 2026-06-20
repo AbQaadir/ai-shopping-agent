@@ -8,9 +8,6 @@ import {
   X,
   SquarePen,
   Globe,
-  ChevronUp,
-  LogOut,
-  Settings
 } from "lucide-react";
 import SidebarHistoryList from "./SidebarHistoryList";
 import LanguagePopover from "../header/LanguagePopover";
@@ -30,6 +27,16 @@ interface GlobalSidebarProps {
   activeHistoryId?: string;
 }
 
+const GoogleIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
+    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+    <path fill="none" d="M1 1h22v22H1z" />
+  </svg>
+);
+
 export default function GlobalSidebar({
   isCollapsed,
   setIsCollapsed,
@@ -41,11 +48,24 @@ export default function GlobalSidebar({
   activeHistoryId,
 }: GlobalSidebarProps) {
   const [showLanguagePopover, setShowLanguagePopover] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const { currency } = useSourcing();
-  const { user, signInWithGoogle, signOut } = useAuth();
+  const { user, openAuthModal } = useAuth();
+
+  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const initials = user
+    ? (user.user_metadata?.full_name || user.email || "U").substring(0, 2).toUpperCase()
+    : null;
+
+  const handleUserAreaClick = () => {
+    if (!user) {
+      openAuthModal("login");
+    } else {
+      if (isCollapsed) setIsCollapsed(false);
+      setIsSettingsOpen(true);
+    }
+  };
 
   return (
     <>
@@ -178,86 +198,66 @@ export default function GlobalSidebar({
             )}
           </div>
 
-          {/* User Switcher Toggle */}
-          <div className="relative">
+          {/* ── User Area ─────────────────────────────────────── */}
+          {user ? (
+            /* Logged-in: click anywhere on the row to open Settings */
             <button
-              onClick={() => {
-                if (!user) {
-                  signInWithGoogle();
-                } else {
-                  setShowUserDropdown(!showUserDropdown);
-                }
-              }}
-              className={`flex items-center transition-all duration-300 cursor-pointer outline-none group border ${
+              onClick={handleUserAreaClick}
+              title="Open settings"
+              className={`flex items-center transition-all duration-300 cursor-pointer outline-none group border border-slate-200/60 bg-white hover:bg-[#402970]/5 hover:border-[#402970]/20 rounded-xl ${
                 isCollapsed
-                  ? "w-10 h-10 mx-auto rounded-full bg-white border-slate-200 hover:bg-slate-50 p-0 justify-center text-slate-700 font-extrabold text-xs"
-                  : "w-full p-2.5 rounded-xl border-slate-200/60 bg-white hover:bg-[#402970]/5 hover:border-[#402970]/20 hover:text-[#402970] text-left justify-between"
-              } ${showUserDropdown && !isCollapsed ? "bg-[#402970]/5 border-[#402970]/20 text-[#402970]" : ""}`}
+                  ? "w-10 h-10 mx-auto p-0 justify-center"
+                  : "w-full p-2.5 gap-2.5 text-left"
+              }`}
             >
-              {isCollapsed ? (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 bg-[#402970]/10 text-[#402970] group-hover:bg-[#402970]/20 transition-colors">
-                  {user ? user.user_metadata.full_name?.substring(0, 2).toUpperCase() || "US" : "SI"}
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 bg-[#402970]/10 text-[#402970] group-hover:bg-[#402970]/20 transition-colors">
-                      {user ? user.user_metadata.full_name?.substring(0, 2).toUpperCase() || "US" : "SI"}
-                    </div>
-                    <div className="flex flex-col text-left min-w-0">
-                      <span className="text-xs font-bold text-slate-700 group-hover:text-[#402970] transition-colors truncate">
-                        {user ? user.user_metadata.full_name || "User Profile" : "Sign In"}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-bold tracking-wide group-hover:text-[#402970]/70 transition-colors truncate">
-                        {user ? user.email : "Guest Mode"}
-                      </span>
-                    </div>
-                  </div>
-                  {/* Settings icon — only shown in expanded mode when logged in */}
-                  {user && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setIsSettingsOpen(true); }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-[#402970] hover:bg-[#402970]/10 transition-all cursor-pointer shrink-0"
-                      title="Settings"
-                    >
-                      <Settings size={14} />
-                    </button>
-                  )}
-                  {user && <ChevronUp size={14} className="text-slate-400 group-hover:text-[#402970] transition-colors shrink-0" />}
-                </>
-              )}
-            </button>
-
-            {showUserDropdown && user && (
-              <>
-                <div
-                  className="fixed inset-0 z-45"
-                  onClick={() => setShowUserDropdown(false)}
+              {/* Avatar: photo or initials */}
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="w-8 h-8 rounded-full object-cover shrink-0 ring-2 ring-[#402970]/10 group-hover:ring-[#402970]/30 transition-all"
                 />
-                <div
-                  className={`absolute w-48 bg-white border border-slate-100 rounded-xl shadow-xl z-50 p-1 flex flex-col gap-0.5 animate-fadeIn ${
-                    isCollapsed ? "bottom-0 left-full ml-3" : "bottom-full left-0 mb-2"
-                  }`}
-                >
-                  <span className="text-[10px] uppercase font-bold text-slate-400 px-3 py-1.5 tracking-wider select-none truncate">
+              ) : (
+                <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 bg-[#402970]/10 text-[#402970] group-hover:bg-[#402970]/20 transition-colors">
+                  {initials}
+                </div>
+              )}
+
+              {/* Name + email — only in expanded mode */}
+              {!isCollapsed && (
+                <div className="flex flex-col text-left min-w-0 flex-1">
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-[#402970] transition-colors truncate">
+                    {user.user_metadata?.full_name || "My Profile"}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold group-hover:text-[#402970]/60 transition-colors truncate">
                     {user.email}
                   </span>
-                  <button
-                    onClick={() => {
-                      signOut();
-                      setShowUserDropdown(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-xs rounded-lg font-semibold transition-colors flex items-center justify-between cursor-pointer hover:bg-slate-50 text-slate-700"
-                  >
-                    <span className="flex items-center gap-2">
-                      <LogOut size={14} />
-                      Log out
-                    </span>
-                  </button>
                 </div>
-              </>
-            )}
-          </div>
+              )}
+            </button>
+          ) : (
+            /* Guest: Sign in with Google button */
+            isCollapsed ? (
+              /* Collapsed: small avatar placeholder */
+              <button
+                onClick={handleUserAreaClick}
+                title="Sign in with Google"
+                className="w-10 h-10 mx-auto flex items-center justify-center rounded-full border border-dashed border-slate-300 hover:border-[#402970]/40 bg-white hover:bg-[#402970]/5 text-slate-400 hover:text-[#402970] transition-all cursor-pointer"
+              >
+                <GoogleIcon />
+              </button>
+            ) : (
+              /* Expanded: full Google sign-in button */
+              <button
+                onClick={handleUserAreaClick}
+                className="w-full flex items-center justify-center gap-2.5 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-[#402970]/20 hover:shadow-sm text-slate-700 font-bold text-xs transition-all duration-200 cursor-pointer group"
+                title="Sign in with Google"
+              >
+                <GoogleIcon />
+                <span className="group-hover:text-[#402970] transition-colors">Sign in with Google</span>
+              </button>
+            )
+          )}
         </div>
       </aside>
 
