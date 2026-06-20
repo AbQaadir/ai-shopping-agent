@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useCallback } from "react";
+import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
 import { Home, Briefcase, Tag, MapPin, Star, Pencil, Trash2, CheckCircle2, ChevronRight, Loader2, Plus, X } from "lucide-react";
 import type { UserAddress } from "@/types/sourcing";
 
@@ -19,23 +20,6 @@ function typeIcon(type: UserAddress["type"]) {
   return <Tag size={14} />;
 }
 
-// ── Shared Maps script loader ──────────────────────────────────────
-function loadMapsScript(apiKey: string, onReady: () => void) {
-  if ((window as any).google?.maps) { onReady(); return; }
-  const scriptId = "google-maps-script";
-  let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-  if (!script) {
-    script = document.createElement("script");
-    script.id = scriptId;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&loading=async`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-  }
-  if ((script as any)._mapsLoaded) { onReady(); return; }
-  const handler = () => { (script as any)._mapsLoaded = true; onReady(); };
-  script.addEventListener("load", handler);
-}
 
 // ─────────────────────────────────────────────────────────────────
 interface AddressFormProps {
@@ -48,181 +32,76 @@ interface AddressFormProps {
 function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) {
   const [addressText, setAddressText] = useState(initial?.addressLine || "");
   const [isGeocoding, setIsGeocoding] = useState(false);
-  const [formattedAddress, setFormattedAddress] = useState(initial?.formattedAddress || "");
-  const [city, setCity] = useState(initial?.city || "");
-  const [markerLatLng, setMarkerLatLng] = useState<{ lat: number; lng: number } | null>(
+  const [mapCenter, setMapCenter] = useState(
+    initial?.lat ? { lat: initial.lat, lng: initial.lng! } : SRI_LANKA_CENTER
+  );
+  const [markerPos, setMarkerPos] = useState<{ lat: number; lng: number } | null>(
     initial?.lat ? { lat: initial.lat, lng: initial.lng! } : null
   );
+  const [formattedAddress, setFormattedAddress] = useState(initial?.formattedAddress || "");
+  const [city, setCity] = useState(initial?.city || "");
   const [addressType, setAddressType] = useState<"home" | "work" | "custom">(initial?.type || "home");
   const [customLabel, setCustomLabel] = useState(initial?.type === "custom" ? initial.label || "" : "");
   const [recipientName, setRecipientName] = useState(initial?.recipientName || "");
   const [recipientPhone, setRecipientPhone] = useState(initial?.phone || "");
-  const [mapReady, setMapReady] = useState(false);
+  const [mapShown, setMapShown] = useState(!!initial?.lat);
+  const mapRef = useRef<google.maps.Map | null>(null);
 
-  // Imperative refs
-  const mapDivRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerInstanceRef = useRef<any>(null);
-  const geocoderRef = useRef<any>(null);
-  const isAdvancedMarkerRef = useRef(false);
-  const initialisedRef = useRef(false);
-
-  // ── Helpers ──────────────────────────────────────────────────
-  const extractCity = (components: any[]) => {
-    const c = components?.find(
-      (c: any) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
-    );
-    return c?.long_name || "";
-  };
-
-  const updateMarkerAndReverse = (latLng: any) => {
-    if (!latLng) return;
-    const g = (window as any).google;
-    const lat = typeof latLng.lat === "function" ? latLng.lat() : latLng.lat;
-    const lng = typeof latLng.lng === "function" ? latLng.lng() : latLng.lng;
-    const pos = { lat, lng };
-    setMarkerLatLng(pos);
-
-    if (markerInstanceRef.current) {
-      if (isAdvancedMarkerRef.current) {
-        markerInstanceRef.current.position = new g.maps.LatLng(lat, lng);
-      } else {
-        markerInstanceRef.current.setPosition(pos);
-      }
-    }
-
-    if (geocoderRef.current) {
-      geocoderRef.current.geocode({ location: pos }, (results: any, status: any) => {
-        if (status === "OK" && results[0]) {
-          setFormattedAddress(results[0].formatted_address);
-          setCity(extractCity(results[0].address_components));
-        }
-      });
-    }
-  };
-
-  // ── Init map ─────────────────────────────────────────────────
-  const initMap = async () => {
-    if (!mapDivRef.current || initialisedRef.current) return;
-    const g = (window as any).google;
-    if (!g?.maps) return;
-    initialisedRef.current = true;
-
+  const handleGeocode = async () => {
+    if (!addressText.trim()) return;
+    setIsGeocoding(true);
     try {
-      let MapClass: any, GeocoderClass: any, MarkerClass: any;
-      let isAdv = false;
-
-      if (g.maps.importLibrary) {
-        const [mapsLib, geoLib, markerLib] = await Promise.all([
-          g.maps.importLibrary("maps"),
-          g.maps.importLibrary("geocoding"),
-          g.maps.importLibrary("marker"),
-        ]);
-        MapClass = mapsLib.Map;
-        GeocoderClass = geoLib.Geocoder;
-        if (markerLib.AdvancedMarkerElement) { MarkerClass = markerLib.AdvancedMarkerElement; isAdv = true; }
-        else MarkerClass = markerLib.Marker || g.maps.Marker;
-      } else {
-        MapClass = g.maps.Map;
-        GeocoderClass = g.maps.Geocoder;
-        MarkerClass = g.maps.Marker;
-        if (g.maps.marker?.AdvancedMarkerElement) { MarkerClass = g.maps.marker.AdvancedMarkerElement; isAdv = true; }
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText + ", Sri Lanka")}&key=${MAPS_API_KEY}`
+      );
+      const data = await res.json();
+      if (data.results?.[0]) {
+        const loc = data.results[0].geometry.location;
+        const latLng = { lat: loc.lat, lng: loc.lng };
+        setMarkerPos(latLng);
+        setFormattedAddress(data.results[0].formatted_address);
+        const cityComp = data.results[0].address_components.find(
+          (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
+        );
+        setCity(cityComp?.long_name || addressText);
+        // Reveal map, then pan imperatively
+        setMapShown(true);
+        if (mapRef.current) {
+          mapRef.current.panTo(latLng);
+          mapRef.current.setZoom(14);
+        } else {
+          // Map not yet mounted — fall back to updating center state
+          setMapCenter(latLng);
+        }
       }
-      isAdvancedMarkerRef.current = isAdv;
-
-      const initCenter = initial?.lat ? { lat: initial.lat, lng: initial.lng! } : SRI_LANKA_CENTER;
-      const initZoom = initial?.lat ? 14 : 7;
-
-      const map = new MapClass(mapDivRef.current, {
-        center: initCenter,
-        zoom: initZoom,
-        mapId: "kapruka_addr_map",
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        zoomControl: true,
-        clickableIcons: false,
-      });
-      mapInstanceRef.current = map;
-      geocoderRef.current = new GeocoderClass();
-
-      // Marker — visible immediately if editing an existing address
-      const markerEl = document.createElement("div");
-      markerEl.style.cssText = `width:22px;height:22px;background:#402970;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:grab;display:${initial?.lat ? "block" : "none"}`;
-
-      let marker: any;
-      if (isAdv) {
-        marker = new MarkerClass({ position: initCenter, map, content: markerEl, gmpDraggable: true });
-        marker.addListener("gmp-dragend", () => updateMarkerAndReverse(marker.position));
-        marker.addListener("dragend", (e: any) => updateMarkerAndReverse(e.latLng || marker.position));
-      } else {
-        marker = new MarkerClass({
-          position: initCenter, map, draggable: true,
-          visible: !!initial?.lat,
-          icon: { url: "https://maps.google.com/mapfiles/ms/icons/purple-dot.png" },
-        });
-        marker.addListener("dragend", (e: any) => updateMarkerAndReverse(e.latLng));
-      }
-      markerInstanceRef.current = marker;
-
-      map.addListener("click", (e: any) => {
-        updateMarkerAndReverse(e.latLng);
-        // Show marker on first click
-        if (isAdv && marker.content) (marker.content as HTMLElement).style.display = "block";
-        else if (!isAdv) marker.setVisible(true);
-      });
-
-      setMapReady(true);
-    } catch (err) {
-      console.error("Maps init error:", err);
+    } catch { /* silent */ } finally {
+      setIsGeocoding(false);
     }
   };
 
-  // ── Load script on mount ──────────────────────────────────────
-  useEffect(() => {
-    if (!MAPS_API_KEY) return;
-    loadMapsScript(MAPS_API_KEY, () => setTimeout(initMap, 50));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleReverseGeocode = useCallback(async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${MAPS_API_KEY}`
+      );
+      const data = await res.json();
+      if (data.results?.[0]) {
+        setFormattedAddress(data.results[0].formatted_address);
+        const cityComp = data.results[0].address_components.find(
+          (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
+        );
+        setCity(cityComp?.long_name || "");
+      }
+    } catch { /* silent */ }
   }, []);
 
-  // ── Find button ───────────────────────────────────────────────
-  const handleGeocode = () => {
-    if (!addressText.trim() || !geocoderRef.current) return;
-    setIsGeocoding(true);
-
-    geocoderRef.current.geocode(
-      { address: addressText + ", Sri Lanka" },
-      (results: any, status: any) => {
-        setIsGeocoding(false);
-        if (status === "OK" && results[0]) {
-          const loc = results[0].geometry.location;
-          const pos = { lat: loc.lat(), lng: loc.lng() };
-          setMarkerLatLng(pos);
-          setFormattedAddress(results[0].formatted_address);
-          setCity(extractCity(results[0].address_components));
-
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.panTo(pos);
-            mapInstanceRef.current.setZoom(14);
-          }
-
-          const marker = markerInstanceRef.current;
-          if (marker) {
-            const g = (window as any).google;
-            if (isAdvancedMarkerRef.current) {
-              marker.position = new g.maps.LatLng(pos.lat, pos.lng);
-              if (marker.content) (marker.content as HTMLElement).style.display = "block";
-            } else {
-              marker.setPosition(pos);
-              marker.setVisible(true);
-            }
-          }
-        } else {
-          console.warn("Geocode failed:", status);
-        }
-      }
-    );
-  };
+  const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const lat = e.latLng.lat();
+    const lng = e.latLng.lng();
+    setMarkerPos({ lat, lng });
+    handleReverseGeocode(lat, lng);
+  }, [handleReverseGeocode]);
 
   const handleSubmit = () => {
     const addr: UserAddress = {
@@ -233,8 +112,8 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
       phone: recipientPhone,
       addressLine: addressText,
       city,
-      lat: markerLatLng?.lat,
-      lng: markerLatLng?.lng,
+      lat: markerPos?.lat,
+      lng: markerPos?.lng,
       formattedAddress: formattedAddress || addressText,
       isDefault: initial?.isDefault ?? false,
     };
@@ -244,36 +123,53 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
     <div className="flex flex-col gap-4">
       {/* Address input + Find */}
       <div className="flex flex-col gap-1.5 text-left">
-        <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Search Delivery Location</label>
+        <label className="text-[10px] font-bold text-slate-700">Search Delivery Location</label>
         <div className="flex gap-2">
           <input
             type="text"
             value={addressText}
             onChange={e => setAddressText(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleGeocode()}
-            placeholder="Enter street address, city, or area..."
-            className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
+            placeholder="e.g. Nugegoda, Colombo"
+            className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white"
           />
           <button
             onClick={handleGeocode}
-            disabled={isGeocoding || !addressText.trim() || !mapReady}
+            disabled={isGeocoding || !addressText.trim()}
             className="flex items-center gap-1.5 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all cursor-pointer shadow-sm shrink-0"
           >
-            {isGeocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
-            <span>{isGeocoding ? "Searching…" : "Search"}</span>
+            {isGeocoding ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+            {isGeocoding ? "…" : "Search"}
           </button>
         </div>
       </div>
 
-      {/* Map — always in DOM, imperative init */}
+      {/* Map */}
       <div className="relative w-full h-[350px] rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
-        {!markerLatLng && (
+        {!markerPos && (
           <div className="absolute inset-0 z-10 flex items-center justify-center text-slate-400 text-[11px] flex-col gap-1 pointer-events-none">
             <MapPin size={20} className="text-slate-300" />
             <span>Type a location and click Search</span>
           </div>
         )}
-        <div ref={mapDivRef} style={{ width: "100%", height: "100%" }} />
+        <LoadScript googleMapsApiKey={MAPS_API_KEY}>
+          <GoogleMap
+            mapContainerStyle={{ width: "100%", height: "100%" }}
+            center={mapCenter}
+            zoom={mapShown ? 14 : 7}
+            onClick={handleMapClick}
+            onLoad={(map) => { mapRef.current = map; }}
+            options={{ disableDefaultUI: true, zoomControl: true }}
+          >
+            {markerPos && (
+              <Marker position={markerPos} draggable onDragEnd={e => {
+                if (!e.latLng) return;
+                const lat = e.latLng.lat(); const lng = e.latLng.lng();
+                setMarkerPos({ lat, lng }); handleReverseGeocode(lat, lng);
+              }} />
+            )}
+          </GoogleMap>
+        </LoadScript>
       </div>
 
       {formattedAddress && (
@@ -309,17 +205,17 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
       {/* Recipient Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
         <div className="flex flex-col gap-1.5 text-left">
-          <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Recipient Name</label>
+          <label className="text-[10px] font-bold text-slate-700">Recipient Name</label>
           <input
             type="text"
             value={recipientName}
             onChange={e => setRecipientName(e.target.value)}
             placeholder="e.g. John Doe"
-            className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
+            className="border border-slate-200 rounded-lg px-3 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white"
           />
         </div>
         <div className="flex flex-col gap-1.5 text-left">
-          <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Contact Number</label>
+          <label className="text-[10px] font-bold text-slate-700">Contact Number</label>
           <div className="flex gap-2">
             <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2.5 py-2 bg-slate-50 text-[10px] font-bold text-slate-700 shrink-0 select-none">
               🇱🇰 +94

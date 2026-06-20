@@ -91,7 +91,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                 <path fill="none" d="M1 1h22v22H1z" />
               </svg>
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Google Sync</span>
+              <span className="text-[10px] text-slate-500 font-bold">Google Sync</span>
             </div>
 
             {/* Log Out button in left panel */}
@@ -122,7 +122,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Title Header */}
           <div className="px-8 pt-8 pb-1 shrink-0 flex flex-col gap-1">
             <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Settings</h3>
-            <p className="text-xs text-slate-600 font-medium">Manage your delivery preferences.</p>
           </div>
 
           {/* Tab Scroll Content */}
