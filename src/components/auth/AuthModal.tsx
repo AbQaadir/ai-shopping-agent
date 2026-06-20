@@ -43,56 +43,71 @@ export default function AuthModal() {
   const content = CONTENT[authModalReason ?? "login"];
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[2px] animate-fadeIn">
       {/* Backdrop click to close */}
       <div className="absolute inset-0" onClick={closeAuthModal} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fadeInScale border border-slate-100">
-        {/* Purple gradient accent bar */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-[#402970] via-purple-500 to-indigo-500" />
+      <div className="relative w-full max-w-[740px] bg-white rounded-xl overflow-hidden border border-slate-100 shadow-2xl flex flex-col md:flex-row animate-fadeInScale">
+        
+        {/* Left Illustration Panel (representing the Product image container) */}
+        <div className="w-full md:w-[330px] shrink-0 bg-slate-50 flex items-center justify-center p-10 border-b md:border-b-0 md:border-r border-slate-100 select-none relative min-h-[330px] md:min-h-[390px]">
+          {/* Subtle grid pattern for premium Windows app feel */}
+          <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(#402970_1px,transparent_1px)] [background-size:12px_12px]" />
+          
+          {/* Subtle brand color glow */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-slate-50/50 via-transparent to-[#402970]/5 opacity-40" />
 
-        {/* Header */}
-        <div className="flex justify-between items-center px-6 pt-5 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#402970] to-purple-600 flex items-center justify-center">
-              <span className="text-white text-[10px] font-black">K</span>
-            </div>
-            <span className="text-sm font-extrabold text-slate-700 tracking-tight">Kapuruka AI</span>
+          {/* Stylized Image box matching the product thumbnail container */}
+          <div className="w-full aspect-square max-w-[260px] rounded-lg overflow-hidden border border-slate-200/60 bg-white shadow-md flex items-center justify-center p-5 relative z-10">
+            <img
+              src="/auth_illustration.png"
+              alt="Kapuruka AI"
+              className="w-full h-full object-contain rounded"
+            />
           </div>
+        </div>
+
+        {/* Right Message & Actions Panel */}
+        <div className="flex-1 p-12 flex flex-col justify-center gap-10 relative min-h-[330px] md:min-h-[390px]">
+          {/* Floating Close Button */}
           <button
             onClick={closeAuthModal}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+            className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1.5 rounded-lg transition-colors cursor-pointer z-10"
           >
             <X size={16} />
           </button>
-        </div>
 
-        {/* Body */}
-        <div className="px-6 pb-7 flex flex-col items-center text-center gap-5">
-          {/* Icon */}
-          <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${content.iconBg} flex items-center justify-center text-3xl shadow-sm`}>
-            {content.icon}
+          <div className="space-y-3 text-left">
+            <h3 className="text-3xl font-black text-slate-800 leading-tight tracking-tight">
+              {content.title}
+            </h3>
+            <p className="text-base text-slate-500 leading-relaxed font-medium">
+              {content.subtitle}
+            </p>
           </div>
 
-          {/* Text */}
-          <div className="flex flex-col gap-1.5">
-            <h2 className="text-lg font-extrabold text-slate-800 leading-snug">{content.title}</h2>
-            <p className="text-sm text-slate-500 leading-relaxed">{content.subtitle}</p>
+          {/* Clean separation divider */}
+          <div className="h-px bg-slate-100 w-full" />
+
+          {/* Sign-In Actions */}
+          <div className="space-y-5">
+            <button
+              onClick={signInWithGoogle}
+              className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-[#402970] font-black py-[18px] px-6 rounded-lg shadow-sm hover:shadow active:scale-[0.98] transition-all cursor-pointer text-base group"
+            >
+              <GoogleIcon />
+              <span className="transition-colors">Sign in with Google</span>
+            </button>
+
+            <p className="text-xs text-slate-400 leading-normal text-left font-medium">
+              By continuing, you agree to Kapuruka's{" "}
+              <a href="#" className="underline hover:text-slate-600 transition-colors">Terms of Service</a>{" "}
+              and{" "}
+              <a href="#" className="underline hover:text-slate-600 transition-colors">Privacy Policy</a>.
+            </p>
           </div>
-
-          {/* Google Sign-In Button */}
-          <button
-            onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl hover:bg-slate-50 hover:border-slate-300 hover:shadow-md active:scale-[0.97] transition-all shadow-sm group"
-          >
-            <GoogleIcon />
-            <span className="text-sm group-hover:text-[#402970] transition-colors">Continue with Google</span>
-          </button>
-
-          <p className="text-[10px] text-slate-400 leading-relaxed">
-            By continuing, you agree to Kapuruka's Terms of Service and Privacy Policy.
-          </p>
         </div>
+
       </div>
     </div>
   );
