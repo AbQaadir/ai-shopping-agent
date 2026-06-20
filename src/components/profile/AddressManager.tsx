@@ -241,10 +241,10 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
     onSave(addr);
   };
   return (
-    <div className="flex flex-col gap-4 mt-2">
+    <div className="flex flex-col gap-4">
       {/* Address input + Find */}
       <div className="flex flex-col gap-1.5 text-left">
-        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Search Delivery Location</label>
+        <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Search Delivery Location</label>
         <div className="flex gap-2">
           <input
             type="text"
@@ -266,7 +266,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
       </div>
 
       {/* Map — always in DOM, imperative init */}
-      <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+      <div className="relative w-full h-[350px] rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
         {!markerLatLng && (
           <div className="absolute inset-0 z-10 flex items-center justify-center text-slate-400 text-[11px] flex-col gap-1 pointer-events-none">
             <MapPin size={20} className="text-slate-300" />
@@ -309,7 +309,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
       {/* Recipient Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
         <div className="flex flex-col gap-1.5 text-left">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Recipient Name</label>
+          <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Recipient Name</label>
           <input
             type="text"
             value={recipientName}
@@ -319,7 +319,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
           />
         </div>
         <div className="flex flex-col gap-1.5 text-left">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Contact Number</label>
+          <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Contact Number</label>
           <div className="flex gap-2">
             <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2.5 py-2 bg-slate-50 text-[10px] font-bold text-slate-700 shrink-0 select-none">
               🇱🇰 +94

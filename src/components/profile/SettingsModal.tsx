@@ -120,13 +120,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
 
           {/* Title Header */}
-          <div className="px-8 pt-8 pb-4 shrink-0 flex flex-col gap-1">
+          <div className="px-8 pt-8 pb-1 shrink-0 flex flex-col gap-1">
             <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Settings</h3>
-            <p className="text-xs text-slate-400 font-medium">Manage your delivery preferences.</p>
+            <p className="text-xs text-slate-600 font-medium">Manage your delivery preferences.</p>
           </div>
 
           {/* Tab Scroll Content */}
-          <div className="overflow-y-auto flex-1 p-8">
+          <div className="overflow-y-auto flex-1 px-8 pb-8 pt-1">
             <AddressManager
               addresses={userAddresses}
               onSave={handleSaveAddresses}
