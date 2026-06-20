@@ -241,7 +241,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
     onSave(addr);
   };
   return (
-    <div className="flex flex-col gap-4 p-5 bg-slate-50 rounded-xl border border-slate-200 mt-2">
+    <div className="flex flex-col gap-4 mt-2">
       {/* Address input + Find */}
       <div className="flex flex-col gap-1.5 text-left">
         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Search Delivery Location</label>
@@ -252,7 +252,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
             onChange={e => setAddressText(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleGeocode()}
             placeholder="Enter street address, city, or area..."
-            className="flex-1 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
+            className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
           />
           <button
             onClick={handleGeocode}
@@ -329,7 +329,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
               value={recipientPhone}
               onChange={e => setRecipientPhone(e.target.value)}
               placeholder="77 123 4567"
-              className="flex-1 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
+              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
             />
           </div>
         </div>

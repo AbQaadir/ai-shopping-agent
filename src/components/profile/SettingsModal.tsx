@@ -55,7 +55,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[2px] animate-fadeIn">
       <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
 
-      <div className="relative w-full max-w-[740px] bg-white rounded-xl overflow-hidden border border-slate-100 shadow-2xl flex flex-col md:flex-row animate-slideUp max-h-[88vh]">
+      <div className="relative w-full max-w-[800px] bg-white rounded-xl overflow-hidden border border-slate-100 shadow-2xl flex flex-col md:flex-row animate-slideUp max-h-[88vh]">
 
         {/* Left User Identity Panel */}
         <div className="w-full md:w-[260px] shrink-0 bg-slate-50 flex flex-col items-center justify-center p-8 border-b md:border-b-0 md:border-r border-slate-100 select-none relative">
