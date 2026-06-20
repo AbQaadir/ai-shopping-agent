@@ -18,11 +18,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { user, signOut } = useAuth();
   const { userAddresses, setUserAddresses } = useSourcing();
 
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
-  const [name, setName] = useState(user?.user_metadata?.full_name || "");
-  const [phone, setPhone] = useState("");
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [profileSaved, setProfileSaved] = useState(false);
   const [isSavingAddresses, setIsSavingAddresses] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -31,25 +26,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
   const displayName = user?.user_metadata?.full_name || "User";
   const initials = displayName.substring(0, 2).toUpperCase();
-
-  const handleSaveProfile = async () => {
-    setIsSavingProfile(true);
-    try {
-      const res = await fetch("/api/user/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, name, phone: phone || undefined }),
-      });
-      if (res.ok) {
-        setProfileSaved(true);
-        setTimeout(() => setProfileSaved(false), 2500);
-      }
-    } catch (err) {
-      console.error("Failed to save profile:", err);
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
 
   const handleSaveAddresses = async (updated: UserAddress[]) => {
     setIsSavingAddresses(true);
@@ -117,6 +93,19 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </svg>
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Google Sync</span>
             </div>
+
+            {/* Log Out button in left panel */}
+            <button
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+              className="mt-6 w-full flex items-center justify-center gap-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 disabled:opacity-60 font-bold text-xs py-2.5 rounded-lg transition-all cursor-pointer shadow-sm active:scale-[0.98]"
+            >
+              {isSigningOut ? (
+                <><Loader2 size={13} className="animate-spin" /> Signing out…</>
+              ) : (
+                <><LogOut size={13} /> Log Out</>
+              )}
+            </button>
           </div>
         </div>
 
@@ -133,111 +122,16 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Title Header */}
           <div className="px-8 pt-8 pb-4 shrink-0 flex flex-col gap-1">
             <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Settings</h3>
-            <p className="text-xs text-slate-400 font-medium">Manage your profile and delivery preferences.</p>
-          </div>
-
-          {/* Tabs Selector */}
-          <div className="flex px-8 border-b border-slate-100 shrink-0 gap-6">
-            {([ ["profile", "Profile", User], ["addresses", "Delivery Profiles", MapPin] ] as [Tab, string, React.ElementType][]).map(([id, label, Icon]) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-1.5 py-3 text-xs font-bold transition-all cursor-pointer border-b-2 outline-none ${
-                  activeTab === id
-                    ? "border-[#402970] text-[#402970]"
-                    : "border-transparent text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                <Icon size={13} /> {label}
-              </button>
-            ))}
+            <p className="text-xs text-slate-400 font-medium">Manage your delivery preferences.</p>
           </div>
 
           {/* Tab Scroll Content */}
-          <div className="overflow-y-auto flex-1">
-            
-            {/* ── Profile Tab ────────────────────────────── */}
-            {activeTab === "profile" && (
-              <div className="p-8 flex flex-col gap-6">
-                {/* Display Name */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-600">Display Name</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="Your name"
-                    className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 transition-all"
-                  />
-                </div>
-
-                {/* Phone Number */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-600">Phone Number</label>
-                  <div className="flex gap-2">
-                    <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-3 py-2.5 bg-slate-50 text-sm font-bold text-slate-700 shrink-0">
-                      🇱🇰 +94
-                    </div>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={e => setPhone(e.target.value)}
-                      placeholder="77 123 4567"
-                      className="flex-1 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Save & Sign-Out Actions */}
-                <div className="flex flex-col gap-3 pt-2">
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={isSavingProfile}
-                    className="w-full flex items-center justify-center gap-2 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs py-3 rounded-lg transition-all cursor-pointer shadow-sm hover:shadow"
-                  >
-                    {isSavingProfile
-                      ? <><Loader2 size={14} className="animate-spin" /> Saving changes…</>
-                      : profileSaved
-                      ? <><CheckCircle2 size={14} /> Profile Saved!</>
-                      : "Save Changes"}
-                  </button>
-
-                  <div className="flex items-center my-1.5">
-                    <div className="h-px bg-slate-100 flex-1" />
-                    <span className="text-[10px] text-slate-300 font-bold uppercase px-3">or</span>
-                    <div className="h-px bg-slate-100 flex-1" />
-                  </div>
-
-                  <button
-                    onClick={handleSignOut}
-                    disabled={isSigningOut}
-                    className="w-full flex items-center justify-center gap-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 disabled:opacity-60 font-bold text-xs py-3 rounded-lg transition-all cursor-pointer"
-                  >
-                    {isSigningOut
-                      ? <><Loader2 size={14} className="animate-spin" /> Signing out…</>
-                      : <><LogOut size={14} /> Log Out</>}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Delivery Profiles Tab ──────────────────── */}
-            {activeTab === "addresses" && (
-              <div className="p-8">
-                <div className="mb-4">
-                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    Save your <strong className="text-slate-700">Home</strong>, <strong className="text-slate-700">Work</strong>, and custom delivery locations here. 
-                    In chat, just say <em className="text-slate-600 font-semibold">"deliver to home"</em> and the AI will use the correct address automatically.
-                  </p>
-                </div>
-                <AddressManager
-                  addresses={userAddresses}
-                  onSave={handleSaveAddresses}
-                  isSaving={isSavingAddresses}
-                />
-              </div>
-            )}
-
+          <div className="overflow-y-auto flex-1 p-8">
+            <AddressManager
+              addresses={userAddresses}
+              onSave={handleSaveAddresses}
+              isSaving={isSavingAddresses}
+            />
           </div>
         </div>
 

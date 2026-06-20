@@ -240,35 +240,37 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
     };
     onSave(addr);
   };
-
   return (
-    <div className="flex flex-col gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 mt-2">
+    <div className="flex flex-col gap-4 p-5 bg-slate-50 rounded-xl border border-slate-200 mt-2">
       {/* Address input + Find */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={addressText}
-          onChange={e => setAddressText(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handleGeocode()}
-          placeholder="e.g. Nugegoda, Colombo"
-          className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white"
-        />
-        <button
-          onClick={handleGeocode}
-          disabled={isGeocoding || !addressText.trim() || !mapReady}
-          className="flex items-center gap-1 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs px-3 py-2 rounded-lg transition-all cursor-pointer"
-        >
-          {isGeocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
-          {isGeocoding ? "…" : !mapReady ? "…" : "Find"}
-        </button>
+      <div className="flex flex-col gap-1.5 text-left">
+        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Search Delivery Location</label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={addressText}
+            onChange={e => setAddressText(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleGeocode()}
+            placeholder="Enter street address, city, or area..."
+            className="flex-1 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
+          />
+          <button
+            onClick={handleGeocode}
+            disabled={isGeocoding || !addressText.trim() || !mapReady}
+            className="flex items-center gap-1.5 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-all cursor-pointer shadow-sm shrink-0"
+          >
+            {isGeocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+            <span>{isGeocoding ? "Searching…" : "Search"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Map — always in DOM, imperative init */}
-      <div className="relative w-full h-36 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+      <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
         {!markerLatLng && (
           <div className="absolute inset-0 z-10 flex items-center justify-center text-slate-400 text-[11px] flex-col gap-1 pointer-events-none">
             <MapPin size={20} className="text-slate-300" />
-            <span>Type a location and click Find</span>
+            <span>Type a location and click Search</span>
           </div>
         )}
         <div ref={mapDivRef} style={{ width: "100%", height: "100%" }} />
@@ -281,12 +283,12 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
       )}
 
       {/* Type chips */}
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 pt-1">
         {ADDRESS_TYPES.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
             onClick={() => setAddressType(value)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex-1 justify-center ${
+            className={`flex items-center gap-1 px-2.5 py-2 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex-1 justify-center ${
               addressType === value ? "bg-[#402970] border-[#402970] text-white" : "bg-white border-slate-200 text-slate-600 hover:border-[#402970]/30"
             }`}
           >
@@ -300,36 +302,47 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
           value={customLabel}
           onChange={e => setCustomLabel(e.target.value)}
           placeholder="e.g. Girlfriend's Place"
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-[#402970]/40 bg-white"
+          className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 bg-white font-medium"
         />
       )}
 
-      {/* Recipient */}
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          type="text"
-          value={recipientName}
-          onChange={e => setRecipientName(e.target.value)}
-          placeholder="Recipient name"
-          className="border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-[#402970]/40 bg-white"
-        />
-        <input
-          type="tel"
-          value={recipientPhone}
-          onChange={e => setRecipientPhone(e.target.value)}
-          placeholder="+94 77..."
-          className="border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-[#402970]/40 bg-white"
-        />
+      {/* Recipient Details */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+        <div className="flex flex-col gap-1.5 text-left">
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Recipient Name</label>
+          <input
+            type="text"
+            value={recipientName}
+            onChange={e => setRecipientName(e.target.value)}
+            placeholder="e.g. John Doe"
+            className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5 text-left">
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Contact Number</label>
+          <div className="flex gap-2">
+            <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-2.5 py-2 bg-slate-50 text-[10px] font-bold text-slate-700 shrink-0 select-none">
+              🇱🇰 +94
+            </div>
+            <input
+              type="tel"
+              value={recipientPhone}
+              onChange={e => setRecipientPhone(e.target.value)}
+              placeholder="77 123 4567"
+              className="flex-1 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="flex gap-2 pt-1">
-        <button onClick={onCancel} className="flex-1 border border-slate-200 text-slate-600 font-bold text-xs py-2 rounded-lg hover:bg-slate-100 transition-all cursor-pointer flex items-center justify-center gap-1">
+      <div className="flex gap-2 pt-3 border-t border-slate-200 mt-2">
+        <button onClick={onCancel} className="flex-1 border border-slate-200 text-slate-600 font-bold text-xs py-2.5 rounded-lg hover:bg-slate-100 transition-all cursor-pointer flex items-center justify-center gap-1">
           <X size={12} /> Cancel
         </button>
         <button
           onClick={handleSubmit}
           disabled={isSaving || !addressText.trim()}
-          className="flex-1 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1"
+          className="flex-1 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs py-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
         >
           {isSaving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
           {isSaving ? "Saving…" : "Save"}

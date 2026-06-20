@@ -319,7 +319,22 @@ User query to classify: "${message}"`;
 
     // 7. Load checkout state and saved address
     let checkoutState = await getCheckoutState(sessionId);
-    const savedAddr = USER_DEFAULTS[userId] || null;
+    let savedAddr = USER_DEFAULTS[userId] || null;
+    if (!savedAddr && userId && userId !== "guest") {
+      const dbUser = await prisma.user.findUnique({ where: { id: userId } });
+      if (dbUser && dbUser.addresses) {
+        const userAddrs = dbUser.addresses as any[];
+        const defaultAddr = userAddrs.find((a: any) => a.isDefault) || userAddrs[0];
+        if (defaultAddr) {
+          savedAddr = {
+            name: defaultAddr.recipientName || dbUser.name || "Recipient",
+            phone: defaultAddr.phone || dbUser.phone || "",
+            address: defaultAddr.formattedAddress || defaultAddr.addressLine || "",
+            city: defaultAddr.city || "",
+          };
+        }
+      }
+    }
 
     // 8. Router Agent decision (replaces all regex intercepts)
     let routerDecision: RouterDecision = { action: "shop", reason: "default" };

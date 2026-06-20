@@ -35,7 +35,7 @@ const getUserCheckoutDefaults = (userId: string) => {
 };
 
 export default function CheckoutCard({ product }: CheckoutCardProps) {
-  const { activeUserId, activeHistoryId, setMessages } = useSourcing();
+  const { activeUserId, activeHistoryId, setMessages, userAddresses } = useSourcing();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -257,7 +257,14 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
   };
 
   useEffect(() => {
-    const d = getUserCheckoutDefaults(activeUserId);
+    const defaultAddr = userAddresses.find(a => a.isDefault) || userAddresses[0];
+    const d = defaultAddr ? {
+      name: defaultAddr.recipientName || "",
+      phone: defaultAddr.phone || "",
+      address: defaultAddr.formattedAddress || defaultAddr.addressLine || "",
+      city: defaultAddr.city || "",
+    } : getUserCheckoutDefaults(activeUserId);
+
     setName(d.name);
     setPhone(d.phone);
     setAddress(d.address);
@@ -265,7 +272,9 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
 
     if (useGoogleMaps && typeof window !== "undefined" && (window as any).google && mapInstanceRef.current && markerInstanceRef.current) {
       let newLatLng = { lat: 6.9271, lng: 79.8612 };
-      if (activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071") {
+      if (defaultAddr && defaultAddr.lat && defaultAddr.lng) {
+        newLatLng = { lat: defaultAddr.lat, lng: defaultAddr.lng };
+      } else if (activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071") {
         newLatLng = { lat: 6.9157, lng: 79.8510 };
       } else if (activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32") {
         newLatLng = { lat: 6.9064, lng: 79.8698 };
@@ -277,7 +286,7 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
         markerInstanceRef.current.setPosition(newLatLng);
       }
     }
-  }, [activeUserId, useGoogleMaps]);
+  }, [activeUserId, useGoogleMaps, userAddresses]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
