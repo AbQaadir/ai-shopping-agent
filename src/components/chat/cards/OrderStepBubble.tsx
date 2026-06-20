@@ -1201,7 +1201,7 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <p className="text-xs font-bold text-slate-800">{addr.name}</p>
+                  <p className="text-xs font-bold text-slate-800">{addr.name || (addr as any).recipientName}</p>
                   {addr.phone && (
                     <div className="flex items-center gap-1 text-[10px] text-slate-700 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md font-semibold">
                       <Phone size={10} className="text-[#402970]" />
@@ -1210,7 +1210,7 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
                   )}
                 </div>
                 <p className="text-[11px] text-slate-600 font-medium leading-relaxed mt-1">
-                  {addr.address}, {addr.city}
+                  {addr.address || (addr as any).addressLine}, {addr.city}
                 </p>
               </div>
             </div>
