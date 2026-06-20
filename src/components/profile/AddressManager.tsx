@@ -49,19 +49,23 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
 
   const handleGeocode = async () => {
     if (!addressText.trim()) return;
+    const google = (window as any).google;
+    if (!google || !google.maps || !google.maps.Geocoder) {
+      alert("Google Maps is still loading. Please try again in a moment.");
+      return;
+    }
     setIsGeocoding(true);
     try {
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText + ", Sri Lanka")}&key=${MAPS_API_KEY}`
-      );
-      const data = await res.json();
-      if (data.results?.[0]) {
-        const loc = data.results[0].geometry.location;
-        const latLng = { lat: loc.lat, lng: loc.lng };
+      const geocoder = new google.maps.Geocoder();
+      const response = await geocoder.geocode({ address: addressText + ", Sri Lanka" });
+      if (response.results?.[0]) {
+        const result = response.results[0];
+        const loc = result.geometry.location;
+        const latLng = { lat: loc.lat(), lng: loc.lng() };
         setMarkerPos(latLng);
-        setFormattedAddress(data.results[0].formatted_address);
-        const cityComp = data.results[0].address_components.find(
-          (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
+        setFormattedAddress(result.formatted_address);
+        const cityComp = result.address_components.find(
+          (c: any) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
         );
         setCity(cityComp?.long_name || addressText);
         // Reveal map, then pan imperatively
@@ -74,25 +78,30 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
           setMapCenter(latLng);
         }
       }
-    } catch { /* silent */ } finally {
+    } catch (err) {
+      console.error("Geocoding failed:", err);
+    } finally {
       setIsGeocoding(false);
     }
   };
 
   const handleReverseGeocode = useCallback(async (lat: number, lng: number) => {
+    const google = (window as any).google;
+    if (!google || !google.maps || !google.maps.Geocoder) return;
     try {
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${MAPS_API_KEY}`
-      );
-      const data = await res.json();
-      if (data.results?.[0]) {
-        setFormattedAddress(data.results[0].formatted_address);
-        const cityComp = data.results[0].address_components.find(
-          (c: { types: string[]; long_name: string }) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
+      const geocoder = new google.maps.Geocoder();
+      const response = await geocoder.geocode({ location: { lat, lng } });
+      if (response.results?.[0]) {
+        const result = response.results[0];
+        setFormattedAddress(result.formatted_address);
+        const cityComp = result.address_components.find(
+          (c: any) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
         );
         setCity(cityComp?.long_name || "");
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error("Reverse geocoding failed:", err);
+    }
   }, []);
 
   const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
