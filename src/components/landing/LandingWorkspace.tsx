@@ -120,9 +120,13 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       }
       if (e.key === "Enter" && selectedIndex >= 0 && selectedIndex < suggestions.length) {
         e.preventDefault();
-        setInputText(suggestions[selectedIndex]);
+        const selectedText = suggestions[selectedIndex];
+        setInputText(selectedText);
         setShowDropdown(false);
         setSelectedIndex(-1);
+        onSend(selectedText, attachedFiles);
+        setInputText("");
+        setAttachedFiles([]);
         return;
       }
       if (e.key === "Escape" || e.key === "Tab") {
@@ -236,70 +240,9 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
 
         {/* Prompt input */}
         <div className="w-full relative group px-2 sm:px-0">
-          {/* Autocomplete Dropdown floating below the input card */}
-          {showDropdown && suggestions.length > 0 && (
-            <div
-              className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-md rounded-xl border border-slate-100 shadow-[0_12px_30px_rgba(0,0,0,0.06),0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col p-1.5 z-30 animate-fadeInScale text-left"
-            >
-              {suggestions.map((suggestion, index) => {
-                const queryTrim = inputText.trim();
-                const queryLower = queryTrim.toLowerCase();
-                const suggLower = suggestion.toLowerCase();
-                const hasPrefix = suggLower.startsWith(queryLower);
-                const prefix = hasPrefix ? suggestion.substring(0, queryTrim.length) : "";
-                const suffix = hasPrefix ? suggestion.substring(queryTrim.length) : suggestion;
-
-                return (
-                  <button
-                    key={index}
-                    onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
-                    onClick={() => {
-                      setInputText(suggestion);
-                      setShowDropdown(false);
-                      setSelectedIndex(-1);
-                    }}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-lg transition-all duration-150 flex items-center justify-between group cursor-pointer ${
-                      selectedIndex === index
-                        ? "bg-[#402970]/5 text-[#402970] font-semibold"
-                        : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Search
-                        size={14}
-                        className={`shrink-0 transition-colors ${
-                          selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
-                        }`}
-                      />
-                      <span className="truncate">
-                        {hasPrefix ? (
-                          <>
-                            <span className="text-slate-400 font-normal">{prefix}</span>
-                            <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-850"}`}>
-                              {suffix}
-                            </span>
-                          </>
-                        ) : (
-                          <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-755"}`}>
-                            {suggestion}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    {selectedIndex === index && (
-                      <span className="text-[10px] sm:text-xs text-[#402970] font-bold bg-[#402970]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 animate-fadeIn select-none">
-                        Select
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
           {/* Attached files row above the pill */}
           {attachedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-slate-100 shadow-sm self-start animate-fadeIn animate-slideInRight">
+            <div className="flex flex-wrap gap-1.5 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-slate-100 shadow-sm self-start animate-fadeIn animate-slideInRight mb-2">
               {attachedFiles.map((file, idx) => (
                 <div key={idx} className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-medium text-slate-600">
                   <span className="truncate max-w-[120px]">{file.name}</span>
@@ -312,56 +255,122 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           )}
 
           <div className="w-full relative">
-            <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 rounded-full blur-lg transition-opacity duration-300 pointer-events-none ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"}`} />
+            <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 blur-lg transition-all duration-300 pointer-events-none ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"} ${showDropdown && suggestions.length > 0 ? "rounded-[32px]" : "rounded-full"}`} />
 
-            <div className={`w-full bg-white rounded-full border transition-all duration-300 py-1.5 pl-2 pr-1.5 flex items-center gap-2 relative ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"}`}>
-              {/* Attachment Button */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                onMouseDown={(e) => e.preventDefault()}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-550 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
-                title="Attach files"
-              >
-                <Paperclip size={19} />
-                {attachedFiles.length > 0 && (
-                  <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-500 rounded-full" />
-                )}
-              </button>
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
+            <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"} ${showDropdown && suggestions.length > 0 ? "rounded-[28px]" : "rounded-full"}`}>
+              <div className="w-full py-1.5 pl-2 pr-1.5 flex items-center gap-2">
+                {/* Attachment Button */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  onMouseDown={(e) => e.preventDefault()}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-550 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
+                  title="Attach files"
+                >
+                  <Paperclip size={19} />
+                  {attachedFiles.length > 0 && (
+                    <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                  )}
+                </button>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
 
-              {/* Textarea */}
-              <textarea
-                ref={textareaRef}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => {
-                  setIsFocused(false);
-                  setTimeout(() => {
-                    setShowDropdown(false);
-                    setSelectedIndex(-1);
-                  }, 150);
-                }}
-                placeholder='Try: "Show me birthday cakes under Rs. 3,000"...'
-                rows={1}
-                className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm sm:text-[15px] py-1.5 leading-normal max-h-[120px] overflow-y-auto scrollbar-none"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-              />
+                {/* Textarea */}
+                <textarea
+                  ref={textareaRef}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => {
+                    setIsFocused(false);
+                    setTimeout(() => {
+                      setShowDropdown(false);
+                      setSelectedIndex(-1);
+                    }, 150);
+                  }}
+                  placeholder='Try: "Show me birthday cakes under Rs. 3,000"...'
+                  rows={1}
+                  className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm sm:text-[15px] py-1.5 leading-normal max-h-[120px] overflow-y-auto scrollbar-none"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                />
 
-              {/* Send Button */}
-              <button
-                onClick={handleSubmit}
-                onMouseDown={(e) => e.preventDefault()}
-                disabled={!inputText.trim() && attachedFiles.length === 0}
-                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
-                  inputText.trim() || attachedFiles.length > 0
-                    ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 active:scale-95"
-                    : "bg-slate-100 text-slate-350 cursor-not-allowed"
-                }`}
-              >
-                <Send size={16} className="ml-[1px]" />
-              </button>
+                {/* Send Button */}
+                <button
+                  onClick={handleSubmit}
+                  onMouseDown={(e) => e.preventDefault()}
+                  disabled={!inputText.trim() && attachedFiles.length === 0}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
+                    inputText.trim() || attachedFiles.length > 0
+                      ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 active:scale-95"
+                      : "bg-slate-100 text-slate-350 cursor-not-allowed"
+                  }`}
+                >
+                  <Send size={16} className="ml-[1px]" />
+                </button>
+              </div>
+
+              {/* Autocomplete Dropdown merged inside the input card */}
+              {showDropdown && suggestions.length > 0 && (
+                <div
+                  className="w-full flex flex-col p-1.5 pt-0 animate-fadeIn border-t border-slate-100/60 mt-1"
+                >
+                  {suggestions.map((suggestion, index) => {
+                    const queryTrim = inputText.trim();
+                    const queryLower = queryTrim.toLowerCase();
+                    const suggLower = suggestion.toLowerCase();
+                    const hasPrefix = suggLower.startsWith(queryLower);
+                    const prefix = hasPrefix ? suggestion.substring(0, queryTrim.length) : "";
+                    const suffix = hasPrefix ? suggestion.substring(queryTrim.length) : suggestion;
+
+                    return (
+                      <button
+                        key={index}
+                        onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
+                        onClick={() => {
+                          onSend(suggestion, attachedFiles);
+                          setInputText("");
+                          setAttachedFiles([]);
+                          setShowDropdown(false);
+                          setSelectedIndex(-1);
+                        }}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-lg transition-all duration-150 flex items-center justify-between group cursor-pointer ${
+                          selectedIndex === index
+                            ? "bg-[#402970]/5 text-[#402970] font-semibold"
+                            : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Search
+                            size={14}
+                            className={`shrink-0 transition-colors ${
+                              selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
+                            }`}
+                          />
+                          <span className="truncate">
+                            {hasPrefix ? (
+                              <>
+                                <span className="text-slate-400 font-normal">{prefix}</span>
+                                <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-850"}`}>
+                                  {suffix}
+                                </span>
+                              </>
+                            ) : (
+                              <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-755"}`}>
+                                {suggestion}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {selectedIndex === index && (
+                          <span className="text-[10px] sm:text-xs text-[#402970] font-bold bg-[#402970]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 animate-fadeIn select-none">
+                            Select
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
