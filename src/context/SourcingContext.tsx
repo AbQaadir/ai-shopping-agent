@@ -84,8 +84,20 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const activeUserId = user?.id || guestId || "guest-pending";
   const isSharedReadOnly = activeSessionOwnerId !== null && activeSessionOwnerId !== activeUserId && activeUserId !== "guest-pending";
 
-  const [country, setCountry] = useState("LK");
-  const [currency, setCurrency] = useState("USD");
+  const [country, setCountryState] = useState(() =>
+    (typeof window !== "undefined" && localStorage.getItem("kapruka_country")) || "LK"
+  );
+  const [currency, setCurrencyState] = useState(() =>
+    (typeof window !== "undefined" && localStorage.getItem("kapruka_currency")) || "LKR"
+  );
+  const setCountry = useCallback((c: string) => {
+    setCountryState(c);
+    if (typeof window !== "undefined") localStorage.setItem("kapruka_country", c);
+  }, []);
+  const setCurrency = useCallback((c: string) => {
+    setCurrencyState(c);
+    if (typeof window !== "undefined") localStorage.setItem("kapruka_currency", c);
+  }, []);
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isViewingCart, setIsViewingCart] = useState<boolean>(false);
@@ -120,25 +132,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       .catch(err => console.warn("Failed to load user addresses:", err));
   }, [user?.id]);
 
-  useEffect(() => {
-    const detectLocation = async () => {
-      try {
-        const res = await fetch("https://ipapi.co/json/");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.country_code) {
-            setCountry(data.country_code);
-          }
-          if (data.currency) {
-            setCurrency(data.currency);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not auto-detect location/currency by IP:", err);
-      }
-    };
-    detectLocation();
-  }, []);
+  // Currency and country are now persisted to localStorage via the wrapped setters above.
+  // IP-based auto-detection has been removed — users control this from the sidebar Language & Currency picker.
 
   // Hydrate user cart when user switches or session changes
   useEffect(() => {
@@ -683,6 +678,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   stockStatus: packet.stockStatus,
                   stockQty: packet.stockQty,
                   savedAddress: packet.savedAddress,
+                  savedAddresses: packet.savedAddresses,
                   geocodedLocation: packet.geocodedLocation,
                   confirmedQuantity: packet.confirmedQuantity,
                   confirmedAddress: packet.confirmedAddress,

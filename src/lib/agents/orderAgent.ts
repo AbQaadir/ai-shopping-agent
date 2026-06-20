@@ -18,8 +18,7 @@ export interface OrderAgentOutput {
   nextPhase:
     | "qty_ask"
     | "delivery_ask"
-    | "address_ask"
-    | "map_open"
+    | "new_address_form"
     | "payment_ask"
     | "confirmed"
     | "stay";
@@ -35,8 +34,8 @@ export interface OrderAgentOutput {
     updatedCartItems?: CartItem[];
     /** True if user chose to use their saved address (delivery_ask). */
     usesSavedAddress?: boolean;
-    /** Raw address text from user (address_ask → needs geocoding). */
-    addressText?: string;
+    /** ID of the specific saved address chosen (from "Use address: <id>" message). */
+    selectedAddressId?: string;
     /** Payment method chosen (payment_ask). */
     paymentMethod?: "cod" | "card";
   };
@@ -91,52 +90,48 @@ Reason about what the user said and determine:
    Based on current phase:
    
    "qty_ask" phase:
-     → "delivery_ask" if user confirms quantities (e.g. "looks good", "confirm", "proceed", "yes")
-     → "qty_ask" + stay=true if user is unclear or asks a question
+     -> "delivery_ask" if user confirms quantities (e.g. "looks good", "confirm", "proceed", "yes")
+     -> "qty_ask" + stay=true if user is unclear or asks a question
      Note: If user changes quantity (e.g. "make it 2"), update extractedData.quantity or updatedCartItems
    
    "delivery_ask" phase:
-     → "payment_ask" if user chose saved address ("yes use saved", "saved address", "confirm my address")
-     → "address_ask" if user wants a new/different address ("new address", "different location", "other place")
-     → "delivery_ask" + stay=true if unclear
+     The user may have clicked a saved address card (message = "Use address: <id>") or asked for new address.
+     -> "payment_ask" if user chose a saved address (message starts with "Use address:", or says yes/saved/confirm)
+       Set extractedData.usesSavedAddress=true and extract selectedAddressId from "Use address: <id>" if present.
+     -> "new_address_form" if user wants a new/different address ("new address", "different location", "other place")
+     -> "delivery_ask" + stay=true if unclear
    
-   "address_ask" phase:
-     → "map_open" always (any text they type IS the address, set requiresGeocode=true)
-   
-   "map_open" phase:
-     → "payment_ask" always (the "Confirm location: ..." message means they pinned the location)
+   "new_address_form" phase:
+     Message will be "New address confirmed: <name>|<phone>|<formattedAddress>|<city>" from the UI form.
+     -> "payment_ask" always
    
    "payment_ask" phase:
-     → "confirmed" if user chose a payment method (set requiresOrderPlace=true)
-     → "payment_ask" + stay=true if unclear
+     -> "confirmed" if user chose a payment method (set requiresOrderPlace=true)
+     -> "payment_ask" + stay=true if unclear
 
 2. stay — Is the response staying at the current phase?
    Set true only if the user was unclear and you're repeating the phase question.
 
 3. extractedData — Extract structured values:
-   qty_ask (single product): Did they mention a quantity? → quantity: <number>
-   qty_ask (cart): Did they change any item quantity? → updatedCartItems: [updated cart array]
-   delivery_ask: usesSavedAddress: true or false
-   address_ask: addressText: "Extract a clean, concise address or landmark, omitting conversational prefixes (like 'I want to deliver near', 'send it to', 'please deliver at', etc.)."
-   map_open: The message will be "Confirm location: <address>, <city>" → parse confirmedAddress implicitly (just set nextPhase)
+   qty_ask (single product): Did they mention a quantity? -> quantity: <number>
+   qty_ask (cart): Did they change any item quantity? -> updatedCartItems: [updated cart array]
+   delivery_ask: usesSavedAddress: true or false; if message is "Use address: <id>" also extract selectedAddressId: "<the-id>"
+   new_address_form: message is structured "New address confirmed: ...", just set nextPhase=payment_ask, no extractedData needed
    payment_ask: paymentMethod: "cod" or "card"
    
    COD signals: cash, cod, cash on delivery, on delivery, pay on arrival
    Card signals: card, credit, debit, online, pay online, card payment
 
-4. responseText — 1-2 warm sentences to say to the user.
+4. responseText - 1-2 warm sentences to say to the user.
    Rules:
    - NEVER start with Hello / Hi / Hey
    - Use first name sparingly (max once)
    - Be warm and natural
-   - qty_ask → delivery_ask: Acknowledge confirmed. Ask about delivery address.
-     If savedAddress exists: "Great! Should I deliver to your saved address at ${savedAddress ? `${savedAddress.address}, ${savedAddress.city}` : "[address]"}, or would you prefer a different location?"
-     If no savedAddress: "Perfect! Where should I deliver your order? Please type a location or landmark."
-   - delivery_ask → payment_ask: Acknowledge saved address. Ask how to pay.
-   - delivery_ask → address_ask: Ask them to type a rough location/landmark.
-   - address_ask → map_open: "I've opened the map near [label you'd geocode to]. Drag the pin to your exact door and tap Confirm when ready."
-   - map_open → payment_ask: Acknowledge address confirmed. Ask payment method (COD or card).
-   - payment_ask → confirmed: This is just a placeholder — actual confirmation message is generated later.
+   - qty_ask -> delivery_ask: Acknowledge confirmed. Say "Please select a delivery address below."
+   - delivery_ask -> payment_ask: Acknowledge saved address. Ask how to pay (COD or card).
+   - delivery_ask -> new_address_form: "Please fill in your delivery details and pin your exact location on the map below."
+   - new_address_form -> payment_ask: "Address confirmed! How would you like to pay - Cash on Delivery or Card?"
+   - payment_ask -> confirmed: This is just a placeholder - actual confirmation message is generated later.
    - stay=true: Politely re-ask the same phase question.
 
 Respond ONLY as valid JSON matching exactly this schema:
@@ -181,7 +176,7 @@ Respond ONLY as valid JSON matching exactly this schema:
                 quantity: { type: "NUMBER", nullable: true },
                 updatedCartItems: { type: "ARRAY", items: { type: "OBJECT" }, nullable: true },
                 usesSavedAddress: { type: "BOOLEAN", nullable: true },
-                addressText: { type: "STRING", nullable: true },
+                selectedAddressId: { type: "STRING", nullable: true },
                 paymentMethod: { type: "STRING", nullable: true },
               },
             },
@@ -220,11 +215,9 @@ function getPhaseRepeatText(
     case "delivery_ask":
       return savedAddress
         ? `Should I deliver to your saved address at **${savedAddress.address}, ${savedAddress.city}**, or would you like a different location?`
-        : "Where should I deliver your order? Please type a location or nearby landmark.";
-    case "address_ask":
-      return "Please type your delivery address or a nearby landmark so I can open the map for you.";
-    case "map_open":
-      return "Please drag the pin to your exact door on the map and tap **Confirm this location** when ready.";
+        : "Please select a delivery address below, or add a new one.";
+    case "new_address_form":
+      return "Please fill in your name, phone, and location in the form below, then pin your exact address on the map.";
     case "payment_ask":
       return "How would you like to pay? Please choose **Cash on Delivery** or **Card Payment**.";
     default:

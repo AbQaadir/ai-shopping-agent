@@ -47,11 +47,7 @@ interface SearchTermConfig {
   maxPrice: number | null;
 }
 
-// ── Saved address registry (temporary — normally would be in DB per user) ───
-const USER_DEFAULTS: Record<string, { name: string; phone: string; address: string; city: string }> = {
-  "e17d0577-c93d-4c3e-9080-60b6bbfdf071": { name: "Kamal Silva", phone: "0771234567", address: "123 Galle Road, Colombo 3", city: "Colombo 3" },
-  "b91d2a14-e58f-4ad1-97b0-cce218fd7d32": { name: "Nimal Perera", phone: "0719876543", address: "45 Flower Road, Colombo 7", city: "Colombo 7" },
-};
+// ── No hardcoded registry anymore — loaded dynamically per-user ───────────
 
 // ── System Prompts per Pillar ───────────────────────────────────────────────
 const SYSTEM_PROMPTS: Record<Intent, string> = {
@@ -319,37 +315,35 @@ User query to classify: "${message}"`;
 
     // 7. Load checkout state and saved address
     let checkoutState = await getCheckoutState(sessionId);
-    let savedAddr = USER_DEFAULTS[userId] || null;
-    if (!savedAddr && userId && userId !== "guest") {
-      const dbUser = await prisma.user.findUnique({ where: { id: userId } });
-      if (dbUser && dbUser.addresses) {
-        const userAddrs = dbUser.addresses as any[];
-        const defaultAddr = userAddrs.find((a: any) => a.isDefault) || userAddrs[0];
-        if (defaultAddr) {
-          savedAddr = {
-            name: defaultAddr.recipientName || dbUser.name || "Recipient",
-            phone: defaultAddr.phone || dbUser.phone || "",
-            address: defaultAddr.formattedAddress || defaultAddr.addressLine || "",
-            city: defaultAddr.city || "",
-          };
+    
+    let allUserAddresses: any[] = [];
+    if (userId && userId !== "guest") {
+      try {
+        const userWithAddresses = await prisma.user.findUnique({
+          where: { id: userId },
+        });
+        if (userWithAddresses?.addresses && Array.isArray(userWithAddresses.addresses)) {
+          allUserAddresses = userWithAddresses.addresses;
         }
+      } catch (err) {
+        console.warn("Failed to load user addresses for context:", err);
       }
     }
+    const savedAddressLabels = allUserAddresses.map((a: any) => a.label || a.type);
+    const savedAddr = allUserAddresses.find((a: any) => a.isDefault) || allUserAddresses[0] || null;
 
-    // 8. Router Agent decision (replaces all regex intercepts)
-    let routerDecision: RouterDecision = { action: "shop", reason: "default" };
-    if (ai) {
-      routerDecision = await routerAgent(
-        message,
-        historySnippet,
-        checkoutState,
-        intent,
-        ai,
-        config.gemini.fastModel
-      );
+    // 8. Call Router Agent (Intent / Checkout state switch)
+    let routerDecision: RouterDecision = { action: "shop", reason: "Fallback logic hit" };
+    if (!ai) {
+      if (hasSelectedProducts && /order/i.test(message)) routerDecision.action = "checkout_start";
+      else routerDecision.action = "shop";
     } else if (checkoutState) {
-      // No AI — if checkout is active, try to continue
+      // Fallback checkout_continue if AI routing fails but checkout active
       routerDecision = { action: "checkout_continue", reason: "No AI — fallback checkout_continue" };
+    }
+    
+    if (ai) {
+      routerDecision = await routerAgent(message, historySnippet, checkoutState, intent, ai, config.gemini.fastModel, savedAddressLabels);
     }
 
     // 9. Build SSE stream
@@ -571,6 +565,78 @@ User query to classify: "${message}"`;
           return;
         }
 
+        // ── Action: checkout_start_with_address ────────────────────────────
+        if (action === "checkout_start_with_address") {
+          let currentCart = await loadUserCart();
+
+          // Merge selected products
+          if (fetchedSelectedProducts.length > 0) {
+            for (const p of fetchedSelectedProducts as any[]) {
+              const existingIdx = currentCart.findIndex((item) => item.id === p.id);
+              if (existingIdx === -1) {
+                currentCart.push({
+                  id: p.id,
+                  name: p.name || p.title || "Kapruka Product",
+                  price: p.price || 0,
+                  quantity: 1, // Skip qty_ask, use 1 by default
+                  imageUrl: p.imageUrl || p.image,
+                  inStock: p.inStock !== false,
+                });
+              }
+            }
+            await saveUserCart(currentCart);
+          }
+
+          if (currentCart.length === 0) {
+            const ofs = { phase: "qty_ask", cartItems: [] };
+            send({ type: "order_flow_step", ...ofs });
+            const t = "Your cart is currently empty. Please select products from the search results first!";
+            await streamWords(t);
+            await saveOrderMessage(t, ofs);
+            controller.close();
+            return;
+          }
+
+          // Extract label from the prompt via LLM
+          send({ type: "thought", step: "intent_routing", status: "running", content: "Extracting delivery address..." });
+          
+          let matchedAddress = savedAddr;
+          if (ai) {
+            const extractPrompt = `Extract the address label mentioned in this message: "${message}". Match it against one of these known labels: [${savedAddressLabels.map((l: string) => `"${l}"`).join(", ")}]. Return ONLY the matching label string, or "NOT FOUND" if unsure.`;
+            try {
+              const res = await ai.models.generateContent({ model: config.gemini.fastModel, contents: extractPrompt });
+              const extractedLabel = (res.text || "").trim();
+              if (extractedLabel && extractedLabel !== "NOT FOUND") {
+                const found = allUserAddresses.find((a: any) => (a.label || a.type).toLowerCase() === extractedLabel.toLowerCase());
+                if (found) matchedAddress = found;
+              }
+            } catch (err) {
+              console.warn("Failed to extract address label", err);
+            }
+          }
+
+          send({ type: "thought", step: "intent_routing", status: "completed", content: `Matched address: ${matchedAddress ? (matchedAddress as any).label || (matchedAddress as any).type : "Default"}`, durationMs: 0 });
+
+          // Fast-track straight to payment_ask
+          const newCheckoutState: CheckoutState = {
+            phase: "payment_ask",
+            cartItems: currentCart,
+            savedAddress: savedAddr ?? undefined,
+            confirmedAddress: matchedAddress,
+            confirmedQty: 1, // Assumption for fast-checkout
+          };
+          await saveCheckoutState(sessionId, newCheckoutState);
+
+          const ofs = { phase: "payment_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: matchedAddress };
+          send({ type: "order_flow_step", ...ofs });
+          
+          const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. Finally, how would you like to pay? (Cash on Delivery or Card)`;
+          await streamWords(t);
+          await saveOrderMessage(t, ofs);
+          controller.close();
+          return;
+        }
+
         // ── Action: cart_modify ────────────────────────────────────────────
         if (action === "cart_modify" && checkoutState) {
           send({ type: "thought", step: "cart_agent", status: "running", content: "Cart Modifier Agent: understanding your request..." });
@@ -768,6 +834,10 @@ User query to classify: "${message}"`;
           if (extractedData.usesSavedAddress === true && savedAddr) {
             updatedState.confirmedAddress = savedAddr;
           }
+          if (extractedData.selectedAddressId) {
+            const found = allUserAddresses.find((a: any) => a.id === extractedData.selectedAddressId);
+            if (found) updatedState.confirmedAddress = found;
+          }
           if (extractedData.paymentMethod) {
             updatedState.paymentMethod = extractedData.paymentMethod;
           }
@@ -776,18 +846,7 @@ User query to classify: "${message}"`;
           const nextPhase = agentOutput.stay ? checkoutState.phase : agentOutput.nextPhase;
           updatedState.phase = nextPhase;
 
-          // Handle geocoding for address_ask → map_open
-          const isTransitioningToMap = checkoutState.phase === "address_ask" && nextPhase === "map_open";
-          const addressToGeocode = extractedData.addressText || (isTransitioningToMap ? message : null);
-
-          if ((agentOutput.requiresGeocode || isTransitioningToMap) && addressToGeocode) {
-            send({ type: "thought", step: "geocoding", status: "running", content: `Geocoding: "${addressToGeocode}"...` });
-            const geo = await geocodeLocation(addressToGeocode);
-            send({ type: "thought", step: "geocoding", status: "completed", content: geo ? `Found: ${geo.label}` : `Default: Colombo (Query: "${addressToGeocode}")`, durationMs: 0 });
-            updatedState.geocodedLocation = geo ?? { lat: 6.9271, lng: 79.8612, formattedAddress: addressToGeocode, label: addressToGeocode };
-          }
-
-          // Handle map_open confirmation: parse "Confirm location: <address>, <city>" from UI
+          // Handle map_open confirmation (LEGACY fallback)
           if (checkoutState.phase === "map_open" && /^confirm location:/i.test(message.trim())) {
             const locationMatch = message.match(/confirm location:\s*(.+),\s*([^,]+)$/i);
             if (locationMatch) {
@@ -796,6 +855,19 @@ User query to classify: "${message}"`;
                 phone: savedAddr?.phone || "",
                 address: locationMatch[1].trim(),
                 city: locationMatch[2].trim(),
+              };
+            }
+          }
+
+          // Handle new_address_form confirmation
+          if (checkoutState.phase === "new_address_form" && /^new address confirmed:/i.test(message.trim())) {
+            const parts = message.replace(/^new address confirmed:\s*/i, "").split("|");
+            if (parts.length >= 4) {
+              updatedState.confirmedAddress = {
+                name: parts[0].trim(),
+                phone: parts[1].trim(),
+                address: parts[2].trim(),
+                city: parts[3].trim(),
               };
             }
           }
@@ -884,6 +956,7 @@ User query to classify: "${message}"`;
             phase: updatedState.phase,
             cartItems: updatedState.cartItems,
             savedAddress: updatedState.savedAddress,
+            savedAddresses: allUserAddresses, // NEW: pass full list for delivery_ask
             confirmedQuantity: updatedState.confirmedQty,
             confirmedAddress: updatedState.confirmedAddress,
             geocodedLocation: updatedState.geocodedLocation,

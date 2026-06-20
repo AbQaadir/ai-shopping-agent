@@ -42,6 +42,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
   const [city, setCity] = useState(initial?.city || "");
   const [addressType, setAddressType] = useState<"home" | "work" | "custom">(initial?.type || "home");
   const [customLabel, setCustomLabel] = useState(initial?.type === "custom" ? initial.label || "" : "");
+  const [customLabelError, setCustomLabelError] = useState("");
   const [recipientName, setRecipientName] = useState(initial?.recipientName || "");
   const [recipientPhone, setRecipientPhone] = useState(initial?.phone || "");
   const [mapShown, setMapShown] = useState(!!initial?.lat);
@@ -113,6 +114,19 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
   }, [handleReverseGeocode]);
 
   const handleSubmit = () => {
+    // Validate custom label
+    if (addressType === "custom") {
+      const trimmed = customLabel.trim().toLowerCase();
+      if (!trimmed) {
+        setCustomLabelError("Please enter a label for this address.");
+        return;
+      }
+      if (trimmed === "home" || trimmed === "work") {
+        setCustomLabelError(`"${customLabel.trim()}" is already a built-in type. Please use a unique name like 'Parents Place' or 'Office 2'.`);
+        return;
+      }
+    }
+    setCustomLabelError("");
     const addr: UserAddress = {
       id: initial?.id || crypto.randomUUID(),
       type: addressType,
@@ -202,13 +216,26 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
         ))}
       </div>
       {addressType === "custom" && (
-        <input
-          type="text"
-          value={customLabel}
-          onChange={e => setCustomLabel(e.target.value)}
-          placeholder="e.g. Girlfriend's Place"
-          className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 bg-white font-medium"
-        />
+        <div className="flex flex-col gap-1">
+          <input
+            type="text"
+            value={customLabel}
+            onChange={e => {
+              setCustomLabel(e.target.value);
+              // Clear error when user starts typing
+              if (customLabelError) setCustomLabelError("");
+            }}
+            placeholder="e.g. Parents Place, Gym, Office 2"
+            className={`w-full border rounded-lg px-3.5 py-2.5 text-xs outline-none focus:ring-2 bg-white font-medium transition-colors ${
+              customLabelError
+                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                : "border-slate-200 focus:border-[#402970]/40 focus:ring-[#402970]/10"
+            }`}
+          />
+          {customLabelError && (
+            <p className="text-[10px] text-red-500 font-semibold leading-snug">{customLabelError}</p>
+          )}
+        </div>
       )}
 
       {/* Recipient Details */}
@@ -246,7 +273,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
         </button>
         <button
           onClick={handleSubmit}
-          disabled={isSaving || !addressText.trim()}
+          disabled={isSaving || !addressText.trim() || (addressType === "custom" && (customLabel.trim() === "" || customLabel.trim().toLowerCase() === "home" || customLabel.trim().toLowerCase() === "work"))}
           className="flex-1 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs py-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
         >
           {isSaving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
