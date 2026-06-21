@@ -30,6 +30,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import { config } from './config';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -301,19 +302,55 @@ function extractFromDom($: cheerio.CheerioAPI): ScrapedProduct[] {
  * ```
  */
 export async function scrapeProductsFromCategoryUrl(url: string): Promise<ScrapedProduct[]> {
-  const response = await fetch(url, {
-    headers: { 'User-Agent': USER_AGENT },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
+  let html = '';
+  let usedBrightData = false;
 
-  if (!response.ok) {
-    console.warn(
-      `[categoryPageScraper] HTTP ${response.status} for ${url}`,
-    );
-    return [];
+  if (config.brightData.apiKey && config.brightData.zone) {
+    try {
+      console.log(`[categoryPageScraper] Fetching ${url} via Bright Data targeting LK...`);
+      const bdResponse = await fetch('https://api.brightdata.com/request', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.brightData.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          zone: config.brightData.zone,
+          url: url,
+          format: 'raw',
+          country: 'lk'
+        }),
+        signal: AbortSignal.timeout(30000)
+      });
+
+      if (bdResponse.ok) {
+        html = await bdResponse.text();
+        usedBrightData = true;
+      } else {
+        console.warn(`[categoryPageScraper] Bright Data returned status ${bdResponse.status}. Falling back to direct fetch.`);
+      }
+    } catch (err) {
+      console.warn(`[categoryPageScraper] Bright Data fetch failed: ${(err as Error).message}. Falling back to direct fetch.`);
+    }
   }
 
-  const html = await response.text();
+  if (!usedBrightData) {
+    console.log(`[categoryPageScraper] Fetching ${url} directly...`);
+    const response = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.warn(
+        `[categoryPageScraper] HTTP ${response.status} for ${url}`,
+      );
+      return [];
+    }
+
+    html = await response.text();
+  }
+
   const $ = cheerio.load(html);
 
   // Method 1 — __NEXT_DATA__
