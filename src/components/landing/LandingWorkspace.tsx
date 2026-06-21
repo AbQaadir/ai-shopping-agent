@@ -255,9 +255,11 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           )}
 
           <div className="w-full relative">
-            <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 blur-lg transition-all duration-300 pointer-events-none ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"} ${showDropdown && suggestions.length > 0 ? "rounded-[32px]" : "rounded-full"}`} />
+            {/* Background glow of the search input - remains rounded-full always */}
+            <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 blur-lg transition-all duration-300 pointer-events-none ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"} rounded-full`} />
 
-            <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"} ${showDropdown && suggestions.length > 0 ? "rounded-[28px]" : "rounded-full"}`}>
+            {/* Input field card - stays rounded-full since suggestions float below */}
+            <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"} rounded-full`}>
               <div className="w-full py-1.5 pl-2 pr-1.5 flex items-center gap-2">
                 {/* Attachment Button */}
                 <button
@@ -307,71 +309,71 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   <Send size={16} className="ml-[1px]" />
                 </button>
               </div>
-
-              {/* Autocomplete Dropdown merged inside the input card */}
-              {showDropdown && suggestions.length > 0 && (
-                <div
-                  className="w-full flex flex-col p-1.5 pt-0 animate-fadeIn border-t border-slate-100/60 mt-1"
-                >
-                  {suggestions.map((suggestion, index) => {
-                    const queryTrim = inputText.trim();
-                    const queryLower = queryTrim.toLowerCase();
-                    const suggLower = suggestion.toLowerCase();
-                    const hasPrefix = suggLower.startsWith(queryLower);
-                    const prefix = hasPrefix ? suggestion.substring(0, queryTrim.length) : "";
-                    const suffix = hasPrefix ? suggestion.substring(queryTrim.length) : suggestion;
-
-                    return (
-                      <button
-                        key={index}
-                        onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
-                        onClick={() => {
-                          onSend(suggestion, attachedFiles);
-                          setInputText("");
-                          setAttachedFiles([]);
-                          setShowDropdown(false);
-                          setSelectedIndex(-1);
-                        }}
-                        onMouseEnter={() => setSelectedIndex(index)}
-                        className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-lg transition-all duration-150 flex items-center justify-between group cursor-pointer ${
-                          selectedIndex === index
-                            ? "bg-[#402970]/5 text-[#402970] font-semibold"
-                            : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Search
-                            size={14}
-                            className={`shrink-0 transition-colors ${
-                              selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
-                            }`}
-                          />
-                          <span className="truncate">
-                            {hasPrefix ? (
-                              <>
-                                <span className="text-slate-400 font-normal">{prefix}</span>
-                                <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-850"}`}>
-                                  {suffix}
-                                </span>
-                              </>
-                            ) : (
-                              <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-755"}`}>
-                                {suggestion}
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        {selectedIndex === index && (
-                          <span className="text-[10px] sm:text-xs text-[#402970] font-bold bg-[#402970]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 animate-fadeIn select-none">
-                            Select
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
+
+            {/* Autocomplete Dropdown floating below the input card */}
+            {showDropdown && suggestions.length > 0 && (
+              <div
+                className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-md border border-slate-100/80 shadow-[0_10px_35px_rgba(64,41,112,0.08)] rounded-2xl p-1.5 flex flex-col z-35 origin-top animate-fadeInScale"
+              >
+                {suggestions.map((suggestion, index) => {
+                  const queryTrim = inputText.trim();
+                  const queryLower = queryTrim.toLowerCase();
+                  const suggLower = suggestion.toLowerCase();
+                  const hasPrefix = suggLower.startsWith(queryLower);
+                  const prefix = hasPrefix ? suggestion.substring(0, queryTrim.length) : "";
+                  const suffix = hasPrefix ? suggestion.substring(queryTrim.length) : suggestion;
+
+                  return (
+                    <button
+                      key={index}
+                      onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
+                      onClick={() => {
+                        onSend(suggestion, attachedFiles);
+                        setInputText("");
+                        setAttachedFiles([]);
+                        setShowDropdown(false);
+                        setSelectedIndex(-1);
+                      }}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-lg transition-all duration-150 flex items-center justify-between group cursor-pointer ${
+                        selectedIndex === index
+                          ? "bg-[#402970]/5 text-[#402970] font-semibold"
+                          : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Search
+                          size={14}
+                          className={`shrink-0 transition-colors ${
+                            selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
+                          }`}
+                        />
+                        <span className="truncate">
+                          {hasPrefix ? (
+                            <>
+                              <span className="text-slate-400 font-normal">{prefix}</span>
+                              <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-850"}`}>
+                                {suffix}
+                              </span>
+                            </>
+                          ) : (
+                            <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-755"}`}>
+                              {suggestion}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      {selectedIndex === index && (
+                        <span className="text-[10px] sm:text-xs text-[#402970] font-bold bg-[#402970]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 animate-fadeIn select-none">
+                          Select
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
