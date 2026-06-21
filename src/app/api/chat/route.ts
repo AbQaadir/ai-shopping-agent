@@ -200,6 +200,8 @@ export async function POST(req: NextRequest) {
     let intent: Intent = ruleBasedIntent(message);
     let isRelated = true;
     let llmSearchTerms: SearchTermConfig[] = [];
+    let reorderTarget: string | null = null;
+    let reorderTimeline: string | null = null;
 
     if (hasSelectedProducts) {
       intent = "product";
@@ -226,6 +228,7 @@ Analyze the user query in the context of the recent conversation history, and pe
    - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order.
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
    - "qa": General platform questions (returns, policies, general account help) or general knowledge/informational queries that require web search grounding. Note: Do NOT classify any checkout responses, payment method selections for an active order, or checkout confirmations (e.g. cash on delivery) as "qa".
+   - "reorder": The user wants to reorder a previously purchased item or check their order history (e.g., "reorder my last cake", "what did I buy last week?").
 
 3. Extract focused product search terms and price filters ("searchTerms") as a JSON array of objects matching this schema:
    {
@@ -239,6 +242,12 @@ Analyze the user query in the context of the recent conversation history, and pe
    - Extract ONE object per distinct product the user wants (max 3 objects total).
    - If not a product/service intent, set "searchTerms" to [].
 
+4. Extract reorder context if intent is "reorder", matching this schema:
+   {
+     "reorderTarget": string | null (e.g., "cake", "flowers" - the product they want to reorder),
+     "reorderTimeline": string | null (an ISO 8601 date string representing the start of the timeframe requested. e.g., "last week" = 7 days ago. Today's date is ${new Date().toISOString()}. Set to null if NO timeline is provided)
+   }
+
 [Candidate Store Categories matching query]
 ${matchedCategoriesText}
 
@@ -246,7 +255,7 @@ ${matchedCategoriesText}
 Use the candidate categories above to understand the listing taxonomy and prepare/translate the search query keyword ("term") to match the category's typical product noun (e.g., translate "phone cases" to "backcover" or "cover" or "casing" if the matched category is mobile_phone_accessories, and "cake" or "bento cake" to "cake" or "ribbon cake").
 
 Respond ONLY with JSON matching this structure:
-{"intent": "product"|"category_browse"|"delivery"|"service"|"qa", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reason": "brief explanation"}
+{"intent": "product"|"category_browse"|"delivery"|"service"|"qa"|"reorder", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reorderTarget": "...", "reorderTimeline": "...", "reason": "brief explanation"}
 
 [Recent Conversation History]
 ${historySnippet || "No previous history."}
@@ -271,11 +280,17 @@ User query to classify: "${message}"`;
         }
 
         const parsed = JSON.parse(responseText);
-        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa"].includes(parsed.intent)) {
+        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa", "reorder"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
         }
         if (typeof parsed?.isRelated === "boolean") {
           isRelated = parsed.isRelated;
+        }
+        if (typeof parsed?.reorderTarget === "string") {
+          reorderTarget = parsed.reorderTarget;
+        }
+        if (typeof parsed?.reorderTimeline === "string") {
+          reorderTimeline = parsed.reorderTimeline;
         }
         if (parsed?.searchTerms && Array.isArray(parsed.searchTerms)) {
           llmSearchTerms = (parsed.searchTerms as unknown[])
@@ -1130,8 +1145,8 @@ Respond ONLY with valid JSON matching this schema:
           }
         }
 
-        // ── Pillar 1: Product Search ─────────────────────────────────────
-        if (intent === "product") {
+        // ── Pillar 1: Product Search & Reorder ─────────────────────────────────────
+        if (intent === "product" || intent === "reorder") {
           if (hasSelectedProducts && fetchedSelectedProducts.length > 0) {
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Processing ${selectedProductIds.length} selected product(s)...`, durationMs: 0 });
             send({ type: "thought", step: "fetching_product_details", status: "running", content: "Fetching selected product details..." });
@@ -1145,18 +1160,35 @@ Respond ONLY with valid JSON matching this schema:
             send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
             criteria = parseRequirements(message);
 
-            const isReorderQuery = /reorder|ordered|bought|purchased|past order|history/.test(message.toLowerCase());
+            if (intent === "reorder") {
+              if (!reorderTimeline && !reorderTarget) {
+                 const stepClarify = { step: "intent_routing", status: "completed", content: "Missing reorder details, asking clarification.", durationMs: 0 };
+                 steps.push(stepClarify);
+                 send({ type: "thought", ...stepClarify });
+                 
+                 const msg = "Could you please tell me which item you'd like to reorder, or roughly when you bought it? (e.g., 'the cake' or 'last week').";
+                 send({ type: "text", content: msg });
+                 
+                 await prisma.chatMessage.create({
+                    data: { sessionId: session.id, role: "assistant", content: msg },
+                 });
+                 controller.close();
+                 return;
+              }
 
-            if (isReorderQuery) {
               const step1 = { step: "intent_routing", status: "completed", content: "Identified as: Order History Lookup.", durationMs: 0 };
               steps.push(step1);
               send({ type: "thought", ...step1 });
               send({ type: "thought", step: "searching_kapruka", status: "running", content: "Retrieving user's order history..." });
 
               if (userId && userId !== "guest") {
+                const orderWhereClause = reorderTimeline && !isNaN(new Date(reorderTimeline).getTime()) 
+                  ? { createdAt: { gte: new Date(reorderTimeline) } } 
+                  : {};
+                  
                 const userWithOrders = await prisma.user.findUnique({
                   where: { id: userId },
-                  include: { orders: { include: { items: true }, orderBy: { createdAt: "desc" } } },
+                  include: { orders: { where: orderWhereClause, include: { items: true }, orderBy: { createdAt: "desc" } } },
                 });
 
                 let orderProducts: KaprukaProduct[] = [];
@@ -1165,6 +1197,9 @@ Respond ONLY with valid JSON matching this schema:
                   for (const order of userWithOrders.orders) {
                     pastOrdersContext += `- Order Ref: ${order.id}, Date: ${order.createdAt.toISOString().split("T")[0]}, Status: ${order.status}, Total: LKR ${order.totalLKR}\n`;
                     for (const item of order.items) {
+                      if (reorderTarget && !item.productName.toLowerCase().includes(reorderTarget.toLowerCase())) {
+                        continue;
+                      }
                       pastOrdersContext += `  * Item: ${item.productName} (ID: ${item.productId}), Qty: ${item.quantity}, Price: LKR ${item.priceLKR}\n`;
                       orderProducts.push({
                         id: item.productId,
