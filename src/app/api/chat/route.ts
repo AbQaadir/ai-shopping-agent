@@ -1721,6 +1721,11 @@ const STATIC_FOLLOW_UPS: Record<Intent, string[]> = {
     "How long does standard delivery take?",
     "Can I return a product if it's damaged?",
   ],
+  reorder: [
+    "Reorder the exact same items",
+    "What did I buy last month?",
+    "Track my past orders",
+  ],
 };
 
 // ── Static response fallback (if no Gemini API key) ───────────────────────
@@ -1740,6 +1745,10 @@ function generateFallback(intent: Intent, message: string, products: KaprukaProd
       return "I can connect you with verified home service technicians in your area.";
     case "qa":
       return "Kapruka accepts Credit/Debit cards, bank transfers, and cash on delivery for select areas.";
+    case "reorder":
+      return products.length > 0
+        ? `I found ${products.length} past purchases. Click "Buy Now" on any product to reorder it.`
+        : "I couldn't find any past orders matching that description.";
   }
 }
 
