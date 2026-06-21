@@ -597,21 +597,54 @@ User query to classify: "${message}"`;
             return;
           }
 
-          // Extract label from the prompt via LLM
-          send({ type: "thought", step: "intent_routing", status: "running", content: "Extracting delivery address..." });
+          // Extract label and quantities from the prompt via LLM
+          send({ type: "thought", step: "intent_routing", status: "running", content: "Extracting delivery address and quantities..." });
           
           let matchedAddress = savedAddr;
           if (ai) {
-            const extractPrompt = `Extract the address label mentioned in this message: "${message}". Match it against one of these known labels: [${savedAddressLabels.map((l: string) => `"${l}"`).join(", ")}]. Return ONLY the matching label string, or "NOT FOUND" if unsure.`;
+            const cartContext = currentCart.map((item: any) => `- ID: ${item.id}, Name: ${item.name}`).join("\n");
+            const extractPrompt = `You are extracting information from a user's fast-checkout request.
+User message: "${message}"
+
+Current Cart Items:
+${cartContext}
+
+Task:
+1. Extract the address label mentioned in the message and match it against one of these known labels: [${savedAddressLabels.map((l: string) => `"${l}"`).join(", ")}]. If none matches, set "label" to "NOT FOUND".
+2. If the user specifies quantities for any of the items, extract them as a map of "item_id": quantity. For example, if they say "2 of the cakes" and the cake ID is 123, return { "123": 2 }.
+
+Respond ONLY with valid JSON matching this schema:
+{
+  "label": "string",
+  "quantities": { "string_item_id": number }
+}`;
             try {
-              const res = await ai.models.generateContent({ model: config.gemini.fastModel, contents: extractPrompt });
-              const extractedLabel = (res.text || "").trim();
-              if (extractedLabel && extractedLabel !== "NOT FOUND") {
-                const found = allUserAddresses.find((a: any) => (a.label || a.type).toLowerCase() === extractedLabel.toLowerCase());
+              const res = await ai.models.generateContent({ 
+                model: config.gemini.fastModel, 
+                contents: extractPrompt,
+                config: { responseMimeType: "application/json" } 
+              });
+              const rawText = (res.text || "{}").trim();
+              const parsed = JSON.parse(rawText);
+              
+              if (parsed.label && parsed.label !== "NOT FOUND") {
+                const found = allUserAddresses.find((a: any) => (a.label || a.type).toLowerCase() === parsed.label.toLowerCase());
                 if (found) matchedAddress = found;
               }
+              
+              // Apply extracted quantities to the cart
+              if (parsed.quantities && typeof parsed.quantities === "object") {
+                currentCart = currentCart.map((item) => {
+                  const newQty = parsed.quantities[item.id];
+                  if (typeof newQty === "number" && newQty > 0) {
+                    return { ...item, quantity: newQty };
+                  }
+                  return item;
+                });
+                await saveUserCart(currentCart);
+              }
             } catch (err) {
-              console.warn("Failed to extract address label", err);
+              console.warn("Failed to extract address label and quantities", err);
             }
           }
 
@@ -623,7 +656,7 @@ User query to classify: "${message}"`;
             cartItems: currentCart,
             savedAddress: savedAddr ?? undefined,
             confirmedAddress: matchedAddress,
-            confirmedQty: 1, // Assumption for fast-checkout
+            confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
           };
           await saveCheckoutState(sessionId, newCheckoutState);
 

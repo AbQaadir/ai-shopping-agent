@@ -87,12 +87,13 @@ Customer First Name: "${firstName}"
 Reason about what the user said and determine:
 
 1. nextPhase — Where to go next?
+   GLOBAL OVERRIDE: If the user explicitly asks to "change my address", "use a different address", or "new address", ALWAYS set nextPhase to "new_address_form", REGARDLESS of the current phase.
+   
    Based on current phase:
    
    "qty_ask" phase:
      -> "delivery_ask" if user confirms quantities (e.g. "looks good", "confirm", "proceed", "yes")
      -> "qty_ask" + stay=true if user is unclear or asks a question
-     Note: If user changes quantity (e.g. "make it 2"), update extractedData.quantity or updatedCartItems
    
    "delivery_ask" phase:
      The user may have clicked a saved address card (message = "Use address: <id>") or asked for new address.
@@ -127,6 +128,7 @@ Reason about what the user said and determine:
    - NEVER start with Hello / Hi / Hey
    - Use first name sparingly (max once)
    - Be warm and natural
+   - ANY phase -> new_address_form (due to address change request): "Sure, let's update your delivery address. Please fill in the details and pin your new location below."
    - qty_ask -> delivery_ask: Acknowledge confirmed. Say "Please select a delivery address below."
    - delivery_ask -> payment_ask: Acknowledge saved address. Ask how to pay (COD or card).
    - delivery_ask -> new_address_form: "Please fill in your delivery details and pin your exact location on the map below."

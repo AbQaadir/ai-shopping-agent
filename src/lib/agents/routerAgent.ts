@@ -132,11 +132,12 @@ AI classified intent: "${intent}"
 "checkout_continue"
 → Use ONLY when: An ACTIVE CHECKOUT exists AND the user's message is a DIRECT, sensible answer to the CURRENT PHASE QUESTION.
 → Phase-specific signals:
-    qty_ask: User confirms quantities. "looks good", "confirm", "yes proceed", "change to 2" = continue.
+    qty_ask: User confirms quantities. "looks good", "confirm", "yes proceed" = continue. (DO NOT use for quantity changes).
     delivery_ask: User chooses between saved address or new. "yes saved", "use my address", "new address", "different place" = continue.
     new_address_form: User fills in the new address form. Any response = continue.
     payment_ask: User says cash/cod or card/online. "cash on delivery", "card please", "cod" = continue.
-→ CRITICAL RULE: If the message is a QUESTION, a SEARCH REQUEST, a comparison, or about something DIFFERENT from the current phase — it is NOT checkout_continue.
+→ GLOBAL EXCEPTION: If the user explicitly asks to "change my address", "use a different address", or "deliver somewhere else" from ANY phase, this IS a valid checkout_continue.
+→ CRITICAL RULE: If the message is a QUESTION, a SEARCH REQUEST, a comparison, or about something DIFFERENT from the current phase (except address changes) — it is NOT checkout_continue.
 → CRITICAL RULE: "yes" or "no" alone are ambiguous. Check if they make sense for the CURRENT PHASE. If not, use checkout_pause.
 
 "checkout_pause"
