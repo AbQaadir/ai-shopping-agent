@@ -31,7 +31,7 @@ interface SourcingContextType {
   handleReset: () => void;
   handleSelectHistory: (id: string) => void;
   handleStopGeneration: () => void;
-  handleSendMessage: (text: string, files: File[]) => Promise<void>;
+  handleSendMessage: (text: string, files: File[], editMessageId?: string) => Promise<void>;
   handleBuyProduct: (product: InlineProduct) => void;
   handleOrderCart: (products: InlineProduct[]) => void;
   handleSuggestionClick: (suggestion?: string) => void;
@@ -383,7 +383,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setIsGenerating(false);
   };
 
-  const handleSendMessage = async (text: string, files: File[]) => {
+  const handleSendMessage = async (text: string, files: File[], editMessageId?: string) => {
     if (!user) {
       const userMessageCount = messages.filter(m => m.sender === "user").length;
       if (userMessageCount >= 3) {
@@ -404,21 +404,40 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     const userMessageId = `msg-${Date.now()}`;
     const timestamp = new Date();
 
-    const newUserMessage: Message = {
-      id: userMessageId,
-      sender: "user",
-      text: text || `Attached ${files.length} document(s) for review`,
-      timestamp,
-      status: "sending",
-      inlineProducts: selectedProducts.length > 0 ? [...selectedProducts] : undefined
-    };
+    let userMessageIdToUpdate = userMessageId;
+    const isEdit = !!editMessageId;
+    let historyMessages: Message[] = [];
+
+    if (isEdit) {
+      const targetIndex = messages.findIndex(m => m.id === editMessageId);
+      if (targetIndex !== -1) {
+        const targetUserMsg = messages[targetIndex];
+        const updatedUserMsg: Message = {
+          ...targetUserMsg,
+          text: text,
+          status: "sending" as const,
+        };
+        userMessageIdToUpdate = editMessageId;
+        const truncated = messages.slice(0, targetIndex);
+        historyMessages = [...truncated, updatedUserMsg];
+        setMessages(historyMessages);
+      }
+    } else {
+      const newUserMessage: Message = {
+        id: userMessageId,
+        sender: "user",
+        text: text || `Attached ${files.length} document(s) for review`,
+        timestamp,
+        status: "sending",
+        inlineProducts: selectedProducts.length > 0 ? [...selectedProducts] : undefined
+      };
+      historyMessages = [...messages, newUserMessage];
+      setMessages(historyMessages);
+    }
 
     const selectedProductIds = selectedProducts.map(p => p.id);
     const isComparisonQuery = selectedProductIds.length > 0;
     setSelectedProducts([]);
-
-    const updatedMessages = [...messages, newUserMessage];
-    setMessages(updatedMessages);
     setIsChatting(true);
     setIsGenerating(true);
     setActiveQueryText(text || "Uploaded design request");
@@ -463,7 +482,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       };
 
       setMessages(prev => {
-        const updated = prev.map(m => m.id === userMessageId ? { ...m, status: "sent" as const } : m);
+        const updated = prev.map(m => m.id === userMessageIdToUpdate ? { ...m, status: "sent" as const } : m);
         return [...updated, newAiMessage];
       });
 
@@ -476,7 +495,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           userId: activeUserId,
           country,
           currency,
-          selectedProductIds
+          selectedProductIds,
+          editMessageId: isEdit ? editMessageId : undefined
         }),
         signal: abortController.signal
       });
@@ -687,6 +707,11 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   orderId: packet.orderId,
                   errorMessage: packet.errorMessage,
                 } as OrderFlowStepData;
+
+                if (packet.cartItems && Array.isArray(packet.cartItems)) {
+                  setCartItems(packet.cartItems);
+                }
+
                 setMessages(prev => prev.map(m =>
                   m.id === aiMessageId
                     ? { ...m, activeToolCall: null, orderFlowStep }
@@ -745,7 +770,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         if (h.id === currentSessionId) {
           return {
             ...h,
-            messages: [...updatedMessages.map(um => um.id === userMessageId ? { ...um, status: "sent" as const } : um), finalMappedAi]
+            messages: [...historyMessages.map(um => um.id === userMessageIdToUpdate ? { ...um, status: "sent" as const } : um), finalMappedAi]
           };
         }
         return h;

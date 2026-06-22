@@ -1,5 +1,6 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { findRelevantCategories } from "@/lib/categories";
 import {
   extractCityFromMessage,
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { sessionId, message, userId, country, currency, selectedProductIds } = body;
+    const { sessionId, message, userId, country, currency, selectedProductIds, editMessageId } = body;
 
     if (!sessionId || !message) {
       return new Response(JSON.stringify({ error: "Missing sessionId or message" }), {
@@ -174,15 +175,105 @@ export async function POST(req: NextRequest) {
       fetchedSelectedProducts = detailsList.filter((p): p is KaprukaProduct => p !== null);
     }
 
-    // 3. Save user message to DB
-    await prisma.chatMessage.create({
-      data: {
-        sessionId: session.id,
-        role: "user",
-        content: message,
-        products: fetchedSelectedProducts.length > 0 ? (fetchedSelectedProducts as any) : undefined,
-      },
-    });
+    // 3. Save or edit user message
+    if (editMessageId) {
+      const targetMessage = await prisma.chatMessage.findUnique({
+        where: { id: editMessageId },
+      });
+      if (!targetMessage) {
+        return new Response(JSON.stringify({ error: "Message to edit not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Update target user message content
+      await prisma.chatMessage.update({
+        where: { id: editMessageId },
+        data: {
+          content: message,
+          products: fetchedSelectedProducts.length > 0 ? (fetchedSelectedProducts as any) : Prisma.DbNull,
+          thoughtProcess: Prisma.DbNull,
+        },
+      });
+
+      // Delete subsequent messages
+      await prisma.chatMessage.deleteMany({
+        where: {
+          sessionId,
+          createdAt: { gt: targetMessage.createdAt },
+        },
+      });
+
+      // Rollback CheckoutSession and user cart to the last remaining assistant message's state
+      const lastAssistantMsg = await prisma.chatMessage.findFirst({
+        where: {
+          sessionId,
+          role: "assistant",
+          createdAt: { lt: targetMessage.createdAt },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      let orderFlowStep: any = null;
+      if (lastAssistantMsg?.thoughtProcess) {
+        try {
+          const parsed = typeof lastAssistantMsg.thoughtProcess === "string"
+            ? JSON.parse(lastAssistantMsg.thoughtProcess)
+            : lastAssistantMsg.thoughtProcess;
+          orderFlowStep = (parsed as any)?.orderFlowStep;
+        } catch (e) {
+          console.error("Error parsing thoughtProcess for rollback:", e);
+        }
+      }
+
+      if (orderFlowStep && orderFlowStep.phase !== "confirmed" && orderFlowStep.phase !== "cancelled") {
+        // Restore CheckoutSession
+        await saveCheckoutState(sessionId, {
+          phase: orderFlowStep.phase,
+          cartItems: orderFlowStep.cartItems || [],
+          product: orderFlowStep.product,
+          confirmedQty: orderFlowStep.confirmedQuantity,
+          confirmedAddress: orderFlowStep.confirmedAddress,
+          savedAddress: orderFlowStep.savedAddress,
+          geocodedLocation: orderFlowStep.geocodedLocation,
+          paymentMethod: orderFlowStep.paymentMethod,
+        });
+
+        // Synchronize user cart in DB
+        const currentUserId = userId || "guest";
+        try {
+          const userRecord = await prisma.user.findUnique({ where: { id: currentUserId } });
+          let cartObj: Record<string, any[]> = {};
+          if (userRecord?.cart) {
+            const parsed = typeof userRecord.cart === "string" ? JSON.parse(userRecord.cart) : userRecord.cart;
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              cartObj = parsed as Record<string, any[]>;
+            }
+          }
+          cartObj[sessionId] = orderFlowStep.cartItems || [];
+          await (prisma.user as any).update({
+            where: { id: currentUserId },
+            data: { cart: cartObj },
+          });
+        } catch (err) {
+          console.warn("Failed to sync cart during rollback:", err);
+        }
+      } else {
+        // No prior checkout or it was finished -> clear checkout state
+        await clearCheckoutState(sessionId);
+      }
+    } else {
+      // Normal flow: save user message to DB
+      await prisma.chatMessage.create({
+        data: {
+          sessionId: session.id,
+          role: "user",
+          content: message,
+          products: fetchedSelectedProducts.length > 0 ? (fetchedSelectedProducts as any) : undefined,
+        },
+      });
+    }
 
     // 4. Fetch chat history for context
     const chatHistory = await prisma.chatMessage.findMany({

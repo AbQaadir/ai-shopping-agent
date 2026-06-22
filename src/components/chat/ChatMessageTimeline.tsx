@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink, LayoutGrid, List, ChevronDown } from "lucide-react";
+import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink, LayoutGrid, List, ChevronDown, Copy, Pencil } from "lucide-react";
 import type { Message, InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
 
@@ -201,6 +201,7 @@ interface ChatTimelineProps {
   selectedProductIds?: string[];
   onToggleSelectProduct?: (product: InlineProduct) => void;
   onBuyProduct?: (product: InlineProduct) => void;
+  onEditMessage?: (messageId: string, text: string) => void;
 }
 
 function formatTime(date: Date) {
@@ -613,6 +614,7 @@ export default function ChatTimeline({
   selectedProductIds = [],
   onToggleSelectProduct,
   onBuyProduct,
+  onEditMessage,
 }: ChatTimelineProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -620,6 +622,42 @@ export default function ChatTimeline({
 
   // Local state to keep track of closed tool result cards per message ID
   const [closedMessages, setClosedMessages] = React.useState<Record<string, boolean>>({});
+
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState<string>("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (msgId: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(msgId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleStartEdit = (msgId: string, text: string) => {
+    setEditingMessageId(msgId);
+    setEditingText(text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const handleUpdateSubmit = (msgId: string) => {
+    if (!editingText.trim()) return;
+    onEditMessage?.(msgId, editingText.trim());
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, msgId: string) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleUpdateSubmit(msgId);
+    } else if (e.key === "Escape") {
+      handleCancelEdit();
+    }
+  };
 
   // Find index of the last active order flow step to compute isActive prop
   const lastOrderStepIdx = messages.map(m => !!m.orderFlowStep).lastIndexOf(true);
@@ -729,14 +767,78 @@ export default function ChatTimeline({
                       </div>
                     )}
 
-                    {/* Text bubble */}
-                    <div className={`px-4 py-2.5 font-semibold shadow-xs text-sm ${
-                      msg.inlineProducts && msg.inlineProducts.length > 0
-                        ? "bg-[#402970]/5 border border-[#402970]/10 text-[#402970] rounded-2xl"
-                        : "bg-slate-100 text-slate-800 rounded-full border border-slate-200/20"
-                    }`}>
-                      {msg.text}
-                    </div>
+                    {/* Text bubble & Custom Inline Input Editor */}
+                    {editingMessageId === msg.id ? (
+                      /* Custom Inline Input Editor */
+                      <div className="w-full max-w-md sm:max-w-lg md:max-w-xl flex flex-col gap-2 mt-1 animate-fadeIn">
+                        <div className="relative border border-[#402970]/30 focus-within:border-[#402970] focus-within:ring-2 focus-within:ring-[#402970]/10 rounded-xl bg-slate-50 overflow-hidden transition-all duration-200">
+                          <textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onKeyDown={(e) => handleEditKeyDown(e, msg.id)}
+                            className="w-full min-h-[60px] max-h-[160px] resize-none outline-none border-none bg-transparent text-slate-800 placeholder-slate-400 text-sm p-3 font-semibold leading-normal"
+                            autoFocus
+                          />
+                        </div>
+                        
+                        {/* Cancel & Update Action Buttons */}
+                        <div className="flex items-center justify-end gap-1.5 text-xs">
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-3 py-1 bg-white hover:bg-slate-50 text-slate-650 hover:text-slate-900 font-bold rounded-lg border border-slate-200 transition-all cursor-pointer shadow-xs active:scale-98 select-none"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleUpdateSubmit(msg.id)}
+                            disabled={!editingText.trim() || isGenerating}
+                            className={`px-3 py-1 font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-98 select-none ${
+                              editingText.trim() && !isGenerating
+                                ? "bg-[#402970] text-white hover:bg-[#33205a]"
+                                : "bg-slate-100 text-slate-300 border border-slate-200 cursor-not-allowed"
+                            }`}
+                          >
+                            Update
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Normal User Bubble with Hover Overlay actions */
+                      <div className="relative group max-w-full">
+                        {/* Text bubble */}
+                        <div className={`px-4 py-2.5 font-semibold shadow-xs text-sm ${
+                          msg.inlineProducts && msg.inlineProducts.length > 0
+                            ? "bg-[#402970]/5 border border-[#402970]/10 text-[#402970] rounded-2xl"
+                            : "bg-slate-100 text-slate-800 rounded-full border border-slate-200/20"
+                        }`}>
+                          {msg.text}
+                        </div>
+
+                        {/* Hover Actions (Copy / Edit) */}
+                        {!isGenerating && (
+                          <div className="absolute -bottom-3.5 right-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 flex items-center bg-white border border-slate-200/80 shadow-xs rounded-lg p-0.5 z-10 gap-0.5 select-none">
+                            <button
+                              onClick={() => handleCopy(msg.id, msg.text)}
+                              className="p-1 hover:bg-slate-50 rounded text-slate-500 hover:text-[#402970] transition-colors cursor-pointer"
+                              title="Copy message"
+                            >
+                              {copiedId === msg.id ? (
+                                <Check size={12} className="text-emerald-500 font-bold" />
+                              ) : (
+                                <Copy size={12} />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleStartEdit(msg.id, msg.text)}
+                              className="p-1 hover:bg-slate-50 rounded text-slate-500 hover:text-[#402970] transition-colors cursor-pointer"
+                              title="Edit query"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* AI message */

@@ -38,7 +38,7 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
-  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast, isSharedReadOnly } = useSourcing();
+  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast, isSharedReadOnly, handleSendMessage } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
@@ -176,6 +176,7 @@ export default function ChatWorkspace({
             selectedProductIds={selectedProducts.map(p => p.id)}
             onToggleSelectProduct={handleToggleSelectProduct}
             onBuyProduct={onBuyProduct}
+            onEditMessage={(msgId, newText) => handleSendMessage(newText, [], msgId)}
           />
         </div>
 
