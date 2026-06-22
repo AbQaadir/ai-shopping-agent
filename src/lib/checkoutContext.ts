@@ -14,8 +14,9 @@ import type { CartItem, InlineProduct, SavedAddress, GeocodedLocation } from "@/
 export type CheckoutPhase =
   | "qty_ask"
   | "delivery_ask"
-  | "address_ask"
-  | "map_open"
+  | "new_address_form"  // replaces address_ask — combined form rendered by NewAddressFormBubble
+  | "address_ask"       // LEGACY: kept for backward compat with old sessions in DB
+  | "map_open"          // LEGACY: kept for backward compat with old sessions in DB
   | "payment_ask"
   | "confirmed"
   | "cancelled";

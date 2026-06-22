@@ -18,7 +18,7 @@ The architecture consists of:
    business logic, and streams the responses using Server-Sent Events (SSE).
 2. **Intent & Search Classifier (LLM-based)**: Runs a 1st-pass classification to
    determine query relevance, extract precise search keywords, and identify the
-   user's primary intent (`product`, `delivery`, `service`, `qa`).
+   user's primary intent (`product`, `category_browse`, `delivery`, `service`, `qa`, `reorder`).
 3. **Router Agent** (`src/lib/agents/routerAgent.ts`): A specialized LLM-based
    coordinator that decides which macro action to execute (`shop`,
    `checkout_start`, `checkout_continue`, `checkout_pause`, `cart_modify`,
@@ -64,7 +64,7 @@ flowchart TD
     IntentClassifier["1st Pass: Intent & Search Term Classifier<br/>(Gemini)"]:::core
 
     POSTChat --> IntentClassifier
-    IntentClassifier -->|Intent: product / delivery / service / qa| POSTChat
+    IntentClassifier -->|Intent: product / delivery / service / qa / reorder| POSTChat
 
     %% Router
     RouterAgent["Router Agent<br/>(src/lib/agents/routerAgent.ts)"]:::agent
@@ -139,6 +139,13 @@ flowchart TD
     ShopHandler -->|Pillar 3: SME / Partner Central| SMETagging
     ShopHandler -->|Pillar 5: Home Services| ServiceRegistry
     ShopHandler -->|Pillar 4 / QA| GroundingSearch
+    
+    ReorderFlow["NLP Reorder Flow<br/>(Order History)"]:::core
+    ShopHandler -->|Intent: reorder| ReorderFlow
+    ReorderFlow -->|Check Missing Info| Clarify["Ask Clarification<br/>(Return Early)"]:::core
+    Clarify --> User
+    ReorderFlow -->|Filter by Target/Date| DB
+    ReorderFlow --> ShopHandler
 
     LogisticsAPI --> ShopHandler
     SMETagging --> ShopHandler
@@ -256,3 +263,10 @@ cached Kapruka category tree.
   target cities.
 - **Q&A Grounding**: Utilizes Gemini Google Search tool features to answer
   questions about platform policies, refunds, or general queries.
+
+### G. NLP-Driven Reorder Flow
+
+Eliminates brittle regex by utilizing Gemini's semantic extraction to handle requests for past orders.
+- Extracts `reorderTarget` (the specific item requested) and `reorderTimeline` (translating temporal phrases like "last week" into ISO 8601 Date strings).
+- Implements a lightweight **Multi-turn Prompt Engineering** approach. If a user asks to reorder without providing a timeline or target, the system intercepts the request and issues a clarifying question (e.g., "Which item or roughly when did you buy it?"). The `historySnippet` context allows the LLM to successfully parse the user's next response without needing a rigid state machine.
+- Queries Prisma (`Order` and `OrderItem`) with a `createdAt: { gte: date }` filter and seamlessly maps the history into `KaprukaProduct` formats for the frontend interactive UI.

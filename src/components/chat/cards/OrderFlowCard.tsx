@@ -64,9 +64,16 @@ const USER_DEFAULTS: Record<string, UserDefaults> = {
 type PaymentMethod = "cod" | "card";
 
 export default function OrderFlowCard({ product, stockStatus = "in_stock", stockQty }: OrderFlowCardProps) {
-  const { activeUserId, activeHistoryId, setMessages } = useSourcing();
+  const { activeUserId, activeHistoryId, setMessages, userAddresses } = useSourcing();
 
-  const savedDefaults = USER_DEFAULTS[activeUserId] || { name: "", phone: "", address: "", city: "" };
+  const defaultAddr = userAddresses.find(a => a.isDefault) || userAddresses[0];
+  const savedDefaults = defaultAddr ? {
+    name: defaultAddr.recipientName || "",
+    phone: defaultAddr.phone || "",
+    address: defaultAddr.formattedAddress || defaultAddr.addressLine || "",
+    city: defaultAddr.city || "",
+  } : (USER_DEFAULTS[activeUserId] || { name: "", phone: "", address: "", city: "" });
+
   const hasSavedAddress = !!(savedDefaults.address && savedDefaults.city);
 
   // ── State ──────────────────────────────────────────────────────

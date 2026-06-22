@@ -37,13 +37,14 @@ export interface CartItem {
 }
 
 export type OrderFlowPhase =
-  | "qty_ask"           // AI asked quantity — show quantity picker widget
-  | "delivery_ask"      // AI asked delivery location — show saved address + buttons
-  | "address_ask"       // AI asked user to type a rough location / address — no bubble
-  | "map_open"          // AI opened map — show embedded Google Map for pin drop
-  | "payment_ask"       // AI asked payment method — show COD / Card buttons
-  | "confirmed"         // Order placed — show confirmation card
-  | "out_of_stock";     // Product out of stock — show apology
+  | "qty_ask"            // AI asked quantity — show quantity picker widget
+  | "delivery_ask"       // AI asked delivery location — show all saved address cards + new address button
+  | "new_address_form"   // Combined name+phone+rough-location+map form (replaces address_ask)
+  | "address_ask"        // LEGACY: kept for backward compat with old DB sessions → renders as map_open
+  | "map_open"           // LEGACY: show embedded Google Map for pin drop (old sessions only)
+  | "payment_ask"        // AI asked payment method — show COD / Card buttons
+  | "confirmed"          // Order placed — show confirmation card
+  | "out_of_stock";      // Product out of stock — show apology
 
 export interface SavedAddress {
   name: string;

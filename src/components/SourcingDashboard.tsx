@@ -5,7 +5,6 @@ import GlobalSidebar from "@/components/sidebar/GlobalSidebar";
 import LandingWorkspace from "@/components/landing/LandingWorkspace";
 import ChatWorkspace from "@/components/chat/ChatWorkspace";
 import GlobalCartWorkspace from "@/components/chat/GlobalCartWorkspace";
-import ProfileSetupModal from "@/components/profile/ProfileSetupModal";
 import { Headset } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
@@ -41,7 +40,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     handleSuggestionClick,
   } = useSourcing();
 
-  const { showProfileSetup, setShowProfileSetup } = useAuth();
+
 
   const lastSessionIdRef = useRef<string | undefined>("__initial__");
 
@@ -142,11 +141,6 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
       </div>
     </div>
 
-    {/* Profile Setup Modal — shown after first Google sign-in */}
-    <ProfileSetupModal
-      isOpen={showProfileSetup}
-      onClose={() => setShowProfileSetup(false)}
-    />
     </>
   );
 }

@@ -11,12 +11,9 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   isAuthModalOpen: boolean;
-  authModalReason: "message_limit" | "checkout" | null;
-  openAuthModal: (reason: "message_limit" | "checkout") => void;
+  authModalReason: "message_limit" | "checkout" | "login" | null;
+  openAuthModal: (reason: "message_limit" | "checkout" | "login") => void;
   closeAuthModal: () => void;
-  /** True after a brand-new Google sign-in where profileComplete === false */
-  showProfileSetup: boolean;
-  setShowProfileSetup: (open: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,8 +23,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalReason, setAuthModalReason] = useState<"message_limit" | "checkout" | null>(null);
-  const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [authModalReason, setAuthModalReason] = useState<"message_limit" | "checkout" | "login" | null>(null);
+
 
   const supabase = createClient();
 
@@ -57,10 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .then((data) => {
             console.log("Database user synced successfully.");
             localStorage.removeItem("kapruka_guest_uuid");
-            // Show profile setup modal if this user hasn't completed their profile
-            if (data.profileComplete === false) {
-              setShowProfileSetup(true);
-            }
+            // User profile sync complete
           })
           .catch((err) => console.error("Database user sync failed:", err));
 
@@ -74,19 +68,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signInWithGoogle = async () => {
+    // Strip trailing slash so we never produce a double-slash URL like
+    // "https://example.com//auth/callback" which Supabase rejects,
+    // causing it to fall back to the dashboard Site URL (localhost).
+    const siteUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
+    ).replace(/\/$/, "");
+    const callbackUrl = `${siteUrl}/auth/callback`;
+
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: process.env.NEXT_PUBLIC_SITE_URL || `${window.location.origin}/`,
+        redirectTo: callbackUrl,
       },
     });
   };
+
+
 
   const signOut = async () => {
     await supabase.auth.signOut();
   };
 
-  const openAuthModal = (reason: "message_limit" | "checkout") => {
+  const openAuthModal = (reason: "message_limit" | "checkout" | "login") => {
     setAuthModalReason(reason);
     setIsAuthModalOpen(true);
   };
@@ -108,8 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authModalReason,
         openAuthModal,
         closeAuthModal,
-        showProfileSetup,
-        setShowProfileSetup,
       }}
     >
       {children}

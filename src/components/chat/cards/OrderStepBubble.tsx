@@ -287,33 +287,42 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
 function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
-  const addr = step.savedAddress;
-  const hasAddr = !!(addr?.address && addr?.city);
+  const addrs = step.savedAddresses || [];
+  const hasAddrs = addrs.length > 0;
 
-  const [selectedOption, setSelectedOption] = useState<'saved' | 'new' | null>(() => {
-    if (!isActive) {
-      if (hasAddr && step.confirmedAddress && addr) {
-        const isSaved = step.confirmedAddress.address === addr.address && step.confirmedAddress.city === addr.city;
-        return isSaved ? 'saved' : 'new';
-      }
-      return hasAddr ? 'saved' : 'new';
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(() => {
+    if (!isActive && step.confirmedAddress) {
+      const match = addrs.find(a => 
+        (a.addressLine || (a as any).address) === step.confirmedAddress?.address && 
+        a.city === step.confirmedAddress?.city
+      );
+      if (match) return match.id;
+      return "new";
     }
     return null;
   });
 
-  const handleSaved = () => {
+  const handleSaved = (id: string) => {
     if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
-    setSelectedOption('saved');
+    setSelectedAddressId(id);
     setSubmitted(true);
-    onAction("Yes, deliver to my saved address");
+    onAction(`Use address: ${id}`);
   };
+
   const handleNew = () => {
     if (submittedRef.current || !isActive) return;
     submittedRef.current = true;
-    setSelectedOption('new');
+    setSelectedAddressId('new');
     setSubmitted(true);
     onAction("I want to use a new delivery address");
+  };
+
+  const getLabelIcon = (label: string) => {
+    const lower = (label || "").toLowerCase();
+    if (lower === "home") return "🏠";
+    if (lower === "work") return "💼";
+    return "🏷️";
   };
 
   return (
@@ -327,26 +336,57 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
       </div>
 
       {/* Address Details Container */}
-      <div className="mb-5">
-        {hasAddr ? (
-          <div className="p-4 bg-slate-50/60 border border-slate-100/80 rounded-2xl flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3 border-b border-slate-100/50 pb-2.5">
-              <div className="flex items-center gap-2">
-                <User size={13} className="text-[#402970] shrink-0" />
-                <span className="text-[13px] font-bold text-slate-800">{addr!.name}</span>
+      <div className="mb-5 flex flex-col gap-3">
+        {hasAddrs ? (
+          addrs.map((addr) => {
+            const isSelected = selectedAddressId === addr.id;
+            const isInactiveState = !isActive && !isSelected && selectedAddressId !== null;
+
+            if (isInactiveState) return null; // Hide unselected options when inactive
+
+            return (
+              <div 
+                key={addr.id}
+                onClick={() => isActive && !submitted && handleSaved(addr.id)}
+                className={`p-4 rounded-2xl flex flex-col gap-3 transition-all ${
+                  isActive && !submitted 
+                    ? "bg-slate-50/60 border border-slate-200/80 hover:border-[#402970] hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]" 
+                    : isSelected
+                      ? "bg-[#402970]/5 border border-[#402970]/20"
+                      : "bg-slate-50/60 border border-slate-100/80"
+                }`}
+              >
+                <div className="flex items-center justify-between border-b border-slate-100/50 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px]">{getLabelIcon(addr.label || addr.type)}</span>
+                    <span className="text-[13px] font-bold text-slate-800 capitalize">{addr.label || addr.type}</span>
+                    {addr.isDefault && (
+                      <span className="ml-2 text-[9px] uppercase tracking-wider font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">★ Default</span>
+                    )}
+                  </div>
+                  {(!isActive || submitted) && isSelected && (
+                    <CheckCircle size={14} className="text-[#402970]" />
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2">
+                    <User size={13} className="text-[#402970] shrink-0" />
+                    <span className="text-[13px] font-bold text-slate-800">{addr.recipientName || (addr as any).name || "Customer"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone size={13} className="text-slate-400 shrink-0" />
+                    <span className="text-[13px] font-bold text-slate-800">{addr.phone}</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 pt-0.5">
+                  <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
+                  <span className="text-[13px] font-bold text-slate-800 leading-relaxed truncate-line-clamp">
+                    {addr.addressLine || (addr as any).address}, {addr.city}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Phone size={13} className="text-slate-400 shrink-0" />
-                <span className="text-[13px] font-bold text-slate-800">{addr!.phone}</span>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 pt-0.5">
-              <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
-              <span className="text-[13px] font-bold text-slate-800 leading-relaxed truncate-line-clamp">
-                {addr!.address}, {addr!.city}
-              </span>
-            </div>
-          </div>
+            );
+          })
         ) : (
           <div className="p-5 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center gap-2">
             <MapPin size={22} className="text-slate-300" />
@@ -359,31 +399,365 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
 
       {/* Action Area */}
       {submitted || !isActive ? (
-        <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none">
+        <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none mt-2">
           <CheckCircle size={13} className="text-[#402970]" />{" "}
-          {selectedOption === "saved" ? "Saved Address Confirmed" : "New Address Selected"}
+          {selectedAddressId === "new" ? "New Address Selected" : "Saved Address Confirmed"}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {hasAddr && (
-            <button
-              onClick={handleSaved}
-              className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
-            >
-              <CheckCircle size={13} /> Yes, deliver here
-            </button>
-          )}
+        <div className="flex justify-center mt-2">
           <button
             onClick={handleNew}
-            className={`w-full py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer ${
-              !hasAddr ? "sm:col-span-2" : ""
-            }`}
+            className="w-full py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
           >
             <Navigation size={13} className="text-slate-500" />
-            {hasAddr ? "Use new address" : "Pin delivery location"}
+            {hasAddrs ? "＋ Use a new address" : "Pin delivery location"}
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── New Address Form Variant ───────────────────────────────────────────────
+function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
+  const [useGoogleMaps, setUseGoogleMaps] = useState(false);
+  const [mapsLoadFailed, setMapsLoadFailed] = useState(false);
+  
+  // Form State
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [confirmedAddress, setConfirmedAddress] = useState("");
+  const [confirmedCity, setConfirmedCity] = useState("");
+  
+  const submittedRef = useRef(false);
+  const [submitted, setSubmitted] = useState(false);
+  
+  // Map Refs
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerInstanceRef = useRef<any>(null);
+  const geocoderRef = useRef<any>(null);
+
+  const initMap = async () => {
+    if (typeof window === "undefined" || !(window as any).google || !mapRef.current) return;
+    if (mapInstanceRef.current) return;
+    
+    const google = (window as any).google;
+    const center = { lat: 6.9271, lng: 79.8612 }; // Default Colombo
+    
+    try {
+      let MapClass: any;
+      let GeocoderClass: any;
+      let MarkerClass: any;
+      let isAdvanced = false;
+
+      if (google.maps.importLibrary) {
+        const [mapsLib, geocodingLib, markerLib] = await Promise.all([
+          google.maps.importLibrary("maps"),
+          google.maps.importLibrary("geocoding"),
+          google.maps.importLibrary("marker"),
+        ]);
+        MapClass = mapsLib.Map;
+        GeocoderClass = geocodingLib.Geocoder;
+        if (markerLib.AdvancedMarkerElement) {
+          MarkerClass = markerLib.AdvancedMarkerElement;
+          isAdvanced = true;
+        } else {
+          MarkerClass = markerLib.Marker || google.maps.Marker;
+        }
+      } else {
+        MapClass = google.maps.Map;
+        GeocoderClass = google.maps.Geocoder;
+        MarkerClass = google.maps.Marker;
+      }
+
+      const map = new MapClass(mapRef.current, {
+        center,
+        zoom: 13,
+        mapId: "kapruka_new_address_map",
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+      });
+      mapInstanceRef.current = map;
+
+      let marker: any;
+      if (isAdvanced) {
+        const el = document.createElement("div");
+        el.style.cssText =
+          "width:24px;height:24px;background:#402970;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:grab";
+        marker = new MarkerClass({ position: center, map, content: el, gmpDraggable: isActive });
+      } else {
+        marker = new MarkerClass({
+          position: center,
+          map,
+          draggable: isActive,
+          icon: { url: "https://maps.google.com/mapfiles/ms/icons/purple-dot.png" },
+        });
+      }
+      markerInstanceRef.current = marker;
+
+      const geocoder = new GeocoderClass();
+      geocoderRef.current = geocoder;
+
+      const updateAddr = (latLng: any) => {
+        if (!latLng) return;
+        const latLngObj = (latLng instanceof google.maps.LatLng)
+          ? latLng
+          : new google.maps.LatLng(
+              typeof latLng.lat === "function" ? latLng.lat() : latLng.lat,
+              typeof latLng.lng === "function" ? latLng.lng() : latLng.lng
+            );
+
+        if (markerInstanceRef.current) {
+          if (isAdvanced) {
+            markerInstanceRef.current.position = latLngObj;
+          } else {
+            markerInstanceRef.current.setPosition(latLngObj);
+          }
+        }
+
+        geocoder.geocode({ location: latLngObj }, (results: any, status: any) => {
+          if (status === "OK" && results[0]) {
+            setConfirmedAddress(results[0].formatted_address);
+            const comps = results[0].address_components;
+            const cityComp = comps.find(
+              (c: any) =>
+                c.types.includes("locality") ||
+                c.types.includes("sublocality_level_1") ||
+                c.types.includes("administrative_area_level_3")
+            );
+            setConfirmedCity(cityComp?.long_name || "Colombo");
+          }
+        });
+      };
+
+      if (isActive) {
+        map.addListener("click", (e: any) => updateAddr(e.latLng));
+        if (isAdvanced) {
+          marker.addListener("gmp-dragend", () => updateAddr(marker.position));
+          marker.addListener("dragend", (e: any) => updateAddr(e.latLng || marker.position));
+        } else {
+          marker.addListener("dragend", (e: any) => updateAddr(e.latLng));
+        }
+      }
+    } catch (err) {
+      console.error("Maps init error:", err);
+      setMapsLoadFailed(true);
+    }
+  };
+
+  useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      setMapsLoadFailed(true);
+      return;
+    }
+
+    if ((window as any).google?.maps) {
+      setUseGoogleMaps(true);
+      setTimeout(initMap, 50);
+      return;
+    }
+
+    const scriptId = "google-maps-script";
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&loading=async`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+    if ((script as any)._mapsLoaded) {
+      setUseGoogleMaps(true);
+      setTimeout(initMap, 50);
+      return;
+    }
+
+    const timeout = setTimeout(() => setMapsLoadFailed(true), 8000);
+
+    const onLoad = () => {
+      clearTimeout(timeout);
+      (script as any)._mapsLoaded = true;
+      setUseGoogleMaps(true);
+      setTimeout(initMap, 50);
+    };
+    const onError = () => {
+      clearTimeout(timeout);
+      setMapsLoadFailed(true);
+    };
+    script.addEventListener("load", onLoad);
+    script.addEventListener("error", onError);
+    return () => {
+      script.removeEventListener("load", onLoad);
+      script.removeEventListener("error", onError);
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  const handleSearch = () => {
+    if (!searchQuery.trim() || !geocoderRef.current || !mapInstanceRef.current) return;
+    geocoderRef.current.geocode({ address: searchQuery + ", Sri Lanka" }, (results: any, status: any) => {
+      if (status === "OK" && results[0]) {
+        const loc = results[0].geometry.location;
+        mapInstanceRef.current.setCenter(loc);
+        mapInstanceRef.current.setZoom(16);
+        
+        if (markerInstanceRef.current) {
+          if (markerInstanceRef.current.position) markerInstanceRef.current.position = loc;
+          else markerInstanceRef.current.setPosition(loc);
+        }
+
+        setConfirmedAddress(results[0].formatted_address);
+        const comps = results[0].address_components;
+        const cityComp = comps.find(
+          (c: any) =>
+            c.types.includes("locality") ||
+            c.types.includes("sublocality_level_1") ||
+            c.types.includes("administrative_area_level_3")
+        );
+        setConfirmedCity(cityComp?.long_name || "Colombo");
+      }
+    });
+  };
+
+  const handleConfirmForm = () => {
+    if (submittedRef.current || !isActive) return;
+    if (!name.trim() || !phone.trim() || (!confirmedAddress.trim() && !mapsLoadFailed)) return;
+    
+    submittedRef.current = true;
+    setSubmitted(true);
+    
+    const finalAddr = confirmedAddress.trim() || "Unknown Address";
+    const finalCity = confirmedCity.trim() || "Colombo";
+    
+    // new address confirmed: Name|Phone|Address|City
+    onAction(`New address confirmed: ${name.trim()}|${phone.trim()}|${finalAddr}|${finalCity}`);
+  };
+
+  const canConfirm = name.trim().length > 0 && phone.trim().length === 9 && (mapsLoadFailed || confirmedAddress.length > 0);
+
+  return (
+    <div className="w-full bg-white border border-slate-100 rounded-[20px] shadow-xs p-5 sm:p-6 animate-fadeInScale select-none mt-4">
+      <div className="flex items-center gap-2 pb-4 border-b border-slate-100/60 mb-5">
+        <span className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
+          <MapPin size={16} />
+        </span>
+        <h4 className="text-sm font-bold text-slate-800">New Delivery Address</h4>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {/* Recipient Details */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Recipient Name</label>
+            <input
+              type="text"
+              placeholder="e.g. Kamal Silva"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={submitted || !isActive}
+              className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Phone Number</label>
+            <div className="flex bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden focus-within:border-[#402970] focus-within:ring-1 focus-within:ring-[#402970] transition-colors">
+              <span className="flex items-center px-3 text-xs font-bold text-slate-500 bg-slate-100/50 border-r border-slate-200">
+                +94
+              </span>
+              <input
+                type="tel"
+                placeholder="77 123 4567"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                disabled={submitted || !isActive}
+                className="w-full px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none placeholder:text-slate-400 bg-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Location Search */}
+        <div className="flex flex-col gap-1.5 mt-2">
+          <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Search Rough Location</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="e.g. Nugegoda Supermarket"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              disabled={submitted || !isActive}
+              className="flex-1 px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50"
+            />
+            <button
+              onClick={handleSearch}
+              disabled={submitted || !isActive || !searchQuery.trim()}
+              className="px-4 py-2.5 bg-[#402970]/10 text-[#402970] rounded-xl text-xs font-bold hover:bg-[#402970]/20 transition-colors disabled:opacity-50"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+
+        {/* Map View */}
+        {mapsLoadFailed ? (
+          <div className="flex flex-col gap-1.5 mt-2">
+            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Full Address (Manual Entry)</label>
+            <textarea
+              placeholder="Enter full address manually since maps failed to load"
+              value={confirmedAddress}
+              onChange={(e) => setConfirmedAddress(e.target.value)}
+              disabled={submitted || !isActive}
+              className="w-full h-24 px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50 resize-none"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 mt-2">
+            <p className="text-[11px] text-slate-500 font-medium">
+              Drag the <strong className="text-[#402970]">purple pin</strong> to your exact door or tap anywhere on the map.
+            </p>
+            <div className="w-full h-[250px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-inner">
+              {useGoogleMaps ? (
+                <div ref={mapRef} className="w-full h-full" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-slate-400">
+                  <Loader2 size={24} className="animate-spin text-[#402970]" />
+                  <span className="text-xs font-semibold">Loading map view...</span>
+                </div>
+              )}
+            </div>
+            {confirmedAddress && (
+              <div className="flex items-start gap-2.5 p-3.5 bg-[#402970]/5 border border-[#402970]/10 rounded-2xl mt-1">
+                <MapPin size={14} className="text-[#402970] mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Pinned Address</p>
+                  <p className="text-[11px] text-slate-700 font-bold leading-relaxed mt-0.5">{confirmedAddress}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Action CTA */}
+        {submitted || !isActive ? (
+          <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none mt-2">
+            <CheckCircle size={13} className="text-[#402970]" /> Address Confirmed
+          </div>
+        ) : (
+          <button
+            onClick={handleConfirmForm}
+            disabled={!canConfirm}
+            className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <CheckCircle size={13} /> Confirm Delivery Address
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -827,7 +1201,7 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <p className="text-xs font-bold text-slate-800">{addr.name}</p>
+                  <p className="text-xs font-bold text-slate-800">{addr.name || (addr as any).recipientName}</p>
                   {addr.phone && (
                     <div className="flex items-center gap-1 text-[10px] text-slate-700 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md font-semibold">
                       <Phone size={10} className="text-[#402970]" />
@@ -836,7 +1210,7 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
                   )}
                 </div>
                 <p className="text-[11px] text-slate-600 font-medium leading-relaxed mt-1">
-                  {addr.address}, {addr.city}
+                  {addr.address || (addr as any).addressLine}, {addr.city}
                 </p>
               </div>
             </div>
@@ -1113,6 +1487,8 @@ export default function OrderStepBubble({ step, onAction, isActive = true }: Ord
       return <QtyAskBubble step={step} onAction={onAction} isActive={isActive} />;
     case "delivery_ask":
       return <DeliveryAskBubble step={step} onAction={onAction} isActive={isActive} />;
+    case "new_address_form":
+      return <NewAddressFormBubble step={step} onAction={onAction} isActive={isActive} />;
     case "map_open":
       return <MapOpenBubble step={step} onAction={onAction} isActive={isActive} />;
     case "payment_ask":

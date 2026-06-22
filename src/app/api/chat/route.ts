@@ -1,5 +1,6 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { findRelevantCategories } from "@/lib/categories";
 import {
   extractCityFromMessage,
@@ -47,11 +48,7 @@ interface SearchTermConfig {
   maxPrice: number | null;
 }
 
-// ── Saved address registry (temporary — normally would be in DB per user) ───
-const USER_DEFAULTS: Record<string, { name: string; phone: string; address: string; city: string }> = {
-  "e17d0577-c93d-4c3e-9080-60b6bbfdf071": { name: "Kamal Silva", phone: "0771234567", address: "123 Galle Road, Colombo 3", city: "Colombo 3" },
-  "b91d2a14-e58f-4ad1-97b0-cce218fd7d32": { name: "Nimal Perera", phone: "0719876543", address: "45 Flower Road, Colombo 7", city: "Colombo 7" },
-};
+// ── No hardcoded registry anymore — loaded dynamically per-user ───────────
 
 // ── System Prompts per Pillar ───────────────────────────────────────────────
 const SYSTEM_PROMPTS: Record<Intent, string> = {
@@ -93,6 +90,19 @@ Be warm and helpful. Explain what each service provider specialises in. Suggest 
 You have access to Google Search to retrieve live, real-time information about Kapruka, Sri Lankan e-commerce, and general queries.
 Answer the user's question accurately using search results. Provide clear, concise, and helpful responses in 2–3 sentences.
 Highlight key information and always reference your sources if appropriate.`,
+
+  reorder: `You are Kapuruka's AI shopping assistant for Sri Lanka.
+The user wants to reorder a previously purchased item. Their relevant order history has been fetched and shown to them.
+Do NOT fabricate product details — only reference the past order details provided.
+Guide them to select the product in the chat interface or click 'Buy Now' to reorder.
+
+For EACH category of past orders, you MUST format your response using EXACTLY these tags to frame your description:
+[INTRO: Past Orders]
+A simple, brief 1-sentence introduction confirming you found their past orders (e.g. "[INTRO: Past Orders] Here are the items you've ordered previously...").
+[DETAILS: Past Orders]
+A detailed description (1-2 sentences) summarizing the past orders found, their prices in LKR, and guiding the user on how to reorder them.
+
+Only use these tags if past orders are returned. If no past orders are found, write a standard response apologizing politely and stating no matching orders were found.`,
 };
 
 const SELECTED_PRODUCT_QA_PROMPT = `You are Kapuruka's AI product advisor for Sri Lanka.
@@ -107,7 +117,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { sessionId, message, userId, country, currency, selectedProductIds } = body;
+    const { sessionId, message, userId, country, currency, selectedProductIds, editMessageId } = body;
 
     if (!sessionId || !message) {
       return new Response(JSON.stringify({ error: "Missing sessionId or message" }), {
@@ -165,15 +175,105 @@ export async function POST(req: NextRequest) {
       fetchedSelectedProducts = detailsList.filter((p): p is KaprukaProduct => p !== null);
     }
 
-    // 3. Save user message to DB
-    await prisma.chatMessage.create({
-      data: {
-        sessionId: session.id,
-        role: "user",
-        content: message,
-        products: fetchedSelectedProducts.length > 0 ? (fetchedSelectedProducts as any) : undefined,
-      },
-    });
+    // 3. Save or edit user message
+    if (editMessageId) {
+      const targetMessage = await prisma.chatMessage.findUnique({
+        where: { id: editMessageId },
+      });
+      if (!targetMessage) {
+        return new Response(JSON.stringify({ error: "Message to edit not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Update target user message content
+      await prisma.chatMessage.update({
+        where: { id: editMessageId },
+        data: {
+          content: message,
+          products: fetchedSelectedProducts.length > 0 ? (fetchedSelectedProducts as any) : Prisma.DbNull,
+          thoughtProcess: Prisma.DbNull,
+        },
+      });
+
+      // Delete subsequent messages
+      await prisma.chatMessage.deleteMany({
+        where: {
+          sessionId,
+          createdAt: { gt: targetMessage.createdAt },
+        },
+      });
+
+      // Rollback CheckoutSession and user cart to the last remaining assistant message's state
+      const lastAssistantMsg = await prisma.chatMessage.findFirst({
+        where: {
+          sessionId,
+          role: "assistant",
+          createdAt: { lt: targetMessage.createdAt },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      let orderFlowStep: any = null;
+      if (lastAssistantMsg?.thoughtProcess) {
+        try {
+          const parsed = typeof lastAssistantMsg.thoughtProcess === "string"
+            ? JSON.parse(lastAssistantMsg.thoughtProcess)
+            : lastAssistantMsg.thoughtProcess;
+          orderFlowStep = (parsed as any)?.orderFlowStep;
+        } catch (e) {
+          console.error("Error parsing thoughtProcess for rollback:", e);
+        }
+      }
+
+      if (orderFlowStep && orderFlowStep.phase !== "confirmed" && orderFlowStep.phase !== "cancelled") {
+        // Restore CheckoutSession
+        await saveCheckoutState(sessionId, {
+          phase: orderFlowStep.phase,
+          cartItems: orderFlowStep.cartItems || [],
+          product: orderFlowStep.product,
+          confirmedQty: orderFlowStep.confirmedQuantity,
+          confirmedAddress: orderFlowStep.confirmedAddress,
+          savedAddress: orderFlowStep.savedAddress,
+          geocodedLocation: orderFlowStep.geocodedLocation,
+          paymentMethod: orderFlowStep.paymentMethod,
+        });
+
+        // Synchronize user cart in DB
+        const currentUserId = userId || "guest";
+        try {
+          const userRecord = await prisma.user.findUnique({ where: { id: currentUserId } });
+          let cartObj: Record<string, any[]> = {};
+          if (userRecord?.cart) {
+            const parsed = typeof userRecord.cart === "string" ? JSON.parse(userRecord.cart) : userRecord.cart;
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              cartObj = parsed as Record<string, any[]>;
+            }
+          }
+          cartObj[sessionId] = orderFlowStep.cartItems || [];
+          await (prisma.user as any).update({
+            where: { id: currentUserId },
+            data: { cart: cartObj },
+          });
+        } catch (err) {
+          console.warn("Failed to sync cart during rollback:", err);
+        }
+      } else {
+        // No prior checkout or it was finished -> clear checkout state
+        await clearCheckoutState(sessionId);
+      }
+    } else {
+      // Normal flow: save user message to DB
+      await prisma.chatMessage.create({
+        data: {
+          sessionId: session.id,
+          role: "user",
+          content: message,
+          products: fetchedSelectedProducts.length > 0 ? (fetchedSelectedProducts as any) : undefined,
+        },
+      });
+    }
 
     // 4. Fetch chat history for context
     const chatHistory = await prisma.chatMessage.findMany({
@@ -204,6 +304,8 @@ export async function POST(req: NextRequest) {
     let intent: Intent = ruleBasedIntent(message);
     let isRelated = true;
     let llmSearchTerms: SearchTermConfig[] = [];
+    let reorderTarget: string | null = null;
+    let reorderTimeline: string | null = null;
 
     if (hasSelectedProducts) {
       intent = "product";
@@ -230,6 +332,7 @@ Analyze the user query in the context of the recent conversation history, and pe
    - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order.
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
    - "qa": General platform questions (returns, policies, general account help) or general knowledge/informational queries that require web search grounding. Note: Do NOT classify any checkout responses, payment method selections for an active order, or checkout confirmations (e.g. cash on delivery) as "qa".
+   - "reorder": The user wants to reorder a previously purchased item or check their order history (e.g., "reorder my last cake", "what did I buy last week?").
 
 3. Extract focused product search terms and price filters ("searchTerms") as a JSON array of objects matching this schema:
    {
@@ -243,6 +346,12 @@ Analyze the user query in the context of the recent conversation history, and pe
    - Extract ONE object per distinct product the user wants (max 3 objects total).
    - If not a product/service intent, set "searchTerms" to [].
 
+4. Extract reorder context if intent is "reorder", matching this schema:
+   {
+     "reorderTarget": string | null (e.g., "cake", "flowers" - the product they want to reorder),
+     "reorderTimeline": string | null (an ISO 8601 date string representing the start of the timeframe requested. e.g., "last week" = 7 days ago. Today's date is ${new Date().toISOString()}. Set to null if NO timeline is provided)
+   }
+
 [Candidate Store Categories matching query]
 ${matchedCategoriesText}
 
@@ -250,7 +359,7 @@ ${matchedCategoriesText}
 Use the candidate categories above to understand the listing taxonomy and prepare/translate the search query keyword ("term") to match the category's typical product noun (e.g., translate "phone cases" to "backcover" or "cover" or "casing" if the matched category is mobile_phone_accessories, and "cake" or "bento cake" to "cake" or "ribbon cake").
 
 Respond ONLY with JSON matching this structure:
-{"intent": "product"|"category_browse"|"delivery"|"service"|"qa", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reason": "brief explanation"}
+{"intent": "product"|"category_browse"|"delivery"|"service"|"qa"|"reorder", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reorderTarget": "...", "reorderTimeline": "...", "reason": "brief explanation"}
 
 [Recent Conversation History]
 ${historySnippet || "No previous history."}
@@ -275,11 +384,17 @@ User query to classify: "${message}"`;
         }
 
         const parsed = JSON.parse(responseText);
-        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa"].includes(parsed.intent)) {
+        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa", "reorder"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
         }
         if (typeof parsed?.isRelated === "boolean") {
           isRelated = parsed.isRelated;
+        }
+        if (typeof parsed?.reorderTarget === "string") {
+          reorderTarget = parsed.reorderTarget;
+        }
+        if (typeof parsed?.reorderTimeline === "string") {
+          reorderTimeline = parsed.reorderTimeline;
         }
         if (parsed?.searchTerms && Array.isArray(parsed.searchTerms)) {
           llmSearchTerms = (parsed.searchTerms as unknown[])
@@ -319,22 +434,35 @@ User query to classify: "${message}"`;
 
     // 7. Load checkout state and saved address
     let checkoutState = await getCheckoutState(sessionId);
-    const savedAddr = USER_DEFAULTS[userId] || null;
+    
+    let allUserAddresses: any[] = [];
+    if (userId && userId !== "guest") {
+      try {
+        const userWithAddresses = await prisma.user.findUnique({
+          where: { id: userId },
+        });
+        if (userWithAddresses?.addresses && Array.isArray(userWithAddresses.addresses)) {
+          allUserAddresses = userWithAddresses.addresses;
+        }
+      } catch (err) {
+        console.warn("Failed to load user addresses for context:", err);
+      }
+    }
+    const savedAddressLabels = allUserAddresses.map((a: any) => a.label || a.type);
+    const savedAddr = allUserAddresses.find((a: any) => a.isDefault) || allUserAddresses[0] || null;
 
-    // 8. Router Agent decision (replaces all regex intercepts)
-    let routerDecision: RouterDecision = { action: "shop", reason: "default" };
-    if (ai) {
-      routerDecision = await routerAgent(
-        message,
-        historySnippet,
-        checkoutState,
-        intent,
-        ai,
-        config.gemini.fastModel
-      );
+    // 8. Call Router Agent (Intent / Checkout state switch)
+    let routerDecision: RouterDecision = { action: "shop", reason: "Fallback logic hit" };
+    if (!ai) {
+      if (hasSelectedProducts && /order/i.test(message)) routerDecision.action = "checkout_start";
+      else routerDecision.action = "shop";
     } else if (checkoutState) {
-      // No AI — if checkout is active, try to continue
+      // Fallback checkout_continue if AI routing fails but checkout active
       routerDecision = { action: "checkout_continue", reason: "No AI — fallback checkout_continue" };
+    }
+    
+    if (ai) {
+      routerDecision = await routerAgent(message, historySnippet, checkoutState, intent, ai, config.gemini.fastModel, savedAddressLabels);
     }
 
     // 9. Build SSE stream
@@ -556,6 +684,111 @@ User query to classify: "${message}"`;
           return;
         }
 
+        // ── Action: checkout_start_with_address ────────────────────────────
+        if (action === "checkout_start_with_address") {
+          let currentCart = await loadUserCart();
+
+          // Merge selected products
+          if (fetchedSelectedProducts.length > 0) {
+            for (const p of fetchedSelectedProducts as any[]) {
+              const existingIdx = currentCart.findIndex((item) => item.id === p.id);
+              if (existingIdx === -1) {
+                currentCart.push({
+                  id: p.id,
+                  name: p.name || p.title || "Kapruka Product",
+                  price: p.price || 0,
+                  quantity: 1, // Skip qty_ask, use 1 by default
+                  imageUrl: p.imageUrl || p.image,
+                  inStock: p.inStock !== false,
+                });
+              }
+            }
+            await saveUserCart(currentCart);
+          }
+
+          if (currentCart.length === 0) {
+            const ofs = { phase: "qty_ask", cartItems: [] };
+            send({ type: "order_flow_step", ...ofs });
+            const t = "Your cart is currently empty. Please select products from the search results first!";
+            await streamWords(t);
+            await saveOrderMessage(t, ofs);
+            controller.close();
+            return;
+          }
+
+          // Extract label and quantities from the prompt via LLM
+          send({ type: "thought", step: "intent_routing", status: "running", content: "Extracting delivery address and quantities..." });
+          
+          let matchedAddress = savedAddr;
+          if (ai) {
+            const cartContext = currentCart.map((item: any) => `- ID: ${item.id}, Name: ${item.name}`).join("\n");
+            const extractPrompt = `You are extracting information from a user's fast-checkout request.
+User message: "${message}"
+
+Current Cart Items:
+${cartContext}
+
+Task:
+1. Extract the address label mentioned in the message and match it against one of these known labels: [${savedAddressLabels.map((l: string) => `"${l}"`).join(", ")}]. If none matches, set "label" to "NOT FOUND".
+2. If the user specifies quantities for any of the items, extract them as a map of "item_id": quantity. For example, if they say "2 of the cakes" and the cake ID is 123, return { "123": 2 }.
+
+Respond ONLY with valid JSON matching this schema:
+{
+  "label": "string",
+  "quantities": { "string_item_id": number }
+}`;
+            try {
+              const res = await ai.models.generateContent({ 
+                model: config.gemini.fastModel, 
+                contents: extractPrompt,
+                config: { responseMimeType: "application/json" } 
+              });
+              const rawText = (res.text || "{}").trim();
+              const parsed = JSON.parse(rawText);
+              
+              if (parsed.label && parsed.label !== "NOT FOUND") {
+                const found = allUserAddresses.find((a: any) => (a.label || a.type).toLowerCase() === parsed.label.toLowerCase());
+                if (found) matchedAddress = found;
+              }
+              
+              // Apply extracted quantities to the cart
+              if (parsed.quantities && typeof parsed.quantities === "object") {
+                currentCart = currentCart.map((item) => {
+                  const newQty = parsed.quantities[item.id];
+                  if (typeof newQty === "number" && newQty > 0) {
+                    return { ...item, quantity: newQty };
+                  }
+                  return item;
+                });
+                await saveUserCart(currentCart);
+              }
+            } catch (err) {
+              console.warn("Failed to extract address label and quantities", err);
+            }
+          }
+
+          send({ type: "thought", step: "intent_routing", status: "completed", content: `Matched address: ${matchedAddress ? (matchedAddress as any).label || (matchedAddress as any).type : "Default"}`, durationMs: 0 });
+
+          // Fast-track straight to payment_ask
+          const newCheckoutState: CheckoutState = {
+            phase: "payment_ask",
+            cartItems: currentCart,
+            savedAddress: savedAddr ?? undefined,
+            confirmedAddress: matchedAddress,
+            confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
+          };
+          await saveCheckoutState(sessionId, newCheckoutState);
+
+          const ofs = { phase: "payment_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: matchedAddress };
+          send({ type: "order_flow_step", ...ofs });
+          
+          const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. Finally, how would you like to pay? (Cash on Delivery or Card)`;
+          await streamWords(t);
+          await saveOrderMessage(t, ofs);
+          controller.close();
+          return;
+        }
+
         // ── Action: cart_modify ────────────────────────────────────────────
         if (action === "cart_modify" && checkoutState) {
           send({ type: "thought", step: "cart_agent", status: "running", content: "Cart Modifier Agent: understanding your request..." });
@@ -753,6 +986,10 @@ User query to classify: "${message}"`;
           if (extractedData.usesSavedAddress === true && savedAddr) {
             updatedState.confirmedAddress = savedAddr;
           }
+          if (extractedData.selectedAddressId) {
+            const found = allUserAddresses.find((a: any) => a.id === extractedData.selectedAddressId);
+            if (found) updatedState.confirmedAddress = found;
+          }
           if (extractedData.paymentMethod) {
             updatedState.paymentMethod = extractedData.paymentMethod;
           }
@@ -761,18 +998,7 @@ User query to classify: "${message}"`;
           const nextPhase = agentOutput.stay ? checkoutState.phase : agentOutput.nextPhase;
           updatedState.phase = nextPhase;
 
-          // Handle geocoding for address_ask → map_open
-          const isTransitioningToMap = checkoutState.phase === "address_ask" && nextPhase === "map_open";
-          const addressToGeocode = extractedData.addressText || (isTransitioningToMap ? message : null);
-
-          if ((agentOutput.requiresGeocode || isTransitioningToMap) && addressToGeocode) {
-            send({ type: "thought", step: "geocoding", status: "running", content: `Geocoding: "${addressToGeocode}"...` });
-            const geo = await geocodeLocation(addressToGeocode);
-            send({ type: "thought", step: "geocoding", status: "completed", content: geo ? `Found: ${geo.label}` : `Default: Colombo (Query: "${addressToGeocode}")`, durationMs: 0 });
-            updatedState.geocodedLocation = geo ?? { lat: 6.9271, lng: 79.8612, formattedAddress: addressToGeocode, label: addressToGeocode };
-          }
-
-          // Handle map_open confirmation: parse "Confirm location: <address>, <city>" from UI
+          // Handle map_open confirmation (LEGACY fallback)
           if (checkoutState.phase === "map_open" && /^confirm location:/i.test(message.trim())) {
             const locationMatch = message.match(/confirm location:\s*(.+),\s*([^,]+)$/i);
             if (locationMatch) {
@@ -781,6 +1007,19 @@ User query to classify: "${message}"`;
                 phone: savedAddr?.phone || "",
                 address: locationMatch[1].trim(),
                 city: locationMatch[2].trim(),
+              };
+            }
+          }
+
+          // Handle new_address_form confirmation
+          if (checkoutState.phase === "new_address_form" && /^new address confirmed:/i.test(message.trim())) {
+            const parts = message.replace(/^new address confirmed:\s*/i, "").split("|");
+            if (parts.length >= 4) {
+              updatedState.confirmedAddress = {
+                name: parts[0].trim(),
+                phone: parts[1].trim(),
+                address: parts[2].trim(),
+                city: parts[3].trim(),
               };
             }
           }
@@ -869,6 +1108,7 @@ User query to classify: "${message}"`;
             phase: updatedState.phase,
             cartItems: updatedState.cartItems,
             savedAddress: updatedState.savedAddress,
+            savedAddresses: allUserAddresses, // NEW: pass full list for delivery_ask
             confirmedQuantity: updatedState.confirmedQty,
             confirmedAddress: updatedState.confirmedAddress,
             geocodedLocation: updatedState.geocodedLocation,
@@ -1009,8 +1249,8 @@ User query to classify: "${message}"`;
           }
         }
 
-        // ── Pillar 1: Product Search ─────────────────────────────────────
-        if (intent === "product") {
+        // ── Pillar 1: Product Search & Reorder ─────────────────────────────────────
+        if (intent === "product" || intent === "reorder") {
           if (hasSelectedProducts && fetchedSelectedProducts.length > 0) {
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Processing ${selectedProductIds.length} selected product(s)...`, durationMs: 0 });
             send({ type: "thought", step: "fetching_product_details", status: "running", content: "Fetching selected product details..." });
@@ -1024,18 +1264,35 @@ User query to classify: "${message}"`;
             send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
             criteria = parseRequirements(message);
 
-            const isReorderQuery = /reorder|ordered|bought|purchased|past order|history/.test(message.toLowerCase());
+            if (intent === "reorder") {
+              if (!reorderTimeline && !reorderTarget) {
+                 const stepClarify = { step: "intent_routing", status: "completed", content: "Missing reorder details, asking clarification.", durationMs: 0 };
+                 steps.push(stepClarify);
+                 send({ type: "thought", ...stepClarify });
+                 
+                 const msg = "Could you please tell me which item you'd like to reorder, or roughly when you bought it? (e.g., 'the cake' or 'last week').";
+                 send({ type: "text", content: msg });
+                 
+                 await prisma.chatMessage.create({
+                    data: { sessionId: session.id, role: "assistant", content: msg },
+                 });
+                 controller.close();
+                 return;
+              }
 
-            if (isReorderQuery) {
               const step1 = { step: "intent_routing", status: "completed", content: "Identified as: Order History Lookup.", durationMs: 0 };
               steps.push(step1);
               send({ type: "thought", ...step1 });
               send({ type: "thought", step: "searching_kapruka", status: "running", content: "Retrieving user's order history..." });
 
               if (userId && userId !== "guest") {
+                const orderWhereClause = reorderTimeline && !isNaN(new Date(reorderTimeline).getTime()) 
+                  ? { createdAt: { gte: new Date(reorderTimeline) } } 
+                  : {};
+                  
                 const userWithOrders = await prisma.user.findUnique({
                   where: { id: userId },
-                  include: { orders: { include: { items: true }, orderBy: { createdAt: "desc" } } },
+                  include: { orders: { where: orderWhereClause, include: { items: true }, orderBy: { createdAt: "desc" } } },
                 });
 
                 let orderProducts: KaprukaProduct[] = [];
@@ -1044,6 +1301,9 @@ User query to classify: "${message}"`;
                   for (const order of userWithOrders.orders) {
                     pastOrdersContext += `- Order Ref: ${order.id}, Date: ${order.createdAt.toISOString().split("T")[0]}, Status: ${order.status}, Total: LKR ${order.totalLKR}\n`;
                     for (const item of order.items) {
+                      if (reorderTarget && !item.productName.toLowerCase().includes(reorderTarget.toLowerCase())) {
+                        continue;
+                      }
                       pastOrdersContext += `  * Item: ${item.productName} (ID: ${item.productId}), Qty: ${item.quantity}, Price: LKR ${item.priceLKR}\n`;
                       orderProducts.push({
                         id: item.productId,
@@ -1552,6 +1812,11 @@ const STATIC_FOLLOW_UPS: Record<Intent, string[]> = {
     "How long does standard delivery take?",
     "Can I return a product if it's damaged?",
   ],
+  reorder: [
+    "Reorder the exact same items",
+    "What did I buy last month?",
+    "Track my past orders",
+  ],
 };
 
 // ── Static response fallback (if no Gemini API key) ───────────────────────
@@ -1571,6 +1836,10 @@ function generateFallback(intent: Intent, message: string, products: KaprukaProd
       return "I can connect you with verified home service technicians in your area.";
     case "qa":
       return "Kapruka accepts Credit/Debit cards, bank transfers, and cash on delivery for select areas.";
+    case "reorder":
+      return products.length > 0
+        ? `I found ${products.length} past purchases. Click "Buy Now" on any product to reorder it.`
+        : "I couldn't find any past orders matching that description.";
   }
 }
 

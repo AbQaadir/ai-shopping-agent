@@ -31,7 +31,7 @@ interface SourcingContextType {
   handleReset: () => void;
   handleSelectHistory: (id: string) => void;
   handleStopGeneration: () => void;
-  handleSendMessage: (text: string, files: File[]) => Promise<void>;
+  handleSendMessage: (text: string, files: File[], editMessageId?: string) => Promise<void>;
   handleBuyProduct: (product: InlineProduct) => void;
   handleOrderCart: (products: InlineProduct[]) => void;
   handleSuggestionClick: (suggestion?: string) => void;
@@ -84,8 +84,20 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const activeUserId = user?.id || guestId || "guest-pending";
   const isSharedReadOnly = activeSessionOwnerId !== null && activeSessionOwnerId !== activeUserId && activeUserId !== "guest-pending";
 
-  const [country, setCountry] = useState("LK");
-  const [currency, setCurrency] = useState("USD");
+  const [country, setCountryState] = useState(() =>
+    (typeof window !== "undefined" && localStorage.getItem("kapruka_country")) || "LK"
+  );
+  const [currency, setCurrencyState] = useState(() =>
+    (typeof window !== "undefined" && localStorage.getItem("kapruka_currency")) || "LKR"
+  );
+  const setCountry = useCallback((c: string) => {
+    setCountryState(c);
+    if (typeof window !== "undefined") localStorage.setItem("kapruka_country", c);
+  }, []);
+  const setCurrency = useCallback((c: string) => {
+    setCurrencyState(c);
+    if (typeof window !== "undefined") localStorage.setItem("kapruka_currency", c);
+  }, []);
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isViewingCart, setIsViewingCart] = useState<boolean>(false);
@@ -120,25 +132,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       .catch(err => console.warn("Failed to load user addresses:", err));
   }, [user?.id]);
 
-  useEffect(() => {
-    const detectLocation = async () => {
-      try {
-        const res = await fetch("https://ipapi.co/json/");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.country_code) {
-            setCountry(data.country_code);
-          }
-          if (data.currency) {
-            setCurrency(data.currency);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not auto-detect location/currency by IP:", err);
-      }
-    };
-    detectLocation();
-  }, []);
+  // Currency and country are now persisted to localStorage via the wrapped setters above.
+  // IP-based auto-detection has been removed — users control this from the sidebar Language & Currency picker.
 
   // Hydrate user cart when user switches or session changes
   useEffect(() => {
@@ -388,7 +383,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setIsGenerating(false);
   };
 
-  const handleSendMessage = async (text: string, files: File[]) => {
+  const handleSendMessage = async (text: string, files: File[], editMessageId?: string) => {
     if (!user) {
       const userMessageCount = messages.filter(m => m.sender === "user").length;
       if (userMessageCount >= 3) {
@@ -409,21 +404,40 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     const userMessageId = `msg-${Date.now()}`;
     const timestamp = new Date();
 
-    const newUserMessage: Message = {
-      id: userMessageId,
-      sender: "user",
-      text: text || `Attached ${files.length} document(s) for review`,
-      timestamp,
-      status: "sending",
-      inlineProducts: selectedProducts.length > 0 ? [...selectedProducts] : undefined
-    };
+    let userMessageIdToUpdate = userMessageId;
+    const isEdit = !!editMessageId;
+    let historyMessages: Message[] = [];
+
+    if (isEdit) {
+      const targetIndex = messages.findIndex(m => m.id === editMessageId);
+      if (targetIndex !== -1) {
+        const targetUserMsg = messages[targetIndex];
+        const updatedUserMsg: Message = {
+          ...targetUserMsg,
+          text: text,
+          status: "sending" as const,
+        };
+        userMessageIdToUpdate = editMessageId;
+        const truncated = messages.slice(0, targetIndex);
+        historyMessages = [...truncated, updatedUserMsg];
+        setMessages(historyMessages);
+      }
+    } else {
+      const newUserMessage: Message = {
+        id: userMessageId,
+        sender: "user",
+        text: text || `Attached ${files.length} document(s) for review`,
+        timestamp,
+        status: "sending",
+        inlineProducts: selectedProducts.length > 0 ? [...selectedProducts] : undefined
+      };
+      historyMessages = [...messages, newUserMessage];
+      setMessages(historyMessages);
+    }
 
     const selectedProductIds = selectedProducts.map(p => p.id);
     const isComparisonQuery = selectedProductIds.length > 0;
     setSelectedProducts([]);
-
-    const updatedMessages = [...messages, newUserMessage];
-    setMessages(updatedMessages);
     setIsChatting(true);
     setIsGenerating(true);
     setActiveQueryText(text || "Uploaded design request");
@@ -468,7 +482,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       };
 
       setMessages(prev => {
-        const updated = prev.map(m => m.id === userMessageId ? { ...m, status: "sent" as const } : m);
+        const updated = prev.map(m => m.id === userMessageIdToUpdate ? { ...m, status: "sent" as const } : m);
         return [...updated, newAiMessage];
       });
 
@@ -481,7 +495,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           userId: activeUserId,
           country,
           currency,
-          selectedProductIds
+          selectedProductIds,
+          editMessageId: isEdit ? editMessageId : undefined
         }),
         signal: abortController.signal
       });
@@ -683,6 +698,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   stockStatus: packet.stockStatus,
                   stockQty: packet.stockQty,
                   savedAddress: packet.savedAddress,
+                  savedAddresses: packet.savedAddresses,
                   geocodedLocation: packet.geocodedLocation,
                   confirmedQuantity: packet.confirmedQuantity,
                   confirmedAddress: packet.confirmedAddress,
@@ -691,6 +707,11 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   orderId: packet.orderId,
                   errorMessage: packet.errorMessage,
                 } as OrderFlowStepData;
+
+                if (packet.cartItems && Array.isArray(packet.cartItems)) {
+                  setCartItems(packet.cartItems);
+                }
+
                 setMessages(prev => prev.map(m =>
                   m.id === aiMessageId
                     ? { ...m, activeToolCall: null, orderFlowStep }
@@ -749,7 +770,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         if (h.id === currentSessionId) {
           return {
             ...h,
-            messages: [...updatedMessages.map(um => um.id === userMessageId ? { ...um, status: "sent" as const } : um), finalMappedAi]
+            messages: [...historyMessages.map(um => um.id === userMessageIdToUpdate ? { ...um, status: "sent" as const } : um), finalMappedAi]
           };
         }
         return h;

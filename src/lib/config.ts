@@ -22,5 +22,9 @@ export const config = {
   },
   db: {
     url: getEnv("DATABASE_URL", false), // Prisma reads this directly, but validation helps debug container startups
+  },
+  brightData: {
+    apiKey: getEnv("BRIGHTDATA_API_KEY", false),
+    zone: getEnv("BRIGHTDATA_ZONE", false),
   }
 };
