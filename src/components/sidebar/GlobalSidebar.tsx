@@ -5,6 +5,9 @@ import {
   PanelLeftClose,
   PanelLeft,
   X,
+  SquarePen,
+  History,
+  Globe,
 } from "lucide-react";
 import SidebarHistoryList from "./SidebarHistoryList";
 import LanguagePopover from "../header/LanguagePopover";
@@ -31,49 +34,6 @@ const GoogleIcon = () => (
     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
     <path fill="none" d="M1 1h22v22H1z" />
-  </svg>
-);
-
-const NewChatIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <defs>
-      <linearGradient id="newChatGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#4f46e5" />
-        <stop offset="50%" stopColor="#7c3aed" />
-        <stop offset="100%" stopColor="#db2777" />
-      </linearGradient>
-    </defs>
-    <path d="M12 2C6.48 2 2 6.48 2 12c0 2.02.6 3.9 1.63 5.48L2 22l4.64-1.54C8.16 21.46 9.99 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" fill="url(#newChatGrad)" />
-    <path d="M12 8v8M8 12h8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const HistoryIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <defs>
-      <linearGradient id="historyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#06b6d4" />
-        <stop offset="50%" stopColor="#3b82f6" />
-        <stop offset="100%" stopColor="#6366f1" />
-      </linearGradient>
-    </defs>
-    <circle cx="12" cy="12" r="9" fill="url(#historyGrad)" fillOpacity="0.08" />
-    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="url(#historyGrad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M3 3v5h5" stroke="url(#historyGrad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M12 7v5l4 2" stroke="url(#historyGrad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const GlobeIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <path d="M12 2a10 10 0 0 0-10 10" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" />
-    <path d="M12 2a10 10 0 0 1 10 10" stroke="#EA4335" strokeWidth="2" strokeLinecap="round" />
-    <path d="M2 12a10 10 0 0 0 10 10" stroke="#FBBC05" strokeWidth="2" strokeLinecap="round" />
-    <path d="M22 12a10 10 0 0 1-10 10" stroke="#34A853" strokeWidth="2" strokeLinecap="round" />
-    <path d="M12 2a4 10 0 0 0 0 20" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" />
-    <path d="M12 2a4 10 0 0 1 0 20" stroke="#EA4335" strokeWidth="2" strokeLinecap="round" />
-    <path d="M2 12h20" stroke="#FBBC05" strokeWidth="2" strokeLinecap="round" />
-    <path d="M12 2v20" stroke="#34A853" strokeWidth="2" strokeLinecap="round" />
   </svg>
 );
 
@@ -170,7 +130,7 @@ export default function GlobalSidebar({
             } ${isCollapsed ? "justify-center gap-0 px-3 py-3" : "gap-3 px-3 py-3"}`}
             title="New chat"
           >
-            <NewChatIcon className={`w-[19px] h-[19px] shrink-0 transition-transform duration-200 group-hover:scale-105 ${activeHistoryId === undefined ? "" : "opacity-80 group-hover:opacity-100"}`} />
+            <SquarePen size={19} className={activeHistoryId === undefined ? "text-[#402970] shrink-0" : "text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"} />
             <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap ${
               isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
             }`}>
@@ -191,7 +151,7 @@ export default function GlobalSidebar({
               title="History"
             >
               <div className={`flex items-center ${isCollapsed ? "gap-0" : "gap-3"}`}>
-                <HistoryIcon className="w-[19px] h-[19px] shrink-0 transition-transform duration-200 group-hover:scale-105" />
+                <History size={19} className="text-[#402970]/80 shrink-0" />
                 <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap font-extrabold text-[13px] text-slate-800 tracking-wide ${
                   isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
                 }`}>
@@ -225,7 +185,7 @@ export default function GlobalSidebar({
               }`}
               title={`Language & Currency: English-${currency}`}
             >
-              <GlobeIcon className="w-[19px] h-[19px] shrink-0 transition-transform duration-200 group-hover:scale-105" />
+              <Globe size={19} className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0" />
               <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap group-hover:text-[#402970] transition-colors ${
                 isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
               }`}>
