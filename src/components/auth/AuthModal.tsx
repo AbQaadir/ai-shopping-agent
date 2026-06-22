@@ -19,7 +19,7 @@ const CONTENT = {
     icon: "💬",
     iconBg: "from-blue-500/20 to-indigo-500/20",
     title: "You've reached the guest limit",
-    subtitle: "You've used your 3 free messages. Sign in to keep chatting — it's free and takes just a second.",
+    subtitle: "You've used your 9 free messages. Sign in to keep chatting — it's free and takes just a second.",
   },
   checkout: {
     icon: "🛒",

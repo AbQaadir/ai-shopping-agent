@@ -133,7 +133,38 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   // Currency and country are now persisted to localStorage via the wrapped setters above.
-  // IP-based auto-detection has been removed — users control this from the sidebar Language & Currency picker.
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const persistedCountry = localStorage.getItem("kapruka_country");
+      const persistedCurrency = localStorage.getItem("kapruka_currency");
+
+      if (!persistedCountry && !persistedCurrency) {
+        const detectLocation = async () => {
+          try {
+            const res = await fetch("https://ipapi.co/json/");
+            if (res.ok) {
+              const data = await res.json();
+              if (data.country_code) {
+                setCountry(data.country_code);
+              }
+              if (data.currency) {
+                const supportedCurrencies = ["USD", "EUR", "GBP", "CAD", "AUD", "LKR"];
+                const detectedCurrency = data.currency.toUpperCase();
+                if (supportedCurrencies.includes(detectedCurrency)) {
+                  setCurrency(detectedCurrency);
+                } else {
+                  setCurrency("USD");
+                }
+              }
+            }
+          } catch (err) {
+            console.warn("Could not auto-detect location/currency by IP:", err);
+          }
+        };
+        detectLocation();
+      }
+    }
+  }, [setCountry, setCurrency]);
 
   // Hydrate user cart when user switches or session changes
   useEffect(() => {
@@ -386,7 +417,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const handleSendMessage = async (text: string, files: File[], editMessageId?: string) => {
     if (!user) {
       const userMessageCount = messages.filter(m => m.sender === "user").length;
-      if (userMessageCount >= 3) {
+      if (userMessageCount >= 9) {
         openAuthModal("message_limit");
         return;
       }
