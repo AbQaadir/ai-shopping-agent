@@ -770,7 +770,7 @@ export default function ChatTimeline({
                     {/* Text bubble & Custom Inline Input Editor */}
                     {editingMessageId === msg.id ? (
                       /* Custom Inline Input Editor */
-                      <div className="w-full max-w-md sm:max-w-lg md:max-w-xl flex flex-col gap-2 mt-1 animate-fadeIn">
+                      <div className="w-full sm:min-w-[400px] flex flex-col gap-2 mt-1 animate-fadeIn">
                         <div className="relative border border-[#402970]/30 focus-within:border-[#402970] focus-within:ring-2 focus-within:ring-[#402970]/10 rounded-xl bg-slate-50 overflow-hidden transition-all duration-200">
                           <textarea
                             value={editingText}
@@ -816,7 +816,7 @@ export default function ChatTimeline({
 
                         {/* Hover Actions (Copy / Edit) */}
                         {!isGenerating && (
-                          <div className="absolute -bottom-3.5 right-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 flex items-center bg-white border border-slate-200/80 shadow-xs rounded-lg p-0.5 z-10 gap-0.5 select-none">
+                          <div className="absolute -bottom-5 right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 flex items-center bg-white border border-slate-200/80 shadow-xs rounded-lg p-0.5 z-10 gap-0.5 select-none">
                             <button
                               onClick={() => handleCopy(msg.id, msg.text)}
                               className="p-1 hover:bg-slate-50 rounded text-slate-500 hover:text-[#402970] transition-colors cursor-pointer"
@@ -1126,16 +1126,12 @@ export default function ChatTimeline({
                   </div>
                 )}
 
-                {/* Timestamp */}
-                <div className={`flex items-center gap-1.5 text-[10px] text-slate-400 ${isUser ? "justify-end" : "justify-start"}`}>
-                  <span>{formatTime(msg.timestamp)}</span>
-                  {isUser && (
-                    <span>
-                      {msg.status === "sending" && <Clock size={10} className="animate-spin text-[#402970]" />}
-                      {msg.status === "sent" && <Check size={10} className="text-emerald-500 stroke-[3]" />}
-                    </span>
-                  )}
-                </div>
+                {/* Timestamp (AI only) */}
+                {!isUser && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 justify-start">
+                    <span>{formatTime(msg.timestamp)}</span>
+                  </div>
+                )}
               </div>
             </div>
           );
