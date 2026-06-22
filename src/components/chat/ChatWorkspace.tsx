@@ -113,11 +113,11 @@ export default function ChatWorkspace({
       )}
 
       {/* Floating mobile trigger & back button */}
-      <div className={`absolute left-6 z-20 flex items-center gap-2.5 bg-white/85 backdrop-blur-md p-1.5 rounded-xl border border-slate-100/80 shadow-xs select-none ${isSharedReadOnly ? 'top-14' : 'top-4'}`}>
+      <div className={`absolute left-6 z-20 select-none flex items-center gap-3 ${isSharedReadOnly ? 'top-14' : 'top-4'}`}>
         {/* Mobile menu trigger */}
         <button
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="md:hidden p-1 -ml-0.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer outline-none"
+          className="md:hidden flex items-center justify-center p-1.5 rounded-lg border bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350 transition-all duration-200 cursor-pointer shadow-xs outline-none"
           title="Open menu"
         >
           <Menu size={15} />
@@ -125,7 +125,7 @@ export default function ChatWorkspace({
         
         <button
           onClick={onBackToLanding}
-          className="flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors p-1"
+          className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350"
         >
           <ChevronLeft size={13} />
           Back  
