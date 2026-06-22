@@ -140,25 +140,63 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
       if (!persistedCountry && !persistedCurrency) {
         const detectLocation = async () => {
+          let countryCode: string | null = null;
+
+          // 1. Try ipapi.co
           try {
             const res = await fetch("https://ipapi.co/json/");
             if (res.ok) {
               const data = await res.json();
               if (data.country_code) {
-                setCountry(data.country_code);
-              }
-              if (data.currency) {
-                const supportedCurrencies = ["USD", "EUR", "GBP", "CAD", "AUD", "LKR"];
-                const detectedCurrency = data.currency.toUpperCase();
-                if (supportedCurrencies.includes(detectedCurrency)) {
-                  setCurrency(detectedCurrency);
-                } else {
-                  setCurrency("USD");
-                }
+                countryCode = data.country_code.toUpperCase();
               }
             }
           } catch (err) {
-            console.warn("Could not auto-detect location/currency by IP:", err);
+            console.warn("ipapi.co failed, trying ip-api.com...", err);
+          }
+
+          // 2. Try ip-api.com
+          if (!countryCode) {
+            try {
+              const res = await fetch("https://ip-api.com/json");
+              if (res.ok) {
+                const data = await res.json();
+                if (data.countryCode) {
+                  countryCode = data.countryCode.toUpperCase();
+                }
+              }
+            } catch (err) {
+              console.warn("ip-api.com failed, trying ipinfo.io...", err);
+            }
+          }
+
+          // 3. Try ipinfo.io
+          if (!countryCode) {
+            try {
+              const res = await fetch("https://ipinfo.io/json");
+              if (res.ok) {
+                const data = await res.json();
+                if (data.country) {
+                  countryCode = data.country.toUpperCase();
+                }
+              }
+            } catch (err) {
+              console.warn("ipinfo.io failed.", err);
+            }
+          }
+
+          // Set location and currency based on detected country code
+          if (countryCode) {
+            setCountry(countryCode);
+            if (countryCode === "LK") {
+              setCurrency("LKR");
+            } else {
+              setCurrency("USD");
+            }
+          } else {
+            // Default baseline if all fail
+            setCountry("LK");
+            setCurrency("LKR");
           }
         };
         detectLocation();

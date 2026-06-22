@@ -1194,7 +1194,7 @@ Respond ONLY with valid JSON matching this schema:
                   label: c.subcategory !== "Main Category Page" ? c.subcategory : c.mainCategory
                 }));
 
-                const scrapedResults = await scrapeMultipleCategoryUrls(urlsToScrape, 3, 150);
+                const scrapedResults = await scrapeMultipleCategoryUrls(urlsToScrape, 3, 150, { targetCurrency: currency });
                 
                 // Merge and deduplicate products within this semantic group
                 const mergedProducts: KaprukaProduct[] = [];
