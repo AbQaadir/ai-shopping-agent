@@ -1203,7 +1203,8 @@ Respond ONLY with valid JSON matching this schema:
                   for (const p of result.products) {
                     if (!seenIds.has(p.id)) {
                       seenIds.add(p.id);
-                      mergedProducts.push(p);
+                      p.currency = currency || p.currency || "LKR";
+                      mergedProducts.push(p as any);
                     }
                   }
                 }
@@ -1385,7 +1386,11 @@ Respond ONLY with valid JSON matching this schema:
                 for (const settled of variantSettled) {
                   if (settled.status === "fulfilled") {
                     for (const p of settled.value) {
-                      if (!seenIds.has(p.id)) { seenIds.add(p.id); rawProducts.push(p); }
+                      if (!seenIds.has(p.id)) { 
+                        seenIds.add(p.id); 
+                        p.currency = currency || p.currency || "LKR";
+                        rawProducts.push(p); 
+                      }
                     }
                   }
                 }
