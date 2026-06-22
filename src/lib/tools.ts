@@ -495,10 +495,10 @@ export function parseRequirements(message: string): SourcingCriteria {
 export async function pillar6_browseCategory(
   categoryUrl: string,
   categoryName: string,
-  options: { currency?: string } = {}
+  options: { currency?: string, country?: string } = {}
 ): Promise<KaprukaProduct[]> {
   try {
-    const products = await scrapeProductsFromCategoryUrl(categoryUrl, { targetCurrency: options.currency });
+    const products = await scrapeProductsFromCategoryUrl(categoryUrl, { country: options.country });
     if (products.length > 0) {
       // Normalise scraped products to KaprukaProduct shape
       return products.slice(0, 50).map((p) => ({

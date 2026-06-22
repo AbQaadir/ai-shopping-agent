@@ -303,16 +303,16 @@ function extractFromDom($: cheerio.CheerioAPI): ScrapedProduct[] {
  */
 export async function scrapeProductsFromCategoryUrl(
   url: string,
-  options?: { targetCurrency?: string }
+  options?: { country?: string }
 ): Promise<ScrapedProduct[]> {
   let html = '';
   let usedBrightData = false;
 
-  if (config.brightData.apiKey && config.brightData.zone) {
+  const targetCountry = options?.country?.toUpperCase() || 'LK';
+
+  if (targetCountry === 'LK' && config.brightData.apiKey && config.brightData.zone) {
     try {
-      const targetCurr = options?.targetCurrency?.toUpperCase() || 'LKR';
-      const scrapeCountry = targetCurr === 'LKR' ? 'lk' : 'us';
-      console.log(`[categoryPageScraper] Fetching ${url} via Bright Data targeting ${scrapeCountry.toUpperCase()}...`);
+      console.log(`[categoryPageScraper] Fetching ${url} via Bright Data targeting LK...`);
       const bdResponse = await fetch('https://api.brightdata.com/request', {
         method: 'POST',
         headers: {
@@ -323,7 +323,7 @@ export async function scrapeProductsFromCategoryUrl(
           zone: config.brightData.zone,
           url: url,
           format: 'raw',
-          country: scrapeCountry
+          country: 'lk'
         }),
         signal: AbortSignal.timeout(30000)
       });
@@ -398,7 +398,7 @@ export async function scrapeMultipleCategoryUrls(
   urls: Array<{ url: string; label: string }>,
   maxConcurrent: number = 3,
   staggerMs: number = 150,
-  options?: { targetCurrency?: string }
+  options?: { country?: string }
 ): Promise<Array<{ label: string; products: ScrapedProduct[] }>> {
   const results: Array<{ label: string; products: ScrapedProduct[] }> = [];
 

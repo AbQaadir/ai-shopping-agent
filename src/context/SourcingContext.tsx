@@ -142,7 +142,6 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         const detectLocation = async () => {
           let countryCode: string | null = null;
 
-          // 1. Try ipapi.co
           try {
             const res = await fetch("https://ipapi.co/json/");
             if (res.ok) {
@@ -152,37 +151,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
               }
             }
           } catch (err) {
-            console.warn("ipapi.co failed, trying ip-api.com...", err);
-          }
-
-          // 2. Try ip-api.com
-          if (!countryCode) {
-            try {
-              const res = await fetch("https://ip-api.com/json");
-              if (res.ok) {
-                const data = await res.json();
-                if (data.countryCode) {
-                  countryCode = data.countryCode.toUpperCase();
-                }
-              }
-            } catch (err) {
-              console.warn("ip-api.com failed, trying ipinfo.io...", err);
-            }
-          }
-
-          // 3. Try ipinfo.io
-          if (!countryCode) {
-            try {
-              const res = await fetch("https://ipinfo.io/json");
-              if (res.ok) {
-                const data = await res.json();
-                if (data.country) {
-                  countryCode = data.country.toUpperCase();
-                }
-              }
-            } catch (err) {
-              console.warn("ipinfo.io failed.", err);
-            }
+            console.warn("Location detection failed.", err);
           }
 
           // Set location and currency based on detected country code
@@ -194,7 +163,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
               setCurrency("USD");
             }
           } else {
-            // Default baseline if all fail
+            // Default baseline if failed
             setCountry("LK");
             setCurrency("LKR");
           }
