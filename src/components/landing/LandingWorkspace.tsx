@@ -215,13 +215,11 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           <Menu size={20} />
         </button>
 
-        {/* Brand Dropdown-like display */}
-        <div className="flex items-center gap-1 bg-[#402970]/5 px-3 py-1.5 rounded-full border border-[#402970]/10 select-none">
-          <span className="text-xs font-extrabold bg-gradient-to-r from-purple-700 to-[#402970] bg-clip-text text-transparent">
-            Kapuruka AI
-          </span>
-          <Sparkles size={11} className="text-[#402970] animate-pulse" />
-        </div>
+        <img
+          src="/kapuruka-logo.jpg"
+          alt="Kapuruka Logo"
+          className="h-8 w-auto object-contain rounded-md select-none"
+        />
 
         <div className="flex items-center gap-1.5">
           {/* New Chat shortcut */}
