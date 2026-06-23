@@ -5,6 +5,7 @@ import { MapPin, User, Phone, ShoppingBag, Plus, Minus, Loader2, CheckCircle, Ex
 import { useSourcing } from "@/context/SourcingContext";
 import type { InlineProduct, CheckoutLink } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
+import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
 
 interface CheckoutCardProps {
   product: InlineProduct;
@@ -233,25 +234,6 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
       if (status === "OK" && results[0]) {
         const formattedAddress = results[0].formatted_address;
         setAddress(formattedAddress);
-
-        const addressComponents = results[0].address_components;
-        let foundCity = "";
-        for (const comp of addressComponents) {
-          if (
-            comp.types.includes("locality") ||
-            comp.types.includes("sublocality_level_1") ||
-            comp.types.includes("sublocality") ||
-            comp.types.includes("administrative_area_level_3")
-          ) {
-            foundCity = comp.long_name;
-            break;
-          }
-        }
-        if (foundCity) {
-          setCity(foundCity);
-        } else {
-          setCity("Colombo");
-        }
       }
     });
   };
@@ -300,19 +282,17 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
     };
   }, []);
 
-  const handleCityChange = async (val: string) => {
+  const handleCityChange = (val: string) => {
     setCity(val);
-    if (val.length >= 2) {
-      try {
-        const res = await fetch(`/api/delivery?q=${encodeURIComponent(val)}&_t=${Date.now()}`);
-        if (res.ok) {
-          const data = await res.json();
-          setCitySuggestions(data);
-          setShowSuggestions(true);
-        }
-      } catch (err) {
-        console.error("Failed to fetch cities:", err);
-      }
+    if (val.trim().length >= 1) {
+      const searchVal = val.toLowerCase();
+      const filtered = KAPRUKA_CITIES.filter((c) =>
+        c.toLowerCase().includes(searchVal)
+      )
+      .slice(0, 10)
+      .map((name) => ({ name }));
+      setCitySuggestions(filtered);
+      setShowSuggestions(true);
     } else {
       setCitySuggestions([]);
       setShowSuggestions(false);
@@ -327,6 +307,11 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
   const handleConfirmCheckout = async () => {
     if (!name.trim() || !phone.trim() || !address.trim() || !city.trim()) {
       alert("Please fill in all checkout details before confirming.");
+      return;
+    }
+
+    if (!KAPRUKA_CITIES_SET.has(city)) {
+      alert("Please select a valid city from the suggestions dropdown.");
       return;
     }
 

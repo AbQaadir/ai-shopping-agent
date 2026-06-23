@@ -1,6 +1,7 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 import { findRelevantCategories } from "@/lib/categories";
 import {
   extractCityFromMessage,
@@ -769,24 +770,47 @@ Respond ONLY with valid JSON matching this schema:
 
           send({ type: "thought", step: "intent_routing", status: "completed", content: `Matched address: ${matchedAddress ? (matchedAddress as any).label || (matchedAddress as any).type : "Default"}`, durationMs: 0 });
 
-          // Fast-track straight to payment_ask
-          const newCheckoutState: CheckoutState = {
-            phase: "payment_ask",
-            cartItems: currentCart,
-            savedAddress: savedAddr ?? undefined,
-            confirmedAddress: matchedAddress,
-            confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
-          };
-          await saveCheckoutState(sessionId, newCheckoutState);
+          // Validate that the matched address has a valid Kapruka delivery city
+          const isCityValid = matchedAddress && matchedAddress.city && KAPRUKA_CITIES_SET.has(matchedAddress.city);
 
-          const ofs = { phase: "payment_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: matchedAddress };
-          send({ type: "order_flow_step", ...ofs });
-          
-          const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. Finally, how would you like to pay? (Cash on Delivery or Card)`;
-          await streamWords(t);
-          await saveOrderMessage(t, ofs);
-          controller.close();
-          return;
+          if (isCityValid) {
+            // Fast-track straight to payment_ask
+            const newCheckoutState: CheckoutState = {
+              phase: "payment_ask",
+              cartItems: currentCart,
+              savedAddress: savedAddr ?? undefined,
+              confirmedAddress: matchedAddress,
+              confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
+            };
+            await saveCheckoutState(sessionId, newCheckoutState);
+
+            const ofs = { phase: "payment_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: matchedAddress };
+            send({ type: "order_flow_step", ...ofs });
+            
+            const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. Finally, how would you like to pay? (Cash on Delivery or Card)`;
+            await streamWords(t);
+            await saveOrderMessage(t, ofs);
+            controller.close();
+            return;
+          } else {
+            // Force delivery_ask phase to let user select/configure a valid address
+            const newCheckoutState: CheckoutState = {
+              phase: "delivery_ask",
+              cartItems: currentCart,
+              savedAddress: savedAddr ?? undefined,
+              confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
+            };
+            await saveCheckoutState(sessionId, newCheckoutState);
+
+            const ofs = { phase: "delivery_ask", cartItems: currentCart, savedAddress: savedAddr, savedAddresses: allUserAddresses };
+            send({ type: "order_flow_step", ...ofs });
+
+            const t = `I've added the item(s) to your cart, but I noticed your address does not have a verified Kapruka delivery city. Please confirm or select your delivery address below:`;
+            await streamWords(t);
+            await saveOrderMessage(t, ofs);
+            controller.close();
+            return;
+          }
         }
 
         // ── Action: cart_modify ────────────────────────────────────────────

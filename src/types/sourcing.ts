@@ -50,7 +50,7 @@ export interface SavedAddress {
   name: string;
   phone: string;
   address: string;
-  city: string;
+  city: string; // Must be one of KAPRUKA_CITIES from @/constants/cities
 }
 
 /** Categorized saved delivery address per user */
@@ -61,7 +61,7 @@ export interface UserAddress {
   recipientName: string;  // who receives delivery
   phone: string;          // delivery contact number
   addressLine: string;    // street / rough address text
-  city: string;
+  city: string;           // Must be one of KAPRUKA_CITIES from @/constants/cities
   lat?: number;           // from Google Maps pin
   lng?: number;
   formattedAddress?: string; // full formatted address from geocoder

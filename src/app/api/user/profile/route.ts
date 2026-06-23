@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 
 /**
  * GET /api/user/profile?userId=X
@@ -56,7 +57,20 @@ export async function PATCH(req: NextRequest) {
     const updateData: Record<string, any> = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
-    if (addresses !== undefined) updateData.addresses = addresses;
+    if (addresses !== undefined) {
+      if (!Array.isArray(addresses)) {
+        return NextResponse.json({ error: "addresses must be an array" }, { status: 400 });
+      }
+      for (const addr of addresses) {
+        if (!addr.city || typeof addr.city !== "string") {
+          return NextResponse.json({ error: "city is required for all addresses" }, { status: 400 });
+        }
+        if (!KAPRUKA_CITIES_SET.has(addr.city)) {
+          return NextResponse.json({ error: `Invalid city: ${addr.city}` }, { status: 400 });
+        }
+      }
+      updateData.addresses = addresses;
+    }
     if (profileComplete !== undefined) updateData.profileComplete = profileComplete;
 
     const updatedUser = await prisma.user.update({

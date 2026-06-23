@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { pillar1_createOrderLink } from "@/lib/tools";
+import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -33,6 +34,13 @@ export async function POST(req: NextRequest) {
     if (!name || !phone || !address || !city) {
       return NextResponse.json(
         { error: "Recipient details must include name, phone, address, and city" },
+        { status: 400 }
+      );
+    }
+
+    if (!KAPRUKA_CITIES_SET.has(city)) {
+      return NextResponse.json(
+        { error: `Invalid delivery city: ${city}. Must be a valid Kapruka city.` },
         { status: 400 }
       );
     }

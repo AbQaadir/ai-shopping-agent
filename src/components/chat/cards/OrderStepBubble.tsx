@@ -22,6 +22,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useSourcing } from "@/context/SourcingContext";
 import { cleanProductTitle } from "@/lib/product";
+import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
 
 interface OrderStepBubbleProps {
   step: OrderFlowStepData;
@@ -776,6 +777,44 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
   const mapInstanceRef = useRef<any>(null);
   const markerInstanceRef = useRef<any>(null);
 
+  const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleCityChange = (val: string) => {
+    setManualCity(val);
+    if (val.trim().length >= 1) {
+      const searchVal = val.toLowerCase();
+      const filtered = KAPRUKA_CITIES.filter((c) =>
+        c.toLowerCase().includes(searchVal)
+      )
+      .slice(0, 10)
+      .map((name) => ({ name }));
+      setCitySuggestions(filtered);
+      setShowSuggestions(true);
+    } else {
+      setCitySuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (cityName: string) => {
+    setManualCity(cityName);
+    setShowSuggestions(false);
+  };
+
   const geo = step.geocodedLocation;
 
   const initMap = async () => {
@@ -995,7 +1034,7 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
     }
   };
 
-  const canConfirm = mapsLoadFailed ? manualAddress.trim().length > 3 : !!confirmedAddress;
+  const canConfirm = mapsLoadFailed ? (manualAddress.trim().length > 3 && KAPRUKA_CITIES_SET.has(manualCity)) : !!confirmedAddress;
 
   return (
     <div className="w-full bg-white border border-slate-100 rounded-[20px] shadow-xs p-5 sm:p-6 animate-fadeInScale select-none mt-4">
@@ -1028,16 +1067,30 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
                   className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50"
                 />
               </div>
-              <div className="flex flex-col gap-1 sm:col-span-2">
+              <div className="flex flex-col gap-1 sm:col-span-2 relative" ref={suggestionsRef}>
                 <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">City</label>
                 <input
                   type="text"
-                  placeholder="e.g. Colombo 3"
+                  placeholder="Select or search delivery city"
                   value={manualCity}
-                  onChange={(e) => setManualCity(e.target.value)}
+                  onChange={(e) => handleCityChange(e.target.value)}
                   disabled={submitted || !isActive}
                   className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50"
                 />
+                {showSuggestions && citySuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 flex flex-col gap-0.5 max-h-40 overflow-y-auto">
+                    {citySuggestions.map((sug) => (
+                      <button
+                        key={sug.name}
+                        type="button"
+                        onClick={() => handleSelectSuggestion(sug.name)}
+                        className="w-full text-left px-2.5 py-1.5 text-xs text-slate-700 font-semibold hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+                      >
+                        {sug.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </>
