@@ -2,7 +2,7 @@
 
 import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
-import { Menu, Paperclip, Search, Send, ShoppingCart, User, X, Sparkles, SquarePen } from "lucide-react";
+import { Menu, Paperclip, Search, Send, ShoppingCart, User, X, Sparkles, SquarePen, Compass, CreditCard, Package, RefreshCw } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 interface LandingWorkspaceProps {
@@ -19,6 +19,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -42,6 +43,24 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       tx.style.height = `${tx.scrollHeight}px`;
     }
   }, [inputText]);
+
+  // Handle mouse wheel horizontal scroll on product carousel
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const handleWheelScroll = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheelScroll, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", handleWheelScroll);
+    };
+  }, []);
 
   // Autocomplete fetch logic
   useEffect(() => {
@@ -161,7 +180,17 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   };
 
   return (
-    <div className="flex-1 w-full flex flex-col overflow-hidden h-full relative bg-[#faf9f6]">
+    <div className="flex-1 w-full flex flex-col overflow-hidden h-full relative bg-[#fbfbfe]">
+      {/* Background World Map Watermark */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none z-0"
+        style={{
+          backgroundImage: "url('/world.svg')",
+          filter: "invert(18%) sepia(26%) saturate(3025%) hue-rotate(241deg) brightness(97%) contrast(92%)",
+          opacity: 0.1
+        }}
+      />
+
       {/* Desktop Floating Logo (Top-Left) */}
       <div className="hidden md:flex absolute top-6 left-6 items-center z-20">
         <div className="border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden flex items-center justify-center transition-all duration-300 hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 select-none bg-white">
@@ -235,7 +264,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           >
             <SquarePen size={18} />
           </button>
-          
+
           <button
             onClick={() => setIsViewingCart(true)}
             className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none relative"
@@ -270,22 +299,153 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         </div>
       </div>
 
-      {/* Main Content Area (Welcome text + suggestions) */}
-      <div className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-6 flex flex-col justify-start md:justify-center items-center gap-8 relative overflow-y-auto scrollbar-none">
-        {/* Background glow */}
-        <div className="absolute top-[10%] sm:top-[15%] left-1/2 -translate-x-1/2 w-[320px] sm:w-[700px] h-[180px] sm:h-[350px] bg-gradient-to-tr from-[#402970]/6 to-purple-400/6 rounded-full blur-[80px] sm:blur-[120px] pointer-events-none -z-10" />
+      {/* Main Content Area (Welcome text + Mock Chat history) */}
+      <div className="flex-1 w-full max-w-[850px] mx-auto px-4 py-6 flex flex-col justify-start items-center gap-6 relative z-10 overflow-y-auto scrollbar-none select-none">
 
         {/* Welcome Section */}
-        <div className="flex flex-col items-center justify-center text-center w-full gap-4 mt-6 sm:mt-0 select-none animate-fadeIn">
-          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight bg-gradient-to-r from-purple-700 via-[#402970] to-indigo-700 bg-clip-text text-transparent max-w-2xl px-2">
-            Sri Lanka&apos;s AI Shopping, Delivery & Services
+        <div className="flex flex-col items-center justify-center text-center w-full gap-2 pt-20 pb-0 select-none animate-fadeIn">
+          <h1 className="text-2xl sm:text-4xl lg:text-[40px] font-extrabold tracking-tight leading-tight bg-gradient-to-r from-purple-700 via-[#402970] to-indigo-700 bg-clip-text text-transparent max-w-4xl px-2">
+            Skip the Scrolling.
+            <span className="block mt-1">Just Chat to Shop Kapruka</span>
           </h1>
         </div>
+
+        {/* Mock Chat History container */}
+        <div className="w-full space-y-5 pb-24 animate-fadeIn mt-0" style={{ animationDelay: "150ms" }}>
+
+          {/* User Mock Bubble */}
+          <div className="flex items-start justify-end gap-3 w-full">
+            <div className="flex flex-col items-end gap-2 max-w-[85%]">
+              <div className="px-4 py-2.5 font-semibold shadow-xs text-[13px] bg-[#EDE9FE]/75 border border-violet-100/60 text-[#402970] rounded-2xl">
+                What are the services this platform offers?
+              </div>
+            </div>
+            {/* User Avatar Icon from /person.svg */}
+            <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-xs select-none flex items-center justify-center">
+              <img
+                src="/person.svg"
+                alt="User Avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </div>
+
+          {/* AI Mock Bubble */}
+          <div className="flex items-start justify-start gap-3 w-full">
+            {/* AI Avatar Icon from /image.png */}
+            <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-xs select-none mt-1 flex items-center justify-center">
+              <img
+                src="/image.png"
+                alt="Kapuruka AI Avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex-1 flex flex-col gap-4 min-w-0 max-w-[85%]">
+
+              {/* Text Bubble */}
+              <div className="px-4 py-3.5 bg-white border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.015)] rounded-2xl rounded-tl-xs leading-relaxed font-semibold max-w-full text-slate-800 text-[13px]">
+                Okay, this is Kapruka Personal Shopping Agent, so we offer a bunch of services in a conversational way. Here are the core services you can access:
+              </div>
+
+              {/* Product Carousel Mock */}
+              <div className="w-full">
+                <div ref={scrollContainerRef} className="flex overflow-x-auto gap-4 pb-2 scrollbar-none snap-x snap-mandatory scroll-smooth w-full">
+
+                  {/* Card 1: Smart Product Discovery */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <Compass size={18} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Smart Discovery
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Browse categories and search the live product catalog using natural language.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Dynamic Cart Management */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <ShoppingCart size={17} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Dynamic Cart
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Add, modify, or update quantities of items dynamically through chat.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 3: End-to-End Guest Checkout */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <CreditCard size={18} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Guest Checkout
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Gather customer shipping details natively within the conversation.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Live Order Tracking */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <Package size={18} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Order Tracking
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Check the real-time status of an existing order number directly via chat.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 5: Quick Reordering */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <RefreshCw size={17} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Quick Reordering
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Instantly reorder past purchases and gifts with a single message.
+                      </p>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Concluding Question Bubble */}
+              <div className="px-4 py-3 bg-white border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.015)] rounded-2xl rounded-tl-xs leading-relaxed font-semibold max-w-full text-slate-800 text-[13px]">
+                What are you looking for?
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
       </div>
 
       {/* Sticky Bottom Prompt Console (Gemini inspired) */}
-      <div className="w-full bg-gradient-to-t from-[#faf9f6] via-[#faf9f6]/95 to-transparent pt-6 pb-6 px-4 md:px-6 shrink-0 relative z-30">
+      <div className="w-full bg-gradient-to-t from-[#fbfbfe] via-[#fbfbfe]/95 to-transparent pt-6 pb-6 px-4 md:px-6 shrink-0 relative z-30">
         <div className="max-w-[760px] mx-auto w-full relative group">
+
+
           {/* Attached files row above the input pill */}
           {attachedFiles.length > 0 && (
             <div className="flex flex-wrap gap-1.5 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-slate-100 shadow-sm self-start animate-fadeIn mb-2">
@@ -310,7 +470,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             {/* Input card container */}
             <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-200/80 shadow-sm"} rounded-[26px]`}>
               <div className="w-full py-1.5 pl-2.5 pr-2 flex items-center gap-1.5">
-                
+
                 {/* File Attachment Button */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
