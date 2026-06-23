@@ -609,21 +609,9 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
           )}
         </div>
 
-        {/* Street Address / Landmark (Manual Entry) */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-bold text-slate-700">Street Address / Landmark</label>
-          <textarea
-            placeholder="e.g. 123 Galle Road, near Temple"
-            value={confirmedAddress}
-            onChange={(e) => setConfirmedAddress(e.target.value)}
-            disabled={submitted || !isActive}
-            className="w-full h-20 px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50 resize-none"
-          />
-        </div>
-
-        {/* Location Search & Map View (Optional / Pin Selection) */}
+        {/* Location Search & Map View (Compulsory Pin Selection) */}
         <div className="flex flex-col gap-1.5 mt-1">
-          <label className="text-[10px] font-bold text-slate-700">Refine Pin Location on Map (Optional)</label>
+          <label className="text-[10px] font-bold text-slate-700">Pin Location on Map</label>
           <div className="flex gap-2 mb-2">
             <input
               type="text"
@@ -643,7 +631,7 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
             </button>
           </div>
 
-          <div className="w-full h-[250px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-inner">
+          <div className="w-full h-[350px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-inner">
             <LoadScript googleMapsApiKey={MAPS_API_KEY}>
               <GoogleMap
                 mapContainerStyle={{ width: "100%", height: "100%" }}
@@ -663,6 +651,16 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
               </GoogleMap>
             </LoadScript>
           </div>
+
+          {confirmedAddress && (
+            <div className="flex items-start gap-2.5 p-3.5 bg-[#402970]/5 border border-[#402970]/10 rounded-2xl mt-3 animate-fadeIn">
+              <MapPin size={14} className="text-[#402970] mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[9px] font-bold text-slate-500">Pinned Address</p>
+                <p className="text-[11px] text-slate-700 font-bold leading-relaxed mt-0.5">{confirmedAddress}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action CTA */}
