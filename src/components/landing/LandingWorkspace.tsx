@@ -4,20 +4,12 @@ import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
 import { Menu, Paperclip, Search, Send, ShoppingCart, User, X, Sparkles, SquarePen } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
-import PillarSuggestionGrid from "./PillarSuggestionGrid";
 
 interface LandingWorkspaceProps {
   onSend: (text: string, files: File[]) => void;
   onSuggestionClick: (suggestion: string) => void;
 }
 
-const PLACEHOLDERS = [
-  'Try: "Show me chocolate cakes under Rs. 3,000"...',
-  'Try: "Can you deliver flowers to Kandy tomorrow?"...',
-  'Try: "Find organic Sri Lankan tea brands"...',
-  'Try: "Book an AC technician in Colombo"...',
-  'Try: "Order groceries to Negombo"...',
-];
 
 export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingWorkspaceProps) {
   const { setIsMobileSidebarOpen, setIsViewingCart, handleReset } = useSourcing();
@@ -36,11 +28,6 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   const hasFetchedForCurrentInput = useRef(false);
   const fetchedSuggestionsForInput = useRef<string[]>([]);
 
-  // Typing placeholder states
-  const [placeholderText, setPlaceholderText] = useState("");
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [charIndex, setCharIndex] = useState(0);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
   const initials = user
@@ -124,34 +111,6 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       controller.abort();
     };
   }, [inputText]);
-
-  // Typing placeholder effect
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    const currentPhrase = PLACEHOLDERS[placeholderIndex];
-
-    if (isDeleting) {
-      timer = setTimeout(() => {
-        setPlaceholderText((prev) => prev.substring(0, prev.length - 1));
-        setCharIndex((prev) => prev - 1);
-      }, 25);
-    } else {
-      timer = setTimeout(() => {
-        setPlaceholderText(currentPhrase.substring(0, charIndex + 1));
-        setCharIndex((prev) => prev + 1);
-      }, 40);
-    }
-
-    if (!isDeleting && placeholderText === currentPhrase) {
-      timer = setTimeout(() => setIsDeleting(true), 2500);
-    } else if (isDeleting && placeholderText === "") {
-      setIsDeleting(false);
-      setPlaceholderIndex((prev) => (prev + 1) % PLACEHOLDERS.length);
-      setCharIndex(0);
-    }
-
-    return () => clearTimeout(timer);
-  }, [placeholderText, charIndex, isDeleting, placeholderIndex]);
 
   const handleSubmit = () => {
     if (inputText.trim() || attachedFiles.length > 0) {
@@ -319,37 +278,9 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
 
         {/* Welcome Section */}
         <div className="flex flex-col items-center justify-center text-center w-full gap-4 mt-6 sm:mt-0 select-none animate-fadeIn">
-          {/* Animated Center Brand Spark */}
-          <div className="relative w-16 h-16 sm:w-20 sm:h-20 mb-2 flex items-center justify-center">
-            {/* Soft pulsing backing glow */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-[#402970] to-purple-400 rounded-full blur-md opacity-30 animate-pulse" />
-            
-            {/* Spark SVG */}
-            <svg className="w-12 h-12 sm:w-14 sm:h-14 relative z-10 drop-shadow-md" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L15.09 9.09L22 12L15.09 14.91L12 22L8.91 14.91L2 12L8.91 9.09L12 2Z" fill="url(#centerSpark)" />
-              <defs>
-                <linearGradient id="centerSpark" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#402970" />
-                  <stop offset="0.5" stopColor="#6366F1" />
-                  <stop offset="1" stopColor="#A855F7" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-
-          <h1 className="text-2xl sm:text-4xl lg:text-[40px] font-semibold text-slate-800 tracking-tight leading-tight max-w-2xl px-2">
-            {user ? `Hi, ${user.user_metadata?.full_name?.split(" ")[0] || "there"}!` : "Any new ideas to explore?"}
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight bg-gradient-to-r from-purple-700 via-[#402970] to-indigo-700 bg-clip-text text-transparent max-w-2xl px-2">
+            Sri Lanka&apos;s AI Shopping, Delivery & Services
           </h1>
-          {user && (
-            <p className="text-sm sm:text-base text-slate-500 font-medium max-w-md -mt-2">
-              Let&apos;s source something special in Sri Lanka today.
-            </p>
-          )}
-        </div>
-
-        {/* Suggestion Grid/Carousel */}
-        <div className="w-full max-w-4xl animate-fadeInScale">
-          <PillarSuggestionGrid onSuggestionClick={(s) => onSuggestionClick(s)} />
         </div>
       </div>
 
@@ -409,7 +340,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                       setSelectedIndex(-1);
                     }, 180);
                   }}
-                  placeholder={placeholderText || 'Ask Kapuruka Sourcing...'}
+                  placeholder="i want to buy ...."
                   rows={1}
                   className="flex-1 resize-none border-none outline-none text-slate-800 placeholder-slate-400 bg-transparent text-[14px] sm:text-[15px] py-2 leading-normal max-h-[160px] overflow-y-auto scrollbar-none"
                   style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
