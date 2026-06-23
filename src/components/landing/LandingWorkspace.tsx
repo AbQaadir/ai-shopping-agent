@@ -207,19 +207,20 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
 
       {/* Mobile-only minimal header (Sleek Blur & App-like shortcuts) */}
       <div className="md:hidden w-full h-14 border-b border-slate-100 flex items-center justify-between px-4 bg-white/85 backdrop-blur-md shrink-0 select-none z-20">
-        <button
-          onClick={() => setIsMobileSidebarOpen(true)}
-          className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
-          title="Open menu"
-        >
-          <Menu size={20} />
-        </button>
-
-        <img
-          src="/kapuruka-logo.jpg"
-          alt="Kapuruka Logo"
-          className="h-8 w-auto object-contain rounded-md select-none"
-        />
+        <div className="flex items-center gap-1.5 animate-fadeIn">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
+            title="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <img
+            src="/kapuruka-logo.jpg"
+            alt="Kapuruka Logo"
+            className="h-8 w-auto object-contain rounded-md select-none"
+          />
+        </div>
 
         <div className="flex items-center gap-1.5">
           {/* New Chat shortcut */}
