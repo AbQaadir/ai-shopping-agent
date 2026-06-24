@@ -46,7 +46,6 @@ export default function DeliveryDateBubble({ step, onAction, isActive = true }: 
   const [showCustomInput, setShowCustomInput] = useState(false);
 
   // Personal message
-  const [showMessage, setShowMessage] = useState(false);
   const [personalMessage, setPersonalMessage] = useState("");
   const MAX_MSG = 140;
 
@@ -189,43 +188,27 @@ export default function DeliveryDateBubble({ step, onAction, isActive = true }: 
         </div>
       )}
 
-      {/* Personal message toggle */}
+      {/* Personal message input */}
       <div className="mb-4">
-        {!showMessage ? (
-          <button
-            onClick={() => setShowMessage(true)}
-            className="flex items-center gap-1.5 text-xs text-[#402970] font-semibold hover:underline cursor-pointer outline-none transition-opacity"
-          >
-            <Gift size={12} />
-            + Add a personal message (optional)
-          </button>
-        ) : (
-          <div className="animate-fadeIn">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                <Gift size={12} className="text-rose-400" />
-                Personal message
-              </label>
-              <button
-                onClick={() => { setShowMessage(false); setPersonalMessage(""); }}
-                className="text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                Remove
-              </button>
-            </div>
-            <textarea
-              rows={3}
-              maxLength={MAX_MSG}
-              value={personalMessage}
-              onChange={(e) => setPersonalMessage(e.target.value)}
-              placeholder='e.g. "Happy Birthday! 🎂 With love, from us all"'
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-[#402970]/20 focus:border-[#402970]/50 transition-all bg-slate-50 leading-relaxed"
-            />
-            <div className="text-right text-[10px] text-slate-400 mt-1">
-              {personalMessage.length} / {MAX_MSG}
-            </div>
+        <div className="animate-fadeIn">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+              <Gift size={12} className="text-rose-400" />
+              Personal message (optional)
+            </label>
           </div>
-        )}
+          <textarea
+            rows={3}
+            maxLength={MAX_MSG}
+            value={personalMessage}
+            onChange={(e) => setPersonalMessage(e.target.value)}
+            placeholder='e.g. "Happy Birthday! 🎂 With love, from us all"'
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-[#402970]/20 focus:border-[#402970]/50 transition-all bg-slate-50 leading-relaxed"
+          />
+          <div className="text-right text-[10px] text-slate-400 mt-1">
+            {personalMessage.length} / {MAX_MSG}
+          </div>
+        </div>
       </div>
 
       {/* Confirm button */}
