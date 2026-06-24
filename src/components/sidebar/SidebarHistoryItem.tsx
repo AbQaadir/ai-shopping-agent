@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { Trash2, AlertTriangle } from "lucide-react";
 
 interface SidebarHistoryItemProps {
@@ -39,22 +40,22 @@ export default function SidebarHistoryItem({
         <span
           onClick={handleDelete}
           title="Delete chat"
-          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50/80 p-1 rounded-lg transition-all duration-200 shrink-0 cursor-pointer flex items-center justify-center"
+          className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50/80 p-1 rounded-lg transition-all duration-200 shrink-0 cursor-pointer flex items-center justify-center"
         >
           <Trash2 size={13} />
         </span>
       </button>
 
-      {showConfirm && (
+      {showConfirm && typeof document !== "undefined" && createPortal(
         <div 
-          className="fixed inset-0 z-[9999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center"
+          className="fixed inset-0 z-[99999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center"
           onClick={(e) => {
             e.stopPropagation();
             setShowConfirm(false);
           }}
         >
           <div 
-            className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-200"
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-3">
@@ -88,7 +89,8 @@ export default function SidebarHistoryItem({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
