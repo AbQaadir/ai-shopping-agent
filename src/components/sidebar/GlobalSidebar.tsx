@@ -53,6 +53,8 @@ export default function GlobalSidebar({
   const { currency } = useSourcing();
   const { user, openAuthModal } = useAuth();
 
+  const isEffectiveCollapsed = isCollapsed && !isMobileOpen;
+
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
   const initials = user
     ? (user.user_metadata?.full_name || user.email || "U").substring(0, 2).toUpperCase()
@@ -92,7 +94,7 @@ export default function GlobalSidebar({
           )}
 
           {/* Logo when expanded */}
-          {!isCollapsed && (
+          {!isEffectiveCollapsed && (
             <div className="flex items-center select-none pl-1">
               <img
                 src="/image.png"
@@ -120,23 +122,23 @@ export default function GlobalSidebar({
           <button
             onClick={onReset}
             className={`w-full flex items-center rounded-xl text-sm transition-all duration-200 cursor-pointer relative outline-none group ${
-              isCollapsed
+              isEffectiveCollapsed
                 ? activeHistoryId === undefined
                   ? "text-[#402970] font-bold"
                   : "text-slate-500 hover:bg-[#402970]/5 hover:text-[#402970] font-semibold"
                 : activeHistoryId === undefined
                   ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold"
                   : "text-slate-700 hover:bg-[#402970]/5 hover:text-[#402970] font-semibold"
-            } ${isCollapsed ? "justify-center gap-0 px-3 py-3" : "gap-3 px-3 py-3"}`}
+            } ${isEffectiveCollapsed ? "justify-center gap-0 px-3 py-3" : "gap-3 px-3 py-3"}`}
             title="New chat"
           >
             <SquarePen size={19} className={activeHistoryId === undefined ? "text-[#402970] shrink-0" : "text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"} />
             <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap ${
-              isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+              isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
             }`}>
               New chat
             </span>
-            {isCollapsed && activeHistoryId === undefined && (
+            {isEffectiveCollapsed && activeHistoryId === undefined && (
               <span className="absolute -right-3 top-1/2 -translate-y-1/2 w-[4px] h-8 bg-[#402970] rounded-l-full" />
             )}
           </button>
@@ -144,16 +146,16 @@ export default function GlobalSidebar({
           {/* History Section Header */}
           <div className="space-y-1 pt-2">
             <button
-              onClick={() => { if (isCollapsed) setIsCollapsed(false); }}
+              onClick={() => { if (isEffectiveCollapsed) setIsCollapsed(false); }}
               className={`w-full flex items-center px-3 py-3 text-slate-800 font-bold text-sm select-none outline-none cursor-pointer hover:bg-slate-50/50 rounded-xl transition-colors ${
-                isCollapsed ? "justify-center gap-0" : "justify-between gap-3"
+                isEffectiveCollapsed ? "justify-center gap-0" : "justify-between gap-3"
               }`}
               title="History"
             >
-              <div className={`flex items-center ${isCollapsed ? "gap-0" : "gap-3"}`}>
+              <div className={`flex items-center ${isEffectiveCollapsed ? "gap-0" : "gap-3"}`}>
                 <History size={19} className="text-[#402970]/80 shrink-0" />
                 <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap font-extrabold text-[13px] text-slate-800 tracking-wide ${
-                  isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+                  isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
                 }`}>
                   History
                 </span>
@@ -161,7 +163,7 @@ export default function GlobalSidebar({
             </button>
 
             {/* History List */}
-            {!isCollapsed && history.length > 0 && (
+            {!isEffectiveCollapsed && history.length > 0 && (
               <SidebarHistoryList
                 history={history}
                 activeHistoryId={activeHistoryId}
@@ -179,7 +181,7 @@ export default function GlobalSidebar({
             <button
               onClick={() => setShowLanguagePopover(!showLanguagePopover)}
               className={`flex items-center transition-all duration-200 cursor-pointer outline-none group border border-slate-200 bg-white hover:bg-slate-50 hover:border-[#402970]/20 hover:shadow-sm text-slate-700 font-bold text-xs ${
-                isCollapsed
+                isEffectiveCollapsed
                   ? "w-10 h-10 mx-auto p-0 justify-center rounded-xl"
                   : "w-full py-2.5 px-3 justify-start gap-2.5 rounded-xl"
               }`}
@@ -187,7 +189,7 @@ export default function GlobalSidebar({
             >
               <Globe size={19} className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0" />
               <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap group-hover:text-[#402970] transition-colors ${
-                isCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+                isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
               }`}>
                 English (<span className="uppercase">{currency}</span>)
               </span>
@@ -207,7 +209,7 @@ export default function GlobalSidebar({
               onClick={handleUserAreaClick}
               title="Open settings"
               className={`flex items-center transition-all duration-300 cursor-pointer outline-none group border border-slate-200/60 bg-white hover:bg-[#402970]/5 hover:border-[#402970]/20 rounded-xl ${
-                isCollapsed
+                isEffectiveCollapsed
                   ? "w-10 h-10 mx-auto p-0 justify-center"
                   : "w-full p-2.5 gap-2.5 text-left"
               }`}
@@ -226,7 +228,7 @@ export default function GlobalSidebar({
               )}
 
               {/* Name + email — only in expanded mode */}
-              {!isCollapsed && (
+              {!isEffectiveCollapsed && (
                 <div className="flex flex-col text-left min-w-0 flex-1">
                   <span className="text-xs font-bold text-slate-700 group-hover:text-[#402970] transition-colors truncate">
                     {user.user_metadata?.full_name || "My Profile"}
@@ -239,7 +241,7 @@ export default function GlobalSidebar({
             </button>
           ) : (
             /* Guest: Sign in with Google button */
-            isCollapsed ? (
+            isEffectiveCollapsed ? (
               /* Collapsed: small avatar placeholder */
               <button
                 onClick={handleUserAreaClick}

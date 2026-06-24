@@ -321,7 +321,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
               </div>
             </div>
             {/* User Avatar Icon from /person.svg */}
-            <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-xs select-none flex items-center justify-center">
+            <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden shadow-xs select-none flex items-center justify-center">
               <img
                 src="/person.svg"
                 alt="User Avatar"
@@ -333,7 +333,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           {/* AI Mock Bubble */}
           <div className="flex items-start justify-start gap-3 w-full">
             {/* AI Avatar Icon from /image.png */}
-            <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-xs select-none mt-1 flex items-center justify-center">
+            <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden shadow-xs select-none mt-1 flex items-center justify-center">
               <img
                 src="/image.png"
                 alt="Kapuruka AI Avatar"
