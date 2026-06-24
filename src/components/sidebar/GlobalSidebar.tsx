@@ -53,7 +53,7 @@ export default function GlobalSidebar({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
 
-  const { currency } = useSourcing();
+  const { currency, handleDeleteHistory } = useSourcing();
   const { user, openAuthModal } = useAuth();
 
   const isEffectiveCollapsed = isCollapsed && !isMobileOpen;
@@ -146,27 +146,6 @@ export default function GlobalSidebar({
             )}
           </button>
 
-          {/* Orders button — only for logged-in users */}
-          {user && (
-            <button
-              onClick={() => setIsOrdersOpen(true)}
-              className={`w-full flex items-center rounded-xl text-sm transition-all duration-200 cursor-pointer outline-none group
-                text-slate-700 hover:bg-[#402970]/5 hover:text-[#402970] font-semibold
-                ${isEffectiveCollapsed ? "justify-center gap-0 px-3 py-3" : "gap-3 px-3 py-3"}
-              `}
-              title="My Orders"
-            >
-              <Package
-                size={19}
-                className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"
-              />
-              <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap font-semibold text-[13px] ${
-                isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
-              }`}>
-                Orders
-              </span>
-            </button>
-          )}
 
           {/* History Section Header */}
           <div className="space-y-1 pt-2">
@@ -193,6 +172,7 @@ export default function GlobalSidebar({
                 history={history}
                 activeHistoryId={activeHistoryId}
                 onSelectHistory={onSelectHistory}
+                onDeleteHistory={handleDeleteHistory}
               />
             )}
           </div>
@@ -226,6 +206,33 @@ export default function GlobalSidebar({
               </>
             )}
           </div>
+
+          {/* Orders button */}
+          <button
+            onClick={() => {
+              if (user) {
+                setIsOrdersOpen(true);
+              } else {
+                openAuthModal("login");
+              }
+            }}
+            className={`flex items-center transition-all duration-200 cursor-pointer outline-none group border border-slate-200 bg-white hover:bg-slate-50 hover:border-[#402970]/20 hover:shadow-sm text-slate-700 font-bold text-xs ${
+              isEffectiveCollapsed
+                ? "w-10 h-10 mx-auto p-0 justify-center rounded-xl"
+                : "w-full py-2.5 px-3 justify-start gap-2.5 rounded-xl"
+            }`}
+            title="My Orders"
+          >
+            <Package
+              size={19}
+              className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"
+            />
+            <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap group-hover:text-[#402970] transition-colors ${
+              isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+            }`}>
+              My Orders
+            </span>
+          </button>
 
           {/* ── User Area ─────────────────────────────────────── */}
           {user ? (

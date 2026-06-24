@@ -315,48 +315,64 @@ export default function OrdersPanel({ isOpen, onClose }: OrdersPanelProps) {
   const deliveredOrders = orders.filter((o) => o.status === "completed");
 
   if (!isOpen) return null;
-
   return (
-    <>
+    <div className="fixed inset-0 z-50 flex flex-col items-end sm:items-center justify-end sm:justify-center animate-fadeIn">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-40 transition-opacity"
+        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
         onClick={onClose}
+        aria-label="Close orders"
       />
 
-      {/* Panel */}
-      <div className="fixed inset-y-0 right-0 w-[400px] max-w-full bg-white shadow-2xl z-50 flex flex-col">
+      {/* Modal Container */}
+      <div className="relative w-full sm:max-w-4xl sm:mx-4 max-h-[90vh] sm:max-h-[85vh] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slideUp sm:animate-fadeInScale border border-slate-100/80">
+        
+        {/* Mobile Drag Handle */}
+        <div className="sm:hidden flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 bg-slate-200 rounded-full" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 bg-[#402970]/10 text-[#402970] rounded-xl">
-              <Package size={16} />
-            </span>
-            <h2 className="text-sm font-extrabold text-slate-800">My Orders</h2>
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 shrink-0 bg-white z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-9.5 h-9.5 rounded-xl bg-[#402970]/8 flex items-center justify-center border border-[#402970]/15 text-[#402970]">
+              <Package size={18} />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-800 text-sm sm:text-base leading-tight">
+                My Orders
+              </h3>
+              <p className="text-[11px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider">
+                {orders.length === 0
+                  ? "No orders found"
+                  : `Total orders: ${orders.length}`}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={fetchOrders}
               disabled={loading}
               title="Refresh orders"
-              className="p-1.5 text-slate-400 hover:text-[#402970] hover:bg-[#402970]/5 rounded-lg transition-all cursor-pointer outline-none disabled:opacity-40"
+              className="p-2 text-slate-400 hover:text-[#402970] hover:bg-[#402970]/5 rounded-lg transition-all cursor-pointer outline-none disabled:opacity-40"
             >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer outline-none"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer outline-none"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5 bg-slate-50/30">
           {/* Loading state */}
           {loading && orders.length === 0 && (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SkeletonCard />
               <SkeletonCard />
               <SkeletonCard />
               <SkeletonCard />
@@ -365,8 +381,8 @@ export default function OrdersPanel({ isOpen, onClose }: OrdersPanelProps) {
 
           {/* Error state */}
           {error && !loading && (
-            <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
-              <AlertCircle size={32} className="text-red-400" />
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+              <AlertCircle size={36} className="text-red-400" />
               <p className="text-sm text-slate-600 font-medium">{error}</p>
               <button
                 onClick={fetchOrders}
@@ -379,17 +395,17 @@ export default function OrdersPanel({ isOpen, onClose }: OrdersPanelProps) {
 
           {/* Empty state */}
           {!loading && !error && orders.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-              <div className="p-4 bg-[#402970]/5 rounded-2xl">
-                <Package size={36} className="text-[#402970]/40" />
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+              <div className="p-5 bg-[#402970]/5 rounded-2xl">
+                <Package size={40} className="text-[#402970]/40" />
               </div>
               <h3 className="text-sm font-extrabold text-slate-700">No orders yet</h3>
-              <p className="text-xs text-slate-400 max-w-[200px] leading-relaxed">
+              <p className="text-xs text-slate-400 max-w-[220px] leading-relaxed">
                 You haven't placed any orders yet. Start shopping!
               </p>
               <button
                 onClick={onClose}
-                className="mt-1 text-xs text-white bg-[#402970] hover:bg-[#2e1f52] px-4 py-2 rounded-xl font-bold transition-colors cursor-pointer"
+                className="mt-1 text-xs text-white bg-[#402970] hover:bg-[#2e1f52] px-5 py-2.5 rounded-xl font-bold transition-colors cursor-pointer"
               >
                 Browse Products
               </button>
@@ -398,39 +414,43 @@ export default function OrdersPanel({ isOpen, onClose }: OrdersPanelProps) {
 
           {/* Active Orders */}
           {!loading && activeOrders.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <h3 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest px-1">
                 Active Orders
               </h3>
-              {activeOrders.map((order) => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  onTrack={handleTrack}
-                  trackingState={trackingData[order.id]}
-                />
-              ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {activeOrders.map((order) => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    onTrack={handleTrack}
+                    trackingState={trackingData[order.id]}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
           {/* Delivered Orders */}
           {!loading && deliveredOrders.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <h3 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest px-1">
                 Delivered
               </h3>
-              {deliveredOrders.map((order) => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  onTrack={handleTrack}
-                  trackingState={trackingData[order.id]}
-                />
-              ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {deliveredOrders.map((order) => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    onTrack={handleTrack}
+                    trackingState={trackingData[order.id]}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
