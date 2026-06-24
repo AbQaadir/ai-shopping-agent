@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     const cartOnly = searchParams.get("cartOnly") === "true";
 
     if (cartOnly && userId) {
+      const globalCart = searchParams.get("global") === "true";
       let user = await (prisma.user as any).findUnique({
         where: { id: userId },
         select: { cart: true },
@@ -24,18 +25,42 @@ export async function GET(req: NextRequest) {
         });
       }
       
-      let cartItems: any[] = [];
+      let cartObj: Record<string, any[]> = {};
       if (user?.cart) {
         try {
-          const cartObj = typeof user.cart === "string" ? JSON.parse(user.cart as string) : (user.cart as Record<string, any[]>);
-          if (sessionId && cartObj && typeof cartObj === "object" && !Array.isArray(cartObj)) {
-            cartItems = cartObj[sessionId] || [];
-          } else if (!sessionId && Array.isArray(cartObj)) {
-            // Migration fallback: return flat array only if no sessionId is specified
-            cartItems = cartObj;
+          cartObj = typeof user.cart === "string" ? JSON.parse(user.cart as string) : (user.cart as Record<string, any[]>);
+          if (Array.isArray(cartObj)) {
+            cartObj = {};
           }
         } catch (e) {
           console.error(e);
+        }
+      }
+
+      let cartItems: any[] = [];
+      if (globalCart) {
+        const sessions = await prisma.chatSession.findMany({
+          where: userId === "guest" ? { userId: null } : { userId: userId },
+          select: { id: true, title: true },
+        });
+
+        const sessionMap = new Map(sessions.map(s => [s.id, s.title]));
+
+        const groupedCart = Object.entries(cartObj).map(([sid, items]) => {
+          return {
+            sessionId: sid,
+            sessionTitle: sessionMap.get(sid) || "Sourcing Query",
+            items: items || [],
+          };
+        }).filter(group => group.items.length > 0);
+
+        return NextResponse.json(groupedCart);
+      } else {
+        if (sessionId && cartObj && typeof cartObj === "object" && !Array.isArray(cartObj)) {
+          cartItems = cartObj[sessionId] || [];
+        } else if (!sessionId && Array.isArray(cartObj)) {
+          // Migration fallback: return flat array only if no sessionId is specified
+          cartItems = cartObj;
         }
       }
       return NextResponse.json(cartItems);

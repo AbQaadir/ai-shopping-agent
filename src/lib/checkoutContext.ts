@@ -14,9 +14,10 @@ import type { CartItem, InlineProduct, SavedAddress, GeocodedLocation } from "@/
 export type CheckoutPhase =
   | "qty_ask"
   | "delivery_ask"
-  | "new_address_form"  // replaces address_ask — combined form rendered by NewAddressFormBubble
-  | "address_ask"       // LEGACY: kept for backward compat with old sessions in DB
-  | "map_open"          // LEGACY: kept for backward compat with old sessions in DB
+  | "new_address_form"   // replaces address_ask — combined form rendered by NewAddressFormBubble
+  | "address_ask"        // LEGACY: kept for backward compat with old sessions in DB
+  | "map_open"           // LEGACY: kept for backward compat with old sessions in DB
+  | "delivery_date_ask" // NEW: user picks delivery date + optional personal/gift message
   | "payment_ask"
   | "confirmed"
   | "cancelled";
@@ -36,6 +37,8 @@ export interface CheckoutState {
   savedAddress?: SavedAddress;     // user's default saved address
   geocodedLocation?: GeocodedLocation;
   paymentMethod?: "cod" | "card";
+  deliveryDate?: string;           // YYYY-MM-DD chosen by user in delivery_date_ask phase
+  personalMessage?: string;        // optional gift/personal message passed to kapruka_create_order
 }
 
 /** Load the active checkout state for a chat session. Returns null if none. */
@@ -56,6 +59,8 @@ export async function getCheckoutState(chatSessionId: string): Promise<CheckoutS
       savedAddress: row.savedAddress ?? undefined,
       geocodedLocation: row.geocodedLocation ?? undefined,
       paymentMethod: (row.paymentMethod as "cod" | "card") ?? undefined,
+      deliveryDate: row.deliveryDate ?? undefined,
+      personalMessage: row.personalMessage ?? undefined,
     };
   } catch (err) {
     console.error("[CheckoutContext] getCheckoutState failed:", err);
@@ -80,6 +85,8 @@ export async function saveCheckoutState(
         savedAddress: state.savedAddress ?? null,
         geocodedLocation: state.geocodedLocation ?? null,
         paymentMethod: state.paymentMethod ?? null,
+        deliveryDate: state.deliveryDate ?? null,
+        personalMessage: state.personalMessage ?? null,
       },
       create: {
         chatSessionId,
@@ -91,6 +98,8 @@ export async function saveCheckoutState(
         savedAddress: state.savedAddress ?? null,
         geocodedLocation: state.geocodedLocation ?? null,
         paymentMethod: state.paymentMethod ?? null,
+        deliveryDate: state.deliveryDate ?? null,
+        personalMessage: state.personalMessage ?? null,
       },
     });
   } catch (err) {

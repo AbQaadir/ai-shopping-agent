@@ -1,6 +1,7 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 import { findRelevantCategories } from "@/lib/categories";
 import {
   extractCityFromMessage,
@@ -769,24 +770,47 @@ Respond ONLY with valid JSON matching this schema:
 
           send({ type: "thought", step: "intent_routing", status: "completed", content: `Matched address: ${matchedAddress ? (matchedAddress as any).label || (matchedAddress as any).type : "Default"}`, durationMs: 0 });
 
-          // Fast-track straight to payment_ask
-          const newCheckoutState: CheckoutState = {
-            phase: "payment_ask",
-            cartItems: currentCart,
-            savedAddress: savedAddr ?? undefined,
-            confirmedAddress: matchedAddress,
-            confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
-          };
-          await saveCheckoutState(sessionId, newCheckoutState);
+          // Validate that the matched address has a valid Kapruka delivery city
+          const isCityValid = matchedAddress && matchedAddress.city && KAPRUKA_CITIES_SET.has(matchedAddress.city);
 
-          const ofs = { phase: "payment_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: matchedAddress };
-          send({ type: "order_flow_step", ...ofs });
-          
-          const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. Finally, how would you like to pay? (Cash on Delivery or Card)`;
-          await streamWords(t);
-          await saveOrderMessage(t, ofs);
-          controller.close();
-          return;
+          if (isCityValid) {
+            // Fast-track to delivery_date_ask (skips delivery_ask, user already confirmed address)
+            const newCheckoutState: CheckoutState = {
+              phase: "delivery_date_ask",
+              cartItems: currentCart,
+              savedAddress: savedAddr ?? undefined,
+              confirmedAddress: matchedAddress,
+              confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
+            };
+            await saveCheckoutState(sessionId, newCheckoutState);
+
+            const ofs = { phase: "delivery_date_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: matchedAddress };
+            send({ type: "order_flow_step", ...ofs });
+            
+            const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. When would you like it delivered? Pick a date below, and feel free to add a personal message!`;
+            await streamWords(t);
+            await saveOrderMessage(t, ofs);
+            controller.close();
+            return;
+          } else {
+            // Force delivery_ask phase to let user select/configure a valid address
+            const newCheckoutState: CheckoutState = {
+              phase: "delivery_ask",
+              cartItems: currentCart,
+              savedAddress: savedAddr ?? undefined,
+              confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
+            };
+            await saveCheckoutState(sessionId, newCheckoutState);
+
+            const ofs = { phase: "delivery_ask", cartItems: currentCart, savedAddress: savedAddr, savedAddresses: allUserAddresses };
+            send({ type: "order_flow_step", ...ofs });
+
+            const t = `I've added the item(s) to your cart, but I noticed your address does not have a verified Kapruka delivery city. Please confirm or select your delivery address below:`;
+            await streamWords(t);
+            await saveOrderMessage(t, ofs);
+            controller.close();
+            return;
+          }
         }
 
         // ── Action: cart_modify ────────────────────────────────────────────
@@ -962,6 +986,7 @@ Respond ONLY with valid JSON matching this schema:
             responseText: "I didn't quite catch that. Could you please clarify?",
             requiresGeocode: false,
             requiresOrderPlace: false,
+            requiresDeliveryCheck: false,
           };
 
           if (ai) {
@@ -992,6 +1017,13 @@ Respond ONLY with valid JSON matching this schema:
           }
           if (extractedData.paymentMethod) {
             updatedState.paymentMethod = extractedData.paymentMethod;
+          }
+          // Persist delivery date + personal message from delivery_date_ask phase
+          if (extractedData.deliveryDate) {
+            updatedState.deliveryDate = extractedData.deliveryDate;
+          }
+          if (extractedData.personalMessage !== undefined && extractedData.personalMessage !== null) {
+            updatedState.personalMessage = extractedData.personalMessage || undefined;
           }
 
           // Determine the actual next phase
@@ -1024,9 +1056,73 @@ Respond ONLY with valid JSON matching this schema:
             }
           }
 
+          // ── Handle delivery date check (delivery_date_ask → payment_ask) ──────────
+          if ((agentOutput as any).requiresDeliveryCheck && updatedState.confirmedAddress?.city && updatedState.deliveryDate) {
+            send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery to ${updatedState.confirmedAddress.city} on ${updatedState.deliveryDate}...` });
+            send({ type: "tool_call", name: "kapruka_check_delivery", args: { city: updatedState.confirmedAddress.city, date: updatedState.deliveryDate } });
+
+            const deliveryCheck = await pillar2_checkDelivery(
+              updatedState.confirmedAddress.city,
+              updatedState.deliveryDate,
+              false
+            );
+
+            send({ type: "thought", step: "checking_delivery", status: "completed", content: deliveryCheck ? `Delivery ${deliveryCheck.canDeliver ? "✓ available" : "✗ not available"} in ${updatedState.confirmedAddress.city}` : "Delivery check failed", durationMs: 0 });
+
+            if (!deliveryCheck || !deliveryCheck.canDeliver) {
+              // Delivery NOT available — stay in delivery_date_ask with error message
+              const nextAvail = deliveryCheck?.deliveryDate || "a later date";
+              updatedState.phase = "delivery_date_ask";
+              const errorOfs = {
+                phase: "delivery_date_ask" as const,
+                cartItems: updatedState.cartItems,
+                confirmedAddress: updatedState.confirmedAddress,
+                errorMessage: `Delivery to ${updatedState.confirmedAddress.city} is not available on ${updatedState.deliveryDate}. Next available: ${nextAvail}.`,
+                deliveryCheckResult: {
+                  city: updatedState.confirmedAddress.city,
+                  canDeliver: false,
+                  nextAvailableDate: nextAvail,
+                },
+              };
+              await saveCheckoutState(sessionId, updatedState);
+              send({ type: "order_flow_step", ...errorOfs });
+              const errText = `Sorry, Grasshoppers can't deliver to **${updatedState.confirmedAddress.city}** on **${updatedState.deliveryDate}**. The next available date is **${nextAvail}**. Please pick a different date!`;
+              await streamWords(errText);
+              await saveOrderMessage(errText, errorOfs);
+              controller.close();
+              return;
+            }
+
+            // Delivery IS available — build OFS with delivery check result and advance to payment_ask
+            updatedState.phase = "payment_ask";
+            const deliveryOfs = {
+              phase: "payment_ask" as const,
+              cartItems: updatedState.cartItems,
+              confirmedAddress: updatedState.confirmedAddress,
+              deliveryDate: updatedState.deliveryDate,
+              personalMessage: updatedState.personalMessage,
+              deliveryCheckResult: {
+                city: deliveryCheck.city,
+                canDeliver: true,
+                flatRateLKR: deliveryCheck.flatRateLKR,
+                nextAvailableDate: deliveryCheck.deliveryDate,
+              },
+              savedAddress: updatedState.savedAddress,
+              paymentMethod: updatedState.paymentMethod,
+            };
+            await saveCheckoutState(sessionId, updatedState);
+            send({ type: "order_flow_step", ...deliveryOfs });
+            const feeText = deliveryCheck.flatRateLKR
+              ? `Rs. ${deliveryCheck.flatRateLKR.toLocaleString()}`
+              : "standard rate";
+            const confirmText = `Delivery to **${deliveryCheck.city}** on **${updatedState.deliveryDate}** is confirmed (${feeText})! 🎉 How would you like to pay — **Cash on Delivery** or **Card Payment**?`;
+            await streamWords(confirmText);
+            await saveOrderMessage(confirmText, deliveryOfs);
+            controller.close();
+            return;
+          }
 
 
-          // Handle order placement (payment_ask → confirmed)
           if (agentOutput.requiresOrderPlace) {
             send({ type: "thought", step: "placing_order", status: "running", content: "Placing order via Kapruka..." });
 
@@ -1056,6 +1152,8 @@ Respond ONLY with valid JSON matching this schema:
                   sessionId,
                   userId,
                   paymentMethod,
+                  deliveryDate: updatedState.deliveryDate || null,
+                  personalMessage: updatedState.personalMessage || null,
                 }),
               });
 
@@ -1194,7 +1292,7 @@ Respond ONLY with valid JSON matching this schema:
                   label: c.subcategory !== "Main Category Page" ? c.subcategory : c.mainCategory
                 }));
 
-                const scrapedResults = await scrapeMultipleCategoryUrls(urlsToScrape, 3, 150);
+                const scrapedResults = await scrapeMultipleCategoryUrls(urlsToScrape, 3, 150, { country: country });
                 
                 // Merge and deduplicate products within this semantic group
                 const mergedProducts: KaprukaProduct[] = [];
@@ -1203,7 +1301,8 @@ Respond ONLY with valid JSON matching this schema:
                   for (const p of result.products) {
                     if (!seenIds.has(p.id)) {
                       seenIds.add(p.id);
-                      mergedProducts.push(p);
+                      p.currency = currency || p.currency || "LKR";
+                      mergedProducts.push(p as any);
                     }
                   }
                 }
@@ -1385,7 +1484,11 @@ Respond ONLY with valid JSON matching this schema:
                 for (const settled of variantSettled) {
                   if (settled.status === "fulfilled") {
                     for (const p of settled.value) {
-                      if (!seenIds.has(p.id)) { seenIds.add(p.id); rawProducts.push(p); }
+                      if (!seenIds.has(p.id)) { 
+                        seenIds.add(p.id); 
+                        p.currency = currency || p.currency || "LKR";
+                        rawProducts.push(p); 
+                      }
                     }
                   }
                 }
@@ -1505,6 +1608,68 @@ Respond ONLY with valid JSON matching this schema:
               send({ type: "tracking_result", result: tracking });
             } else {
               send({ type: "thought", step: "tracking_order", status: "completed", content: "Could not retrieve order status.", durationMs: dur });
+            }
+          } else if (!city && userId && userId !== "guest") {
+            // Smart DB-based order tracking — user asked about their own orders via natural language
+            // e.g. "where is my last order?", "where is my roses order now?"
+            send({ type: "thought", step: "intent_routing", status: "completed", content: "Looking up your orders...", durationMs: 0 });
+            send({ type: "thought", step: "tracking_order", status: "running", content: "Searching your order history..." });
+
+            try {
+              const userOrders = await prisma.order.findMany({
+                where: { userId },
+                include: { items: true },
+                orderBy: { createdAt: "desc" },
+                take: 20,
+              });
+
+              let matchedOrder: typeof userOrders[0] | null = null;
+              const lowerMsg = message.toLowerCase();
+
+              // "last", "recent", "latest", "newest" → most recent order
+              if (/\b(last|recent|latest|newest|previous)\b/.test(lowerMsg)) {
+                matchedOrder = userOrders[0] || null;
+              } else {
+                // Keyword match against product names in order items
+                // Strip common stop words, then match against item productName
+                const stopWords = /\b(where|is|my|order|orders|now|status|track|tracking|the|a|an|of|for|i|was|find|show|what|about|please|can|you)\b/g;
+                const keywords = lowerMsg
+                  .replace(stopWords, " ")
+                  .trim()
+                  .split(/\s+/)
+                  .filter((w: string) => w.length > 2);
+
+                if (keywords.length > 0) {
+                  matchedOrder =
+                    userOrders.find((order) =>
+                      order.items.some((item) =>
+                        keywords.some((kw: string) => item.productName.toLowerCase().includes(kw))
+                      )
+                    ) || null;
+                }
+              }
+
+              if (matchedOrder && matchedOrder.kaprukaRef) {
+                send({ type: "thought", step: "tracking_order", status: "running", content: `Found order #${matchedOrder.kaprukaRef}. Fetching live status...` });
+                send({ type: "tool_call", name: "kapruka_track_order", args: { order_id: matchedOrder.kaprukaRef } });
+                const tTrack = Date.now();
+                const tracking = await pillar2_trackOrder(matchedOrder.kaprukaRef);
+                const dur = Date.now() - tTrack;
+                if (tracking) {
+                  steps.push({ step: "tracking_order", status: "completed", content: `Status: ${tracking.currentStatus}`, durationMs: dur });
+                  send({ type: "thought", step: "tracking_order", status: "completed", content: `Order status: ${tracking.currentStatus}`, durationMs: dur });
+                  send({ type: "tracking_result", result: tracking });
+                } else {
+                  send({ type: "thought", step: "tracking_order", status: "completed", content: "Kapruka tracking unavailable for this order.", durationMs: dur });
+                }
+              } else if (matchedOrder && !matchedOrder.kaprukaRef) {
+                send({ type: "thought", step: "tracking_order", status: "completed", content: "Order found but no Kapruka tracking reference available.", durationMs: 0 });
+              } else {
+                send({ type: "thought", step: "tracking_order", status: "completed", content: "No matching orders found in your history.", durationMs: 0 });
+              }
+            } catch (err) {
+              console.error("[route.ts] smart order tracking failed:", err);
+              send({ type: "thought", step: "tracking_order", status: "completed", content: "Error looking up your orders.", durationMs: 0 });
             }
           } else if (city) {
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Checking Grasshoppers delivery to ${city}`, durationMs: 0 });

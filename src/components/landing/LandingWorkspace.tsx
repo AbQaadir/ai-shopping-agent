@@ -2,7 +2,7 @@
 
 import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
-import { Menu, Paperclip, Search, Send, ShoppingCart, User, X } from "lucide-react";
+import { Menu, Paperclip, Search, Send, ShoppingCart, User, X, Sparkles, SquarePen, Compass, CreditCard, Package, RefreshCw } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 interface LandingWorkspaceProps {
@@ -10,22 +10,32 @@ interface LandingWorkspaceProps {
   onSuggestionClick: (suggestion: string) => void;
 }
 
+
 export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingWorkspaceProps) {
-  const { setIsMobileSidebarOpen, setIsViewingCart } = useSourcing();
+  const { setIsMobileSidebarOpen, setIsViewingCart, handleReset } = useSourcing();
   const { user, openAuthModal } = useAuth();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
-  // Client-side cache to load previously typed prefixes instantly
   const autocompleteCache = useRef<Record<string, string[]>>({});
+  const hasFetchedForCurrentInput = useRef(false);
+  const fetchedSuggestionsForInput = useRef<string[]>([]);
 
+
+  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const initials = user
+    ? (user.user_metadata?.full_name || user.email || "U").substring(0, 2).toUpperCase()
+    : null;
+
+  // Auto-resize textarea
   useEffect(() => {
     const tx = textareaRef.current;
     if (tx) {
@@ -34,21 +44,44 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
     }
   }, [inputText]);
 
+  // Handle mouse wheel horizontal scroll on product carousel
   useEffect(() => {
-    if (!inputText || inputText.trim().length < 4) {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const handleWheelScroll = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheelScroll, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", handleWheelScroll);
+    };
+  }, []);
+
+  // Autocomplete fetch logic
+  useEffect(() => {
+    const words = inputText.trim().split(/\s+/).filter(Boolean);
+
+    if (!inputText || words.length < 4) {
       setSuggestions([]);
       setShowDropdown(false);
       setSelectedIndex(-1);
+      hasFetchedForCurrentInput.current = false;
+      fetchedSuggestionsForInput.current = [];
       return;
     }
 
-    const cacheKey = inputText.trim().toLowerCase();
-
-    // Check client-side cache first
-    if (autocompleteCache.current[cacheKey]) {
-      const cached = autocompleteCache.current[cacheKey];
-      if (cached.length > 0) {
-        setSuggestions(cached);
+    if (hasFetchedForCurrentInput.current) {
+      const currentLower = inputText.toLowerCase();
+      const filtered = fetchedSuggestionsForInput.current.filter((s) =>
+        s.toLowerCase().startsWith(currentLower)
+      );
+      if (filtered.length > 0) {
+        setSuggestions(filtered);
         setShowDropdown(true);
       } else {
         setSuggestions([]);
@@ -56,6 +89,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       }
       return;
     }
+
+    hasFetchedForCurrentInput.current = true;
 
     const controller = new AbortController();
     const fetchSuggestions = async () => {
@@ -72,8 +107,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         if (res.ok) {
           const data = await res.json();
           const suggestionsList = data.suggestions || [];
-          // Save to client-side cache
-          autocompleteCache.current[cacheKey] = suggestionsList;
+          fetchedSuggestionsForInput.current = suggestionsList;
 
           if (suggestionsList.length > 0) {
             setSuggestions(suggestionsList);
@@ -90,10 +124,9 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       }
     };
 
-    // Reduced from 300ms to 250ms for snappier autocomplete response
-    const debounceTimer = setTimeout(fetchSuggestions, 250);
+    fetchSuggestions();
+
     return () => {
-      clearTimeout(debounceTimer);
       controller.abort();
     };
   }, [inputText]);
@@ -147,7 +180,17 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   };
 
   return (
-    <div className="flex-1 w-full flex flex-col overflow-hidden h-full relative">
+    <div className="flex-1 w-full flex flex-col overflow-hidden h-full relative bg-[#fbfbfe]">
+      {/* Background World Map Watermark */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none z-0"
+        style={{
+          backgroundImage: "url('/world.svg')",
+          filter: "invert(18%) sepia(26%) saturate(3025%) hue-rotate(241deg) brightness(97%) contrast(92%)",
+          opacity: 0.1
+        }}
+      />
+
       {/* Desktop Floating Logo (Top-Left) */}
       <div className="hidden md:flex absolute top-6 left-6 items-center z-20">
         <div className="border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden flex items-center justify-center transition-all duration-300 hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 select-none bg-white">
@@ -165,7 +208,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         {!user && (
           <button
             onClick={() => openAuthModal("login")}
-            className="bg-white/85 backdrop-blur-md border border-slate-100/80 text-slate-700 shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3.5 flex items-center gap-3 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-[#402970]/20 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
+            className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-[#402970]/20 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
             title="Sign in to Kapuruka"
           >
             <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
@@ -180,73 +223,239 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         )}
         <button
           onClick={() => setIsViewingCart(true)}
-          className="bg-white/85 backdrop-blur-md border border-slate-100/80 text-[#402970] shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3.5 flex items-center gap-3.5 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-slate-200/80 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
+          className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-[#402970] shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3.5 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-slate-200/80 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
           title="Global Shopping Cart"
         >
           <div className="relative">
-            <ShoppingCart size={19} className="text-slate-650 group-hover:text-[#402970] transition-colors" />
+            <ShoppingCart size={19} className="text-slate-600 group-hover:text-[#402970] transition-colors" />
             <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#402970]" />
           </div>
           <span className="text-slate-700 group-hover:text-[#402970] transition-colors">Global Cart</span>
         </button>
       </div>
 
-      {/* Mobile-only minimal header */}
-      <div className="md:hidden w-full h-14 border-b border-slate-100 flex items-center justify-between px-4 bg-white shrink-0 select-none">
-        <button
-          onClick={() => setIsMobileSidebarOpen(true)}
-          className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
-          title="Open menu"
-        >
-          <Menu size={20} />
-        </button>
-        <img
-          src="/kapuruka-logo.jpg"
-          alt="Kapuruka"
-          className="h-7 w-auto object-contain rounded-md"
-        />
-        <div className="flex items-center gap-1">
-          {/* Minimal Sign-In icon — only for guests on mobile */}
-          {!user && (
-            <button
-              onClick={() => openAuthModal("login")}
-              className="p-2 text-slate-500 hover:text-[#402970] hover:bg-[#402970]/5 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
-              title="Sign in"
-            >
-              <User size={20} />
-            </button>
-          )}
+      {/* Mobile-only minimal header (Sleek Blur & App-like shortcuts) */}
+      <div className="md:hidden w-full h-14 border-b border-slate-100 flex items-center justify-between px-4 bg-white/85 backdrop-blur-md shrink-0 select-none z-20">
+        <div className="flex items-center gap-1.5 animate-fadeIn">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
+            title="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <img
+            src="/kapuruka-logo.jpg"
+            alt="Kapuruka Logo"
+            className="h-8 w-auto object-contain rounded-md select-none"
+          />
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {/* New Chat shortcut */}
+          <button
+            onClick={() => {
+              setInputText("");
+              setAttachedFiles([]);
+              handleReset();
+            }}
+            className="p-2 text-slate-500 hover:text-[#402970] hover:bg-[#402970]/5 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
+            title="New Chat"
+          >
+            <SquarePen size={18} />
+          </button>
+
           <button
             onClick={() => setIsViewingCart(true)}
-            className="p-2 -mr-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none relative"
+            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none relative"
             title="Open global cart"
           >
-            <ShoppingCart size={20} />
+            <ShoppingCart size={18} />
             <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#402970]" />
           </button>
+
+          {/* User initials / Sign-In */}
+          {user ? (
+            <button
+              onClick={() => openAuthModal("login")}
+              className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] bg-[#402970]/10 text-[#402970] border border-[#402970]/15 active:scale-95 transition-all outline-none"
+              title="Profile Settings"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+              ) : (
+                initials
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={() => openAuthModal("login")}
+              className="p-2 -mr-2 text-slate-500 hover:text-[#402970] hover:bg-[#402970]/5 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
+              title="Sign in"
+            >
+              <User size={18} />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center gap-6 sm:gap-10 relative overflow-y-auto animate-fadeIn">
+      {/* Main Content Area (Welcome text + Mock Chat history) */}
+      <div className="flex-1 w-full max-w-[850px] mx-auto px-4 py-6 flex flex-col justify-start items-center gap-6 relative z-10 overflow-y-auto scrollbar-none select-none">
 
-      {/* Background glow */}
-      <div className="absolute top-[10%] sm:top-[15%] left-1/2 -translate-x-1/2 w-[320px] sm:w-[700px] h-[180px] sm:h-[350px] bg-gradient-to-tr from-[#402970]/8 to-purple-400/8 rounded-full blur-[80px] sm:blur-[120px] pointer-events-none -z-10" />
+        {/* Welcome Section */}
+        <div className="flex flex-col items-center justify-center text-center w-full gap-2 pt-20 pb-0 select-none animate-fadeIn">
+          <h1 className="text-2xl sm:text-4xl lg:text-[40px] font-extrabold tracking-tight leading-tight bg-gradient-to-r from-purple-700 via-[#402970] to-indigo-700 bg-clip-text text-transparent max-w-4xl px-2">
+            Skip the Scrolling.
+            <span className="block mt-1">Just Chat to Shop Kapruka</span>
+          </h1>
+        </div>
 
-      {/* Hero Section */}
-      <div className="flex flex-col items-center text-center max-w-3xl mx-auto w-full gap-4 sm:gap-6 mt-2 sm:mt-4">
-        <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight bg-gradient-to-r from-purple-700 via-[#402970] to-indigo-700 bg-clip-text text-transparent max-w-2xl px-2">
-          Sri Lanka&apos;s AI Shopping, Delivery & Services
-        </h1>
+        {/* Mock Chat History container */}
+        <div className="w-full space-y-5 pb-24 animate-fadeIn mt-0" style={{ animationDelay: "150ms" }}>
 
-        {/* Prompt input */}
-        <div className="w-full relative group px-2 sm:px-0">
-          {/* Attached files row above the pill */}
+          {/* User Mock Bubble */}
+          <div className="flex items-start justify-end gap-3 w-full">
+            <div className="flex flex-col items-end gap-2 max-w-[85%]">
+              <div className="px-4 py-2.5 font-semibold shadow-xs text-[13px] bg-[#EDE9FE]/75 border border-violet-100/60 text-[#402970] rounded-2xl">
+                What are the services this platform offers?
+              </div>
+            </div>
+            {/* User Avatar Icon from /person.svg */}
+            <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden shadow-xs select-none flex items-center justify-center">
+              <img
+                src="/person.svg"
+                alt="User Avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </div>
+
+          {/* AI Mock Bubble */}
+          <div className="flex items-start justify-start gap-3 w-full">
+            {/* AI Avatar Icon from /image.png */}
+            <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden shadow-xs select-none mt-1 flex items-center justify-center">
+              <img
+                src="/image.png"
+                alt="Kapuruka AI Avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex-1 flex flex-col gap-4 min-w-0 max-w-[85%]">
+
+              {/* Text Bubble */}
+              <div className="px-4 py-3.5 bg-white border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.015)] rounded-2xl rounded-tl-xs leading-relaxed font-semibold max-w-full text-slate-800 text-[13px]">
+                Okay, this is Kapruka Personal Shopping Agent, so we offer a bunch of services in a conversational way. Here are the core services you can access:
+              </div>
+
+              {/* Product Carousel Mock */}
+              <div className="w-full">
+                <div ref={scrollContainerRef} className="flex overflow-x-auto gap-4 pb-2 scrollbar-none snap-x snap-mandatory scroll-smooth w-full">
+
+                  {/* Card 1: Smart Product Discovery */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <Compass size={18} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Smart Discovery
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Browse categories and search the live product catalog using natural language.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Dynamic Cart Management */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <ShoppingCart size={17} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Dynamic Cart
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Add, modify, or update quantities of items dynamically through chat.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 3: End-to-End Guest Checkout */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <CreditCard size={18} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Guest Checkout
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Gather customer shipping details natively within the conversation.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Live Order Tracking */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <Package size={18} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Order Tracking
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Check the real-time status of an existing order number directly via chat.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 5: Quick Reordering */}
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                      <RefreshCw size={17} className="text-[#402970]" />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
+                      <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
+                        Quick Reordering
+                      </h6>
+                      <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
+                        Instantly reorder past purchases and gifts with a single message.
+                      </p>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Concluding Question Bubble */}
+              <div className="px-4 py-3 bg-white border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.015)] rounded-2xl rounded-tl-xs leading-relaxed font-semibold max-w-full text-slate-800 text-[13px]">
+                What are you looking for?
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Sticky Bottom Prompt Console (Gemini inspired) */}
+      <div className="w-full bg-gradient-to-t from-[#fbfbfe] via-[#fbfbfe]/95 to-transparent pt-6 pb-6 px-4 md:px-6 shrink-0 relative z-30">
+        <div className="max-w-[760px] mx-auto w-full relative group">
+
+
+          {/* Attached files row above the input pill */}
           {attachedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-slate-100 shadow-sm self-start animate-fadeIn animate-slideInRight mb-2">
+            <div className="flex flex-wrap gap-1.5 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-slate-100 shadow-sm self-start animate-fadeIn mb-2">
               {attachedFiles.map((file, idx) => (
                 <div key={idx} className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-medium text-slate-600">
                   <span className="truncate max-w-[120px]">{file.name}</span>
-                  <button onClick={() => setAttachedFiles((p) => p.filter((_, i) => i !== idx))} className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer">
+                  <button
+                    onClick={() => setAttachedFiles((p) => p.filter((_, i) => i !== idx))}
+                    className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
                     <X size={10} />
                   </button>
                 </div>
@@ -255,22 +464,23 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           )}
 
           <div className="w-full relative">
-            {/* Background glow of the search input - remains rounded-full always */}
-            <div className={`absolute -inset-1 bg-gradient-to-r from-[#402970] to-purple-500 blur-lg transition-all duration-300 pointer-events-none ${isFocused ? "opacity-40" : "opacity-20 group-hover:opacity-30"} rounded-full`} />
+            {/* Input card backing glow */}
+            <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 blur-md transition-all duration-300 pointer-events-none ${isFocused ? "opacity-35" : "opacity-15 group-hover:opacity-20"} rounded-[26px]`} />
 
-            {/* Input field card - stays rounded-full since suggestions float below */}
-            <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-100 shadow-sm"} rounded-full`}>
-              <div className="w-full py-1.5 pl-2 pr-1.5 flex items-center gap-2">
-                {/* Attachment Button */}
+            {/* Input card container */}
+            <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-200/80 shadow-sm"} rounded-[26px]`}>
+              <div className="w-full py-1.5 pl-2.5 pr-2 flex items-center gap-1.5">
+
+                {/* File Attachment Button */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   onMouseDown={(e) => e.preventDefault()}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-550 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
+                  className="w-10 h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-550 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
                   title="Attach files"
                 >
                   <Paperclip size={19} />
                   {attachedFiles.length > 0 && (
-                    <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                    <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />
                   )}
                 </button>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
@@ -287,11 +497,11 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                     setTimeout(() => {
                       setShowDropdown(false);
                       setSelectedIndex(-1);
-                    }, 150);
+                    }, 180);
                   }}
-                  placeholder='Try: "Show me birthday cakes under Rs. 3,000"...'
+                  placeholder="i want to buy ...."
                   rows={1}
-                  className="flex-1 resize-none border-none outline-none text-slate-700 placeholder-slate-400 bg-transparent text-sm sm:text-[15px] py-1.5 leading-normal max-h-[120px] overflow-y-auto scrollbar-none"
+                  className="flex-1 resize-none border-none outline-none text-slate-800 placeholder-slate-400 bg-transparent text-[14px] sm:text-[15px] py-2 leading-normal max-h-[160px] overflow-y-auto scrollbar-none"
                   style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                 />
 
@@ -300,10 +510,10 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   onClick={handleSubmit}
                   onMouseDown={(e) => e.preventDefault()}
                   disabled={!inputText.trim() && attachedFiles.length === 0}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
                     inputText.trim() || attachedFiles.length > 0
                       ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 active:scale-95"
-                      : "bg-slate-100 text-slate-350 cursor-not-allowed"
+                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
                   }`}
                 >
                   <Send size={16} className="ml-[1px]" />
@@ -311,10 +521,10 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
               </div>
             </div>
 
-            {/* Autocomplete Dropdown floating below the input card */}
+            {/* Autocomplete Dropdown - Floats ABOVE the input bar */}
             {showDropdown && suggestions.length > 0 && (
               <div
-                className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-md border border-slate-100/80 shadow-[0_10px_35px_rgba(64,41,112,0.08)] rounded-2xl p-1.5 flex flex-col z-35 origin-top animate-fadeInScale"
+                className="absolute bottom-full left-0 right-0 mb-3 bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-[0_-10px_35px_rgba(64,41,112,0.1)] rounded-2xl p-1.5 flex flex-col z-35 origin-bottom animate-fadeInScale"
               >
                 {suggestions.map((suggestion, index) => {
                   const queryTrim = inputText.trim();
@@ -336,7 +546,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                         setSelectedIndex(-1);
                       }}
                       onMouseEnter={() => setSelectedIndex(index)}
-                      className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-lg transition-all duration-150 flex items-center justify-between group cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-xl transition-all duration-150 flex items-center justify-between group cursor-pointer ${
                         selectedIndex === index
                           ? "bg-[#402970]/5 text-[#402970] font-semibold"
                           : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
@@ -353,12 +563,12 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                           {hasPrefix ? (
                             <>
                               <span className="text-slate-400 font-normal">{prefix}</span>
-                              <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-850"}`}>
+                              <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-800"}`}>
                                 {suffix}
                               </span>
                             </>
                           ) : (
-                            <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-755"}`}>
+                            <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-700"}`}>
                               {suggestion}
                             </span>
                           )}
@@ -376,10 +586,12 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             )}
           </div>
         </div>
+
+        {/* Small disclaimer footer */}
+        <p className="text-[10px] text-center text-slate-400 mt-2.5 select-none font-medium">
+          Kapuruka Sourcing AI may display inaccurate info, so double-check responses.
+        </p>
       </div>
-
-
     </div>
-  </div>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
 import { Home, Briefcase, Tag, MapPin, Star, Pencil, Trash2, CheckCircle2, ChevronRight, Loader2, Plus, X } from "lucide-react";
 import type { UserAddress } from "@/types/sourcing";
+import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
 
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 const SRI_LANKA_CENTER = { lat: 7.8731, lng: 80.7718 };
@@ -48,6 +49,44 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
   const [mapShown, setMapShown] = useState(!!initial?.lat);
   const mapRef = useRef<google.maps.Map | null>(null);
 
+  const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleCityChange = (val: string) => {
+    setCity(val);
+    if (val.trim().length >= 1) {
+      const searchVal = val.toLowerCase();
+      const filtered = KAPRUKA_CITIES.filter((c) =>
+        c.toLowerCase().includes(searchVal)
+      )
+      .slice(0, 10)
+      .map((name) => ({ name }));
+      setCitySuggestions(filtered);
+      setShowSuggestions(true);
+    } else {
+      setCitySuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (cityName: string) => {
+    setCity(cityName);
+    setShowSuggestions(false);
+  };
+
   const handleGeocode = async () => {
     if (!addressText.trim()) return;
     const google = (window as any).google;
@@ -65,10 +104,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
         const latLng = { lat: loc.lat(), lng: loc.lng() };
         setMarkerPos(latLng);
         setFormattedAddress(result.formatted_address);
-        const cityComp = result.address_components.find(
-          (c: any) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
-        );
-        setCity(cityComp?.long_name || addressText);
+        // Do not auto-set city to force explicit user selection
         // Reveal map, then pan imperatively
         setMapShown(true);
         if (mapRef.current) {
@@ -95,10 +131,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
       if (response.results?.[0]) {
         const result = response.results[0];
         setFormattedAddress(result.formatted_address);
-        const cityComp = result.address_components.find(
-          (c: any) => c.types.includes("locality") || c.types.includes("administrative_area_level_2")
-        );
-        setCity(cityComp?.long_name || "");
+        // Do not auto-set city to force explicit user selection
       }
     } catch (err) {
       console.error("Reverse geocoding failed:", err);
@@ -127,6 +160,11 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
       }
     }
     setCustomLabelError("");
+
+    if (!city.trim() || !KAPRUKA_CITIES_SET.has(city)) {
+      alert("Please select a valid Kapruka delivery city from the suggestions dropdown.");
+      return;
+    }
     const addr: UserAddress = {
       id: initial?.id || crypto.randomUUID(),
       type: addressType,
@@ -238,6 +276,32 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
         </div>
       )}
 
+      {/* City Dropdown */}
+      <div className="flex flex-col gap-1.5 text-left relative" ref={suggestionsRef}>
+        <label className="text-[10px] font-bold text-slate-700">City</label>
+        <input
+          type="text"
+          value={city}
+          onChange={e => handleCityChange(e.target.value)}
+          placeholder="Select or search delivery city"
+          className="border border-slate-200 rounded-lg px-3 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
+        />
+        {showSuggestions && citySuggestions.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-1 flex flex-col gap-0.5 max-h-40 overflow-y-auto">
+            {citySuggestions.map((sug) => (
+              <button
+                key={sug.name}
+                type="button"
+                onClick={() => handleSelectSuggestion(sug.name)}
+                className="w-full text-left px-2.5 py-1.5 text-xs text-slate-700 font-semibold hover:bg-slate-50 rounded-md transition-colors cursor-pointer"
+              >
+                {sug.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Recipient Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
         <div className="flex flex-col gap-1.5 text-left">
@@ -273,7 +337,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
         </button>
         <button
           onClick={handleSubmit}
-          disabled={isSaving || !addressText.trim() || (addressType === "custom" && (customLabel.trim() === "" || customLabel.trim().toLowerCase() === "home" || customLabel.trim().toLowerCase() === "work"))}
+          disabled={isSaving || !addressText.trim() || !city.trim() || !KAPRUKA_CITIES_SET.has(city) || (addressType === "custom" && (customLabel.trim() === "" || customLabel.trim().toLowerCase() === "home" || customLabel.trim().toLowerCase() === "work"))}
           className="flex-1 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs py-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
         >
           {isSaving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
@@ -362,7 +426,10 @@ export default function AddressManager({ addresses, onSave, onSelect, isSaving =
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5">{addr.formattedAddress || addr.addressLine}</p>
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                      {addr.formattedAddress || addr.addressLine}
+                      {addr.city ? ` (${addr.city})` : ""}
+                    </p>
                     <p className="text-[10px] text-slate-400">{addr.recipientName} · {addr.phone}</p>
                   </div>
                 </div>

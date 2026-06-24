@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Cookies from "js-cookie";
 import { useAuth } from "./AuthContext";
 import type { InlineProduct, Message, HistoryItem, DeliveryResult, TrackingResult, ServiceListing, CheckoutLink, OrderFlowStepData, CartItem, ProductGroup, UserAddress } from "@/types/sourcing";
 
@@ -85,18 +86,18 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const isSharedReadOnly = activeSessionOwnerId !== null && activeSessionOwnerId !== activeUserId && activeUserId !== "guest-pending";
 
   const [country, setCountryState] = useState(() =>
-    (typeof window !== "undefined" && localStorage.getItem("kapruka_country")) || "LK"
+    (typeof window !== "undefined" && Cookies.get("kapruka_country")) || "LK"
   );
   const [currency, setCurrencyState] = useState(() =>
-    (typeof window !== "undefined" && localStorage.getItem("kapruka_currency")) || "LKR"
+    (typeof window !== "undefined" && Cookies.get("kapruka_currency")) || "LKR"
   );
   const setCountry = useCallback((c: string) => {
     setCountryState(c);
-    if (typeof window !== "undefined") localStorage.setItem("kapruka_country", c);
+    if (typeof window !== "undefined") Cookies.set("kapruka_country", c, { expires: 365 });
   }, []);
   const setCurrency = useCallback((c: string) => {
     setCurrencyState(c);
-    if (typeof window !== "undefined") localStorage.setItem("kapruka_currency", c);
+    if (typeof window !== "undefined") Cookies.set("kapruka_currency", c, { expires: 365 });
   }, []);
   const [selectedProducts, setSelectedProducts] = useState<InlineProduct[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -132,8 +133,46 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       .catch(err => console.warn("Failed to load user addresses:", err));
   }, [user?.id]);
 
-  // Currency and country are now persisted to localStorage via the wrapped setters above.
-  // IP-based auto-detection has been removed — users control this from the sidebar Language & Currency picker.
+  // Currency and country are now persisted to cookies via the wrapped setters above.
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const persistedCountry = Cookies.get("kapruka_country");
+      const persistedCurrency = Cookies.get("kapruka_currency");
+
+      if (!persistedCountry && !persistedCurrency) {
+        const detectLocation = async () => {
+          let countryCode: string | null = null;
+
+          try {
+            const res = await fetch("https://ipapi.co/json/");
+            if (res.ok) {
+              const data = await res.json();
+              if (data.country_code) {
+                countryCode = data.country_code.toUpperCase();
+              }
+            }
+          } catch (err) {
+            console.warn("Location detection failed.", err);
+          }
+
+          // Set location and currency based on detected country code
+          if (countryCode) {
+            setCountry(countryCode);
+            if (countryCode === "LK") {
+              setCurrency("LKR");
+            } else {
+              setCurrency("USD");
+            }
+          } else {
+            // Default baseline if failed
+            setCountry("LK");
+            setCurrency("LKR");
+          }
+        };
+        detectLocation();
+      }
+    }
+  }, [setCountry, setCurrency]);
 
   // Hydrate user cart when user switches or session changes
   useEffect(() => {
@@ -386,7 +425,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const handleSendMessage = async (text: string, files: File[], editMessageId?: string) => {
     if (!user) {
       const userMessageCount = messages.filter(m => m.sender === "user").length;
-      if (userMessageCount >= 3) {
+      if (userMessageCount >= 9) {
         openAuthModal("message_limit");
         return;
       }

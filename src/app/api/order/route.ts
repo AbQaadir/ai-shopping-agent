@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { pillar1_createOrderLink } from "@/lib/tools";
+import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
       priceLKR,
       imageUrl,
       paymentMethod, // "cod" | "card"
+      deliveryDate,  // YYYY-MM-DD — user-chosen delivery date
+      personalMessage, // optional gift message
     } = body;
 
     if (!recipient || !sessionId || (!items && (!productId || !quantity))) {
@@ -37,13 +40,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!KAPRUKA_CITIES_SET.has(city)) {
+      return NextResponse.json(
+        { error: `Invalid delivery city: ${city}. Must be a valid Kapruka city.` },
+        { status: 400 }
+      );
+    }
+
     // Call MCP tool to create order link
     const orderResult = await pillar1_createOrderLink(
       items && items.length > 0
         ? items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }))
         : productId,
       items && items.length > 0 ? recipient : quantity,
-      items && items.length > 0 ? undefined : recipient
+      items && items.length > 0 ? undefined : recipient,
+      deliveryDate || undefined,
+      personalMessage || undefined
     );
 
     if (!orderResult) {
@@ -122,14 +134,48 @@ export async function POST(req: NextRequest) {
               userId,
               status: "pending",
               totalLKR: orderResult.totalLKR || checkoutLink.priceLKR,
+              kaprukaRef: orderResult.orderId || null,  // order_ref from MCP for tracking
+              deliveryDate: deliveryDate || null,
+              personalMessage: personalMessage || null,
               items: {
                 create: orderItemsData,
               },
             },
           });
+
+          // Sync address to user profile if it's a new delivery address
+          const currentAddresses = userExists.addresses && Array.isArray(userExists.addresses)
+            ? (userExists.addresses as any[])
+            : [];
+
+          const alreadySaved = currentAddresses.some((addrObj: any) => {
+            const line = (addrObj.addressLine || addrObj.address || "").trim().toLowerCase();
+            const c = (addrObj.city || "").trim().toLowerCase();
+            return line === address.trim().toLowerCase() && c === city.trim().toLowerCase();
+          });
+
+          if (!alreadySaved) {
+            const newSavedAddress = {
+              id: `addr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              type: "custom",
+              label: `Checkout ${city.trim()}`,
+              recipientName: name.trim(),
+              phone: phone.trim(),
+              addressLine: address.trim(),
+              city: city.trim(),
+              isDefault: currentAddresses.length === 0,
+            };
+
+            await prisma.user.update({
+              where: { id: userId },
+              data: {
+                addresses: [...currentAddresses, newSavedAddress],
+              },
+            });
+          }
         }
       } catch (dbErr) {
-        console.warn("Failed to log order in local database:", dbErr);
+        console.warn("Failed to log order or sync address in local database:", dbErr);
       }
     }
 

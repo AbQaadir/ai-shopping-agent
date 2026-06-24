@@ -3,6 +3,7 @@
 import { useSourcing } from "@/context/SourcingContext";
 import type { CheckoutLink, InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
+import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
 import {
   AlertCircle,
   CheckCircle,
@@ -274,15 +275,20 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleCityInput = async (val: string) => {
+  const handleCityInput = (val: string) => {
     setCity(val);
-    if (val.length >= 2) {
-      try {
-        const res = await fetch(`/api/delivery?q=${encodeURIComponent(val)}&_t=${Date.now()}`);
-        if (res.ok) { setCitySuggestions(await res.json()); setShowSuggestions(true); }
-      } catch {}
+    if (val.trim().length >= 1) {
+      const searchVal = val.toLowerCase();
+      const filtered = KAPRUKA_CITIES.filter((c) =>
+        c.toLowerCase().includes(searchVal)
+      )
+      .slice(0, 10)
+      .map((name) => ({ name }));
+      setCitySuggestions(filtered);
+      setShowSuggestions(true);
     } else {
-      setCitySuggestions([]); setShowSuggestions(false);
+      setCitySuggestions([]);
+      setShowSuggestions(false);
     }
   };
 
@@ -306,6 +312,10 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
   const handleAddressFormNext = () => {
     if (!name.trim() || !phone.trim() || !address.trim() || !city.trim()) {
       alert("Please fill in all delivery details before continuing.");
+      return;
+    }
+    if (!KAPRUKA_CITIES_SET.has(city)) {
+      alert("Please select a valid city from the suggestions dropdown.");
       return;
     }
     setStep("payment_select");

@@ -192,6 +192,7 @@ function ProductSection({
 }
 
 interface ChatTimelineProps {
+  activeHistoryId?: string;
   messages: Message[];
   isGenerating: boolean;
   activeQueryText?: string;
@@ -605,6 +606,7 @@ function renderMessageTextBlock(
 }
 
 export default function ChatTimeline({
+  activeHistoryId,
   messages,
   isGenerating,
   activeQueryText,
@@ -619,6 +621,15 @@ export default function ChatTimeline({
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(messages.length);
+  const scrolledToolsRef = useRef<Set<string>>(new Set());
+  const lastHistoryIdRef = useRef<string | undefined>(undefined);
+
+  // Reset scrolledToolsRef when switching conversation or clearing messages
+  useEffect(() => {
+    if (messages.length === 0) {
+      scrolledToolsRef.current.clear();
+    }
+  }, [messages]);
 
   // Local state to keep track of closed tool result cards per message ID
   const [closedMessages, setClosedMessages] = React.useState<Record<string, boolean>>({});
@@ -675,7 +686,10 @@ export default function ChatTimeline({
     if (closedMessages[msgId]) return null;
 
     return (
-      <div className="border border-slate-100 rounded-[20px] p-5 bg-white shadow-sm w-full mt-4 select-none animate-fadeIn">
+      <div 
+        data-tool-card={msgId}
+        className="border border-slate-100 rounded-[20px] p-5 bg-white shadow-sm w-full mt-4 select-none animate-fadeIn"
+      >
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
           {/* Left side: Tool Icon & Name */}
           <div className="flex items-center gap-2">
@@ -702,8 +716,52 @@ export default function ChatTimeline({
   };
 
   useEffect(() => {
+    // 1. Session switch detection (hydration/history load)
+    if (activeHistoryId !== lastHistoryIdRef.current) {
+      lastHistoryIdRef.current = activeHistoryId;
+      prevLengthRef.current = messages.length;
+
+      // Mark all past messages as already scrolled/focused
+      messages.forEach(m => scrolledToolsRef.current.add(m.id));
+
+      // Scroll so the last user query is aligned to the top of the viewport (and AI response is below it)
+      setTimeout(() => {
+        const userMsgElements = containerRef.current?.querySelectorAll('[data-message-sender="user"]');
+        if (userMsgElements && userMsgElements.length > 0) {
+          const lastUserMsgElement = userMsgElements[userMsgElements.length - 1];
+          lastUserMsgElement.scrollIntoView({ behavior: "auto", block: "start" });
+        } else {
+          bottomRef.current?.scrollIntoView({ behavior: "auto" });
+        }
+      }, 80);
+      return;
+    }
+
     const prevLength = prevLengthRef.current;
     prevLengthRef.current = messages.length;
+
+    // Auto-scroll and center the viewport on any newly arrived tool response card (active chatting only)
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.sender === "ai") {
+      const hasToolResponse = 
+        (lastMsg.inlineProducts && lastMsg.inlineProducts.length > 0) ||
+        lastMsg.deliveryResult ||
+        lastMsg.trackingResult ||
+        lastMsg.serviceListing ||
+        lastMsg.checkoutFormProduct ||
+        lastMsg.orderFlowStep;
+
+      if (hasToolResponse && !scrolledToolsRef.current.has(lastMsg.id)) {
+        scrolledToolsRef.current.add(lastMsg.id);
+        setTimeout(() => {
+          const element = containerRef.current?.querySelector(`[data-tool-card="${lastMsg.id}"]`);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 150);
+        return;
+      }
+    }
 
     if (messages.length > prevLength) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -716,7 +774,7 @@ export default function ChatTimeline({
         }
       }
     }
-  }, [messages, isGenerating]);
+  }, [messages, isGenerating, activeHistoryId]);
 
   return (
     <div
@@ -729,7 +787,11 @@ export default function ChatTimeline({
           const isUser = msg.sender === "user";
           const isLastAIResponse = !isUser && idx === messages.length - 1 && isGenerating;
           return (
-            <div key={msg.id} className={`flex w-full ${isUser ? "justify-end" : "justify-start"} animate-fadeIn`}>
+            <div 
+              key={msg.id} 
+              data-message-sender={msg.sender}
+              className={`flex w-full ${isUser ? "justify-end" : "justify-start"} animate-fadeIn`}
+            >
               <div className={`flex flex-col gap-1 max-w-[88%] ${isUser ? "w-full items-end" : "w-full items-start"}`}>
 
                 {/* User message */}
@@ -770,7 +832,7 @@ export default function ChatTimeline({
                     {/* Text bubble & Custom Inline Input Editor */}
                     {editingMessageId === msg.id ? (
                       /* Custom Inline Input Editor */
-                      <div className="w-full max-w-md sm:max-w-lg md:max-w-xl flex flex-col gap-2 mt-1 animate-fadeIn">
+                      <div className="w-full sm:min-w-[400px] flex flex-col gap-2 mt-1 animate-fadeIn">
                         <div className="relative border border-[#402970]/30 focus-within:border-[#402970] focus-within:ring-2 focus-within:ring-[#402970]/10 rounded-xl bg-slate-50 overflow-hidden transition-all duration-200">
                           <textarea
                             value={editingText}
@@ -816,7 +878,7 @@ export default function ChatTimeline({
 
                         {/* Hover Actions (Copy / Edit) */}
                         {!isGenerating && (
-                          <div className="absolute -bottom-3.5 right-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 flex items-center bg-white border border-slate-200/80 shadow-xs rounded-lg p-0.5 z-10 gap-0.5 select-none">
+                          <div className="absolute -bottom-5 right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 flex items-center bg-white border border-slate-200/80 shadow-xs rounded-lg p-0.5 z-10 gap-0.5 select-none">
                             <button
                               onClick={() => handleCopy(msg.id, msg.text)}
                               className="p-1 hover:bg-slate-50 rounded text-slate-500 hover:text-[#402970] transition-colors cursor-pointer"
@@ -1029,31 +1091,37 @@ export default function ChatTimeline({
 
                         {/* ── Conversational Checkout Card ── */}
                         {msg.checkoutFormProduct && (
-                          <CheckoutCard product={msg.checkoutFormProduct} />
+                          <div data-tool-card={msg.id}>
+                            <CheckoutCard product={msg.checkoutFormProduct} />
+                          </div>
                         )}
 
                         {/* ── Conversational Order Flow Step Bubble (NEW) ── */}
                         {msg.orderFlowStep && (
-                          <OrderStepBubble
-                            step={msg.orderFlowStep}
-                            onAction={(text) => {
-                              if (onDirectSend) {
-                                onDirectSend(text);
-                              } else {
-                                onSampleClick?.(text);
-                              }
-                            }}
-                            isActive={idx === lastOrderStepIdx}
-                          />
+                          <div data-tool-card={msg.id}>
+                            <OrderStepBubble
+                              step={msg.orderFlowStep}
+                              onAction={(text) => {
+                                if (onDirectSend) {
+                                  onDirectSend(text);
+                                } else {
+                                  onSampleClick?.(text);
+                                }
+                              }}
+                              isActive={idx === lastOrderStepIdx}
+                            />
+                          </div>
                         )}
 
                         {/* ── Legacy Order Flow Card (backward compat) ── */}
                         {!msg.orderFlowStep && msg.orderFlowProduct && (
-                          <OrderFlowCard
-                            product={msg.orderFlowProduct}
-                            stockStatus={msg.orderFlowStockStatus}
-                            stockQty={msg.orderFlowStockQty}
-                          />
+                          <div data-tool-card={msg.id}>
+                            <OrderFlowCard
+                              product={msg.orderFlowProduct}
+                              stockStatus={msg.orderFlowStockStatus}
+                              stockQty={msg.orderFlowStockQty}
+                            />
+                          </div>
                         )}
 
                         {/* ── Payment Checkout Links ── */}
@@ -1126,16 +1194,12 @@ export default function ChatTimeline({
                   </div>
                 )}
 
-                {/* Timestamp */}
-                <div className={`flex items-center gap-1.5 text-[10px] text-slate-400 ${isUser ? "justify-end" : "justify-start"}`}>
-                  <span>{formatTime(msg.timestamp)}</span>
-                  {isUser && (
-                    <span>
-                      {msg.status === "sending" && <Clock size={10} className="animate-spin text-[#402970]" />}
-                      {msg.status === "sent" && <Check size={10} className="text-emerald-500 stroke-[3]" />}
-                    </span>
-                  )}
-                </div>
+                {/* Timestamp (AI only) */}
+                {!isUser && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 justify-start">
+                    <span>{formatTime(msg.timestamp)}</span>
+                  </div>
+                )}
               </div>
             </div>
           );

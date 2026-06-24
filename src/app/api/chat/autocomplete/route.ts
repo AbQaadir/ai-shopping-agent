@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     const words = inputText.trim().split(/\s+/).filter(Boolean);
-    if (words.length < 3 || words.length > 5) {
+    if (words.length < 1) {
       return NextResponse.json({ suggestions: [] });
     }
 

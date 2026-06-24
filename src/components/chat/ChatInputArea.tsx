@@ -42,8 +42,9 @@ export default function ChatInputArea({
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
-  // Client-side cache to load previously typed prefixes instantly
   const autocompleteCache = useRef<Record<string, string[]>>({});
+  const hasFetchedForCurrentInput = useRef(false);
+  const fetchedSuggestionsForInput = useRef<string[]>([]);
 
   useEffect(() => {
     const tx = textareaRef.current;
@@ -55,20 +56,24 @@ export default function ChatInputArea({
 
   useEffect(() => {
     const hasUserHistory = chatHistory.some((h) => h.role === "user");
-    if (!inputText || inputText.trim().length < 4 || isGenerating || hasUserHistory) {
+    const words = inputText.trim().split(/\s+/).filter(Boolean);
+
+    if (!inputText || words.length < 4 || isGenerating || hasUserHistory) {
       setSuggestions([]);
       setShowDropdown(false);
       setSelectedIndex(-1);
+      hasFetchedForCurrentInput.current = false;
+      fetchedSuggestionsForInput.current = [];
       return;
     }
 
-    const cacheKey = inputText.trim().toLowerCase();
-    
-    // Check client-side cache first
-    if (autocompleteCache.current[cacheKey]) {
-      const cached = autocompleteCache.current[cacheKey];
-      if (cached.length > 0) {
-        setSuggestions(cached);
+    if (hasFetchedForCurrentInput.current) {
+      const currentLower = inputText.toLowerCase();
+      const filtered = fetchedSuggestionsForInput.current.filter((s) =>
+        s.toLowerCase().startsWith(currentLower)
+      );
+      if (filtered.length > 0) {
+        setSuggestions(filtered);
         setShowDropdown(true);
       } else {
         setSuggestions([]);
@@ -76,6 +81,8 @@ export default function ChatInputArea({
       }
       return;
     }
+
+    hasFetchedForCurrentInput.current = true;
 
     const controller = new AbortController();
     const fetchSuggestions = async () => {
@@ -91,8 +98,7 @@ export default function ChatInputArea({
         if (res.ok) {
           const data = await res.json();
           const suggestionsList = data.suggestions || [];
-          // Save to client-side cache
-          autocompleteCache.current[cacheKey] = suggestionsList;
+          fetchedSuggestionsForInput.current = suggestionsList;
 
           if (suggestionsList.length > 0) {
             setSuggestions(suggestionsList);
@@ -109,10 +115,9 @@ export default function ChatInputArea({
       }
     };
 
-    // Reduced from 300ms to 250ms for snappier autocomplete response
-    const debounceTimer = setTimeout(fetchSuggestions, 250);
+    fetchSuggestions();
+
     return () => {
-      clearTimeout(debounceTimer);
       controller.abort();
     };
   }, [inputText, chatHistory, isGenerating]);
