@@ -98,8 +98,16 @@ export default function ChatWorkspace({
   };
 
   return (
-    /* Full-height flex column — exactly fills the space below the app header */
-    <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-white relative">
+    <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-[#fbfbfe] relative">
+      {/* Background World Map Watermark */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none z-0"
+        style={{
+          backgroundImage: "url('/world.svg')",
+          filter: "invert(18%) sepia(26%) saturate(3025%) hue-rotate(241deg) brightness(97%) contrast(92%)",
+          opacity: 0.03 // Very faint opacity for the chat workspace backdrop
+        }}
+      />
 
       {isSharedReadOnly && (
         <div className="absolute top-0 left-0 right-0 z-30 bg-[#f8f9ff]/90 backdrop-blur-md border-b border-[#402970]/10 py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-semibold text-[#402970] shadow-sm">
@@ -180,10 +188,10 @@ export default function ChatWorkspace({
           />
         </div>
 
-        {/* ── Gradient fade — messages dissolve upward into white ── */}
+        {/* ── Gradient fade — messages dissolve upward into the off-white background ── */}
         <div
           className="pointer-events-none absolute bottom-0 left-0 right-0 h-28 z-10"
-          style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 55%)" }}
+          style={{ background: "linear-gradient(to bottom, rgba(251,251,254,0) 0%, rgba(251,251,254,1) 55%)" }}
         />
 
         {/* ── 3. Pinned input — floats above the gradient ── */}

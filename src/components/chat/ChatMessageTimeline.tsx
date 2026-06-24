@@ -619,6 +619,14 @@ export default function ChatTimeline({
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(messages.length);
+  const scrolledToolsRef = useRef<Set<string>>(new Set());
+
+  // Reset scrolledToolsRef when switching conversation or clearing messages
+  useEffect(() => {
+    if (messages.length === 0) {
+      scrolledToolsRef.current.clear();
+    }
+  }, [messages]);
 
   // Local state to keep track of closed tool result cards per message ID
   const [closedMessages, setClosedMessages] = React.useState<Record<string, boolean>>({});
@@ -675,7 +683,10 @@ export default function ChatTimeline({
     if (closedMessages[msgId]) return null;
 
     return (
-      <div className="border border-slate-100 rounded-[20px] p-5 bg-white shadow-sm w-full mt-4 select-none animate-fadeIn">
+      <div 
+        data-tool-card={msgId}
+        className="border border-slate-100 rounded-[20px] p-5 bg-white shadow-sm w-full mt-4 select-none animate-fadeIn"
+      >
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
           {/* Left side: Tool Icon & Name */}
           <div className="flex items-center gap-2">
@@ -704,6 +715,29 @@ export default function ChatTimeline({
   useEffect(() => {
     const prevLength = prevLengthRef.current;
     prevLengthRef.current = messages.length;
+
+    // Auto-scroll and center the viewport on any newly arrived tool response card
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.sender === "ai") {
+      const hasToolResponse = 
+        (lastMsg.inlineProducts && lastMsg.inlineProducts.length > 0) ||
+        lastMsg.deliveryResult ||
+        lastMsg.trackingResult ||
+        lastMsg.serviceListing ||
+        lastMsg.checkoutFormProduct ||
+        lastMsg.orderFlowStep;
+
+      if (hasToolResponse && !scrolledToolsRef.current.has(lastMsg.id)) {
+        scrolledToolsRef.current.add(lastMsg.id);
+        setTimeout(() => {
+          const element = containerRef.current?.querySelector(`[data-tool-card="${lastMsg.id}"]`);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 150);
+        return;
+      }
+    }
 
     if (messages.length > prevLength) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1029,31 +1063,37 @@ export default function ChatTimeline({
 
                         {/* ── Conversational Checkout Card ── */}
                         {msg.checkoutFormProduct && (
-                          <CheckoutCard product={msg.checkoutFormProduct} />
+                          <div data-tool-card={msg.id}>
+                            <CheckoutCard product={msg.checkoutFormProduct} />
+                          </div>
                         )}
 
                         {/* ── Conversational Order Flow Step Bubble (NEW) ── */}
                         {msg.orderFlowStep && (
-                          <OrderStepBubble
-                            step={msg.orderFlowStep}
-                            onAction={(text) => {
-                              if (onDirectSend) {
-                                onDirectSend(text);
-                              } else {
-                                onSampleClick?.(text);
-                              }
-                            }}
-                            isActive={idx === lastOrderStepIdx}
-                          />
+                          <div data-tool-card={msg.id}>
+                            <OrderStepBubble
+                              step={msg.orderFlowStep}
+                              onAction={(text) => {
+                                if (onDirectSend) {
+                                  onDirectSend(text);
+                                } else {
+                                  onSampleClick?.(text);
+                                }
+                              }}
+                              isActive={idx === lastOrderStepIdx}
+                            />
+                          </div>
                         )}
 
                         {/* ── Legacy Order Flow Card (backward compat) ── */}
                         {!msg.orderFlowStep && msg.orderFlowProduct && (
-                          <OrderFlowCard
-                            product={msg.orderFlowProduct}
-                            stockStatus={msg.orderFlowStockStatus}
-                            stockQty={msg.orderFlowStockQty}
-                          />
+                          <div data-tool-card={msg.id}>
+                            <OrderFlowCard
+                              product={msg.orderFlowProduct}
+                              stockStatus={msg.orderFlowStockStatus}
+                              stockQty={msg.orderFlowStockQty}
+                            />
+                          </div>
                         )}
 
                         {/* ── Payment Checkout Links ── */}
