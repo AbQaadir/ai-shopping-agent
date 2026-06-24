@@ -181,7 +181,7 @@ export default function GlobalSidebar({
               className={`flex items-center transition-all duration-200 cursor-pointer outline-none group border border-slate-200 bg-white hover:bg-slate-50 hover:border-[#402970]/20 hover:shadow-sm text-slate-700 font-bold text-xs ${
                 isCollapsed
                   ? "w-10 h-10 mx-auto p-0 justify-center rounded-xl"
-                  : "w-full py-2.5 px-3 justify-center gap-2.5 rounded-xl"
+                  : "w-full py-2.5 px-3 justify-start gap-2.5 rounded-xl"
               }`}
               title={`Language & Currency: English-${currency}`}
             >
@@ -252,7 +252,7 @@ export default function GlobalSidebar({
               /* Expanded: full Google sign-in button */
               <button
                 onClick={handleUserAreaClick}
-                className="w-full flex items-center justify-center gap-2.5 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-[#402970]/20 hover:shadow-sm text-slate-700 font-bold text-xs transition-all duration-200 cursor-pointer group"
+                className="w-full flex items-center justify-start gap-2.5 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-[#402970]/20 hover:shadow-sm text-slate-700 font-bold text-xs transition-all duration-200 cursor-pointer group"
                 title="Sign in with Google"
               >
                 <GoogleIcon />

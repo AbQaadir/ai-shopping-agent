@@ -14,7 +14,7 @@ import { useSourcing } from "@/context/SourcingContext";
 import ChatInputArea from "./ChatInputArea";
 import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductCatalogModal from "./ProductCatalogModal";
-import CartDrawer from "./CartDrawer";
+import CartModal from "./CartModal";
 import ShareChatModal from "./ShareChatModal";
 
 interface ChatWorkspaceProps {
@@ -41,7 +41,7 @@ export default function ChatWorkspace({
   const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast, isSharedReadOnly, handleSendMessage } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // Reset internal states when activeHistoryId changes to avoid unmounting ChatWorkspace
@@ -144,7 +144,7 @@ export default function ChatWorkspace({
       <div className={`absolute right-6 z-20 select-none flex items-center gap-3 ${isSharedReadOnly ? 'top-14' : 'top-4'}`}>
         {/* Floating cart button */}
         <button
-          onClick={() => setIsCartDrawerOpen(true)}
+          onClick={() => setIsCartModalOpen(true)}
           className="relative flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350 transition-all duration-200 cursor-pointer shadow-xs outline-none"
         >
           <ShoppingCart size={13} />
@@ -175,6 +175,7 @@ export default function ChatWorkspace({
         <div className="flex-1 min-h-0 flex flex-col relative w-full">
           {/* Messages */}
           <ChatMessageTimeline
+            activeHistoryId={activeHistoryId}
             messages={messages}
             isGenerating={isGenerating}
             activeQueryText={activeQueryText}
@@ -235,10 +236,11 @@ export default function ChatWorkspace({
         chatTitle={activeQueryText}
       />
 
-      {/* Cart drawer overlay */}
-      <CartDrawer
-        isOpen={isCartDrawerOpen}
-        onClose={() => setIsCartDrawerOpen(false)}
+      {/* Cart Modal overlay */}
+      <CartModal
+        isOpen={isCartModalOpen}
+        isGlobal={false}
+        onClose={() => setIsCartModalOpen(false)}
       />
 
       {/* ── Silent Add-to-Cart Toast ── */}

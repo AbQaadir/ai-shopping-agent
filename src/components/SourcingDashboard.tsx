@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from "react";
 import GlobalSidebar from "@/components/sidebar/GlobalSidebar";
 import LandingWorkspace from "@/components/landing/LandingWorkspace";
 import ChatWorkspace from "@/components/chat/ChatWorkspace";
-import GlobalCartWorkspace from "@/components/chat/GlobalCartWorkspace";
+import CartModal from "@/components/chat/CartModal";
 import { Headset } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
@@ -28,6 +28,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     messages,
     history,
     isViewingCart,
+    setIsViewingCart,
 
     fetchHistory,
     fetchSessionAndHydrate,
@@ -106,9 +107,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Dynamic Inner Panel Layout */}
           <div className="flex-1 overflow-hidden flex flex-col">
-            {isViewingCart ? (
-              <GlobalCartWorkspace />
-            ) : isChatting ? (
+            {isChatting ? (
               <ChatWorkspace
                 activeHistoryId={activeHistoryId}
                 messages={messages}
@@ -141,6 +140,12 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
       </div>
     </div>
 
+    {/* Unified Global Cart Modal */}
+    <CartModal 
+      isOpen={isViewingCart}
+      isGlobal={true}
+      onClose={() => setIsViewingCart(false)}
+    />
     </>
   );
 }

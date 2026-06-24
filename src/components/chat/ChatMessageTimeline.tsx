@@ -192,6 +192,7 @@ function ProductSection({
 }
 
 interface ChatTimelineProps {
+  activeHistoryId?: string;
   messages: Message[];
   isGenerating: boolean;
   activeQueryText?: string;
@@ -605,6 +606,7 @@ function renderMessageTextBlock(
 }
 
 export default function ChatTimeline({
+  activeHistoryId,
   messages,
   isGenerating,
   activeQueryText,
@@ -620,6 +622,7 @@ export default function ChatTimeline({
   const containerRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(messages.length);
   const scrolledToolsRef = useRef<Set<string>>(new Set());
+  const lastHistoryIdRef = useRef<string | undefined>(undefined);
 
   // Reset scrolledToolsRef when switching conversation or clearing messages
   useEffect(() => {
@@ -713,10 +716,31 @@ export default function ChatTimeline({
   };
 
   useEffect(() => {
+    // 1. Session switch detection (hydration/history load)
+    if (activeHistoryId !== lastHistoryIdRef.current) {
+      lastHistoryIdRef.current = activeHistoryId;
+      prevLengthRef.current = messages.length;
+
+      // Mark all past messages as already scrolled/focused
+      messages.forEach(m => scrolledToolsRef.current.add(m.id));
+
+      // Scroll so the last user query is aligned to the top of the viewport (and AI response is below it)
+      setTimeout(() => {
+        const userMsgElements = containerRef.current?.querySelectorAll('[data-message-sender="user"]');
+        if (userMsgElements && userMsgElements.length > 0) {
+          const lastUserMsgElement = userMsgElements[userMsgElements.length - 1];
+          lastUserMsgElement.scrollIntoView({ behavior: "auto", block: "start" });
+        } else {
+          bottomRef.current?.scrollIntoView({ behavior: "auto" });
+        }
+      }, 80);
+      return;
+    }
+
     const prevLength = prevLengthRef.current;
     prevLengthRef.current = messages.length;
 
-    // Auto-scroll and center the viewport on any newly arrived tool response card
+    // Auto-scroll and center the viewport on any newly arrived tool response card (active chatting only)
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.sender === "ai") {
       const hasToolResponse = 
@@ -750,7 +774,7 @@ export default function ChatTimeline({
         }
       }
     }
-  }, [messages, isGenerating]);
+  }, [messages, isGenerating, activeHistoryId]);
 
   return (
     <div
@@ -763,7 +787,11 @@ export default function ChatTimeline({
           const isUser = msg.sender === "user";
           const isLastAIResponse = !isUser && idx === messages.length - 1 && isGenerating;
           return (
-            <div key={msg.id} className={`flex w-full ${isUser ? "justify-end" : "justify-start"} animate-fadeIn`}>
+            <div 
+              key={msg.id} 
+              data-message-sender={msg.sender}
+              className={`flex w-full ${isUser ? "justify-end" : "justify-start"} animate-fadeIn`}
+            >
               <div className={`flex flex-col gap-1 max-w-[88%] ${isUser ? "w-full items-end" : "w-full items-start"}`}>
 
                 {/* User message */}
