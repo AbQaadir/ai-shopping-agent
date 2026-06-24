@@ -1299,7 +1299,7 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
   const totalLKR = step.cartItems && step.cartItems.length > 0
     ? step.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     : (step.product?.price || 0) * (step.confirmedQuantity || 1);
-  const orderFailed = !step.orderId && step.paymentMethod === "card" && !step.checkoutUrl;
+  const orderFailed = !step.orderId;
 
   return (
     <div

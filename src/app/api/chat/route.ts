@@ -24,6 +24,7 @@ import {
 } from "@/lib/tools";
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest } from "next/server";
+import { placeOrderInternally } from "@/lib/orderService";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -1162,9 +1163,9 @@ Respond ONLY with valid JSON matching this schema:
 
             let checkoutUrl: string | undefined;
             let orderId: string | undefined;
+            let orderFailed = false;
 
             try {
-              const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
               const cartItems = updatedState.cartItems || [];
               const confirmedAddress = updatedState.confirmedAddress;
               const paymentMethod = updatedState.paymentMethod || "cod";
@@ -1177,43 +1178,41 @@ Respond ONLY with valid JSON matching this schema:
                 imageUrl: i.imageUrl,
               }));
 
-              const orderRes = await fetch(`${baseUrl}/api/order`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  items: orderItems,
-                  recipient: confirmedAddress,
-                  sessionId,
-                  userId,
-                  paymentMethod,
-                  deliveryDate: updatedState.deliveryDate || null,
-                  personalMessage: updatedState.personalMessage || null,
-                }),
+              const od = await placeOrderInternally({
+                items: orderItems,
+                recipient: confirmedAddress as any,
+                sessionId,
+                userId: userId || undefined,
+                paymentMethod: paymentMethod as "cod" | "card",
+                deliveryDate: updatedState.deliveryDate || undefined,
+                personalMessage: updatedState.personalMessage || undefined,
               });
 
-              if (orderRes.ok) {
-                const od = await orderRes.json();
-                checkoutUrl = od.checkoutLink?.checkoutUrl;
-                orderId = od.orderResult?.orderId || `ord-${Date.now()}`;
+              checkoutUrl = od.checkoutLink?.checkoutUrl;
+              orderId = od.orderResult?.orderId || `ord-${Date.now()}`;
 
-                // Clear cart and checkout session on success
-                await saveUserCart([]);
-                await clearCheckoutState(sessionId);
-              }
-            } catch (err) {
+              // Clear cart and checkout session on success
+              await saveUserCart([]);
+              await clearCheckoutState(sessionId);
+            } catch (err: any) {
               console.error("[OrderAgent] place order failed:", err);
+              orderFailed = true;
             }
 
-            send({ type: "thought", step: "placing_order", status: "completed", content: "Order placed ✓", durationMs: 0 });
+            send({ type: "thought", step: "placing_order", status: "completed", content: orderFailed ? "Order placement failed ❌" : "Order placed ✓", durationMs: 0 });
 
             const cartItems = updatedState.cartItems || [];
             const totalLKR = cartItems.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
             const itemsListStr = cartItems.map((i: any) => `${i.quantity}x **${i.name}**`).join(", ");
 
-            const confirmationText =
-              updatedState.paymentMethod === "cod"
-                ? `Your order for ${itemsListStr} is confirmed! 🎉 Our courier will deliver and collect **Rs. ${totalLKR.toLocaleString()}** in cash on arrival.`
-                : `Your order for ${itemsListStr} is confirmed! 🎉 Complete the payment via the secure link below to finalise your order.`;
+            let confirmationText = "";
+            if (orderFailed) {
+              confirmationText = `We encountered an issue placing your order for ${itemsListStr}. Please try again later.`;
+            } else if (updatedState.paymentMethod === "cod") {
+              confirmationText = `Your order for ${itemsListStr} is confirmed! 🎉 Our courier will deliver and collect **Rs. ${totalLKR.toLocaleString()}** in cash on arrival.`;
+            } else {
+              confirmationText = `Your order for ${itemsListStr} is confirmed! 🎉 Complete the payment via the secure link below to finalise your order.`;
+            }
 
             const cs = {
               phase: "confirmed",
@@ -1221,7 +1220,7 @@ Respond ONLY with valid JSON matching this schema:
               confirmedAddress: updatedState.confirmedAddress,
               paymentMethod: updatedState.paymentMethod,
               checkoutUrl,
-              orderId,
+              orderId: orderFailed ? null : orderId, // Ensure it's null on failure
             };
             send({ type: "order_flow_step", ...cs });
             await streamWords(confirmationText);
