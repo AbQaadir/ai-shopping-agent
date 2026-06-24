@@ -989,7 +989,33 @@ Respond ONLY with valid JSON matching this schema:
             requiresDeliveryCheck: false,
           };
 
-          if (ai) {
+          let bypassedAI = false;
+          if (checkoutState.phase === "delivery_ask" && / address selected$/i.test(message.trim())) {
+            const labelMatch = message.match(/^(.+) address selected$/i);
+            if (labelMatch) {
+               const label = labelMatch[1].trim();
+               const found = allUserAddresses.find((a: any) => 
+                 (a.label?.toLowerCase() === label.toLowerCase()) ||
+                 (a.type?.toLowerCase() === label.toLowerCase()) ||
+                 (a.recipientName?.toLowerCase() === label.toLowerCase()) ||
+                 ((a as any).name?.toLowerCase() === label.toLowerCase())
+               );
+               if (found) {
+                 bypassedAI = true;
+                 agentOutput = {
+                   nextPhase: "delivery_date_ask",
+                   stay: false,
+                   extractedData: { usesSavedAddress: true, selectedAddressId: found.id },
+                   responseText: "When would you like your order delivered? Pick a date below, and feel free to add a personal message!",
+                   requiresGeocode: false,
+                   requiresOrderPlace: false,
+                   requiresDeliveryCheck: false,
+                 };
+               }
+            }
+          }
+
+          if (ai && !bypassedAI) {
             agentOutput = await orderAgent(message, checkoutState, ai, config.gemini.fastModel);
           }
 
@@ -1008,12 +1034,20 @@ Respond ONLY with valid JSON matching this schema:
             updatedState.cartItems = extractedData.updatedCartItems;
             await saveUserCart(extractedData.updatedCartItems);
           }
+          // Normalize address data
+          const mapToSavedAddress = (addr: any) => ({
+             name: addr.recipientName || addr.name || addr.label || "Customer",
+             phone: addr.phone || "",
+             address: addr.addressLine || addr.address || "",
+             city: addr.city || ""
+          });
+
           if (extractedData.usesSavedAddress === true && savedAddr) {
-            updatedState.confirmedAddress = savedAddr;
+            updatedState.confirmedAddress = mapToSavedAddress(savedAddr);
           }
           if (extractedData.selectedAddressId) {
             const found = allUserAddresses.find((a: any) => a.id === extractedData.selectedAddressId);
-            if (found) updatedState.confirmedAddress = found;
+            if (found) updatedState.confirmedAddress = mapToSavedAddress(found);
           }
           if (extractedData.paymentMethod) {
             updatedState.paymentMethod = extractedData.paymentMethod;

@@ -6,12 +6,14 @@ interface SidebarHistoryListProps {
   history: Array<{ id: string; query: string; date: string }>;
   activeHistoryId?: string;
   onSelectHistory: (id: string) => void;
+  onDeleteHistory: (id: string) => void;
 }
 
 export default function SidebarHistoryList({
   history,
   activeHistoryId,
-  onSelectHistory
+  onSelectHistory,
+  onDeleteHistory,
 }: SidebarHistoryListProps) {
   return (
     <div className="px-0 py-1 space-y-1 w-full flex flex-col items-start animate-fadeIn">
@@ -22,6 +24,7 @@ export default function SidebarHistoryList({
           query={item.query}
           isActive={activeHistoryId === item.id}
           onClick={() => onSelectHistory(item.id)}
+          onDelete={() => onDeleteHistory(item.id)}
         />
       ))}
     </div>

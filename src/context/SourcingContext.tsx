@@ -28,6 +28,7 @@ interface SourcingContextType {
   isSharedReadOnly: boolean;
   fetchHistory: () => Promise<void>;
   fetchSessionAndHydrate: (id: string) => Promise<void>;
+  handleDeleteHistory: (id: string) => Promise<void>;
   handleResetLocal: () => void;
   handleReset: () => void;
   handleSelectHistory: (id: string) => void;
@@ -413,6 +414,23 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     fetchSessionAndHydrate(id);
   };
 
+  const handleDeleteHistory = async (id: string) => {
+    try {
+      const res = await fetch(`/api/session?id=${id}&userId=${activeUserId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setHistory((prev) => prev.filter((item) => item.id !== id));
+        if (id === activeHistoryId) {
+          handleReset();
+        }
+      } else {
+        console.error("Failed to delete chat session:", await res.text());
+      }
+    } catch (err) {
+      console.error("Error deleting chat session:", err);
+    }
+  };
 
   const handleStopGeneration = () => {
     if (abortControllerRef.current) {
@@ -1165,6 +1183,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         handleResetLocal,
         handleReset,
         handleSelectHistory,
+        handleDeleteHistory,
         handleStopGeneration,
         handleSendMessage,
         handleBuyProduct,

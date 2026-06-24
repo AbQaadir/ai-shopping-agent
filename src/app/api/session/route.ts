@@ -173,3 +173,52 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const sessionId = searchParams.get("sessionId") || searchParams.get("id");
+    const userId = searchParams.get("userId");
+
+    if (!sessionId) {
+      return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+    }
+
+    // 1. Delete the chat session from PostgreSQL (cascades to ChatMessage & CheckoutSession)
+    await prisma.chatSession.delete({
+      where: { id: sessionId },
+    });
+
+    // 2. Clean up the cart object for this session in the User's cart JSON field
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { cart: true },
+      });
+
+      if (user?.cart) {
+        let cartObj: Record<string, any[]> = {};
+        try {
+          cartObj = typeof user.cart === "string" ? JSON.parse(user.cart as string) : (user.cart as Record<string, any[]>);
+        } catch {
+          cartObj = {};
+        }
+
+        if (cartObj && typeof cartObj === "object" && !Array.isArray(cartObj)) {
+          if (sessionId in cartObj) {
+            delete cartObj[sessionId];
+            await (prisma.user as any).update({
+              where: { id: userId },
+              data: { cart: cartObj },
+            });
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Session DELETE error:", error);
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+  }
+}

@@ -312,7 +312,10 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
     submittedRef.current = true;
     setSelectedAddressId(id);
     setSubmitted(true);
-    onAction(`Use address: ${id}`);
+    
+    const addr = addrs.find(a => a.id === id);
+    const label = addr?.label || (addr as any)?.type || addr?.recipientName || (addr as any)?.name || "Saved";
+    onAction(`${label} address selected`);
   };
 
   const handleNew = () => {
@@ -324,9 +327,9 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
   };
 
   return (
-    <div className="w-full bg-white border border-slate-100 rounded-[20px] shadow-xs p-4 sm:p-5 animate-fadeInScale select-none mt-4">
+    <div className="w-full bg-white border border-slate-100 rounded-[20px] shadow-xs p-3 sm:p-4 animate-fadeInScale select-none mt-4">
       {/* Header */}
-      <div className="flex items-center gap-2 pb-3 border-b border-slate-100/60 mb-3.5">
+      <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100/60 mb-3">
         <span className="p-1.5 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
           <MapPin size={16} />
         </span>
@@ -334,7 +337,7 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
       </div>
 
       {/* Address Details Container */}
-      <div className="mb-3.5 flex flex-col gap-2.5">
+      <div className="mb-3 flex flex-col gap-2">
         {hasAddrs ? (
           addrs.map((addr) => {
             const isSelected = selectedAddressId === addr.id;
@@ -346,7 +349,7 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
               <div 
                 key={addr.id}
                 onClick={() => isActive && !submitted && handleSaved(addr.id)}
-                className={`p-3 sm:p-3.5 rounded-2xl flex flex-col gap-2 transition-all ${
+                className={`relative p-2.5 sm:p-3 rounded-2xl flex flex-col gap-1.5 transition-all ${
                   isActive && !submitted 
                     ? "bg-slate-50/60 border border-slate-200/80 hover:border-[#402970] hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]" 
                     : isSelected
@@ -354,28 +357,25 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
                       : "bg-slate-50/60 border border-slate-100/80"
                 }`}
               >
-                <div className="flex items-center justify-between border-b border-slate-100/50 pb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-slate-800 capitalize">{addr.label || addr.type}</span>
-                    {addr.isDefault && (
-                      <span className="ml-2 text-[9px] uppercase tracking-wider font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">★ Default</span>
-                    )}
-                  </div>
-                  {(!isActive || submitted) && isSelected && (
-                    <CheckCircle size={14} className="text-[#402970]" />
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2.5">
+                {/* Checkmark icon positioned absolutely at top right */}
+                {(!isActive || submitted) && isSelected && (
+                  <CheckCircle size={14} className="text-[#402970] absolute top-3.5 right-3.5" />
+                )}
+
+                <div className="grid grid-cols-2 gap-2 pr-6">
                   <div className="flex items-center gap-2">
                     <User size={13} className="text-[#402970] shrink-0" />
-                    <span className="text-[13px] font-bold text-slate-800">{addr.recipientName || (addr as any).name || "Customer"}</span>
+                    <span className="text-[13px] font-bold text-slate-800 truncate">{addr.recipientName || (addr as any).name || "Customer"}</span>
+                    {addr.isDefault && (
+                      <span className="text-[9px] uppercase tracking-wider font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md shrink-0">★ Default</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone size={13} className="text-slate-400 shrink-0" />
-                    <span className="text-[13px] font-bold text-slate-800">{addr.phone}</span>
+                    <span className="text-[13px] font-bold text-slate-800 truncate">{addr.phone}</span>
                   </div>
                 </div>
-                <div className="flex items-start gap-2 pt-0.5">
+                <div className="flex items-start gap-2 pt-0.5 pr-6">
                   <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
                   <span className="text-[13px] font-bold text-slate-800 leading-relaxed truncate-line-clamp">
                     {addr.addressLine || (addr as any).address}, {addr.city}
@@ -396,15 +396,15 @@ function DeliveryAskBubble({ step, onAction, isActive = true }: OrderStepBubbleP
 
       {/* Action Area */}
       {submitted || !isActive ? (
-        <div className="w-full py-3 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none mt-2">
+        <div className="w-full py-2.5 bg-[#402970]/10 text-[#402970] border border-[#402970]/15 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs select-none mt-1">
           <CheckCircle size={13} className="text-[#402970]" />{" "}
           {selectedAddressId === "new" ? "New Address Selected" : "Saved Address Confirmed"}
         </div>
       ) : (
-        <div className="flex justify-center mt-2">
+        <div className="flex justify-center mt-1">
           <button
             onClick={handleNew}
-            className="w-full py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+            className="w-full py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
           >
             <Navigation size={13} className="text-slate-500" />
             {hasAddrs ? "＋ Use a new address" : "Pin delivery location"}
