@@ -110,9 +110,11 @@ export async function pillar1_getProductDetails(
 export async function pillar1_createOrderLink(
   productIdOrItems: string | Array<{ productId: string; quantity: number }>,
   quantityOrRecipient: number | { name: string; phone: string; address: string; city: string },
-  recipientDetail?: { name: string; phone: string; address: string; city: string }
+  recipientDetail?: { name: string; phone: string; address: string; city: string },
+  deliveryDate?: string,   // YYYY-MM-DD — passed through to kapruka_create_order
+  giftMessage?: string     // optional gift message — passed as gift_message to MCP
 ): Promise<KaprukaOrderResult | null> {
-  const result = await createOrder(productIdOrItems as any, quantityOrRecipient as any, recipientDetail as any);
+  const result = await createOrder(productIdOrItems as any, quantityOrRecipient as any, recipientDetail as any, deliveryDate, giftMessage);
   if (!result.success || !result.data) {
     console.error("[Pillar1] createOrder failed:", result.error);
     return null;

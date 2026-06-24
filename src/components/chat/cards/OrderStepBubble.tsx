@@ -3,10 +3,12 @@
 import type { OrderFlowStepData } from "@/types/sourcing";
 import {
   AlertCircle,
+  CalendarDays,
   CheckCircle,
   ChevronRight,
   CreditCard,
   ExternalLink,
+  Gift,
   Loader2,
   MapPin,
   Minus,
@@ -23,6 +25,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSourcing } from "@/context/SourcingContext";
 import { cleanProductTitle } from "@/lib/product";
 import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
+import DeliveryDateBubble from "./DeliveryDateBubble";
 import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
 
 interface OrderStepBubbleProps {
@@ -1189,6 +1192,35 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
           </div>
         )}
 
+        {/* Delivery Confirmed Card — shown when kapruka_check_delivery succeeded */}
+        {step.deliveryCheckResult?.canDeliver && (
+          <div className="bg-green-50 border border-green-100 rounded-2xl p-4 flex flex-col gap-2">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle size={14} className="text-green-500 shrink-0" />
+              <h5 className="text-xs font-extrabold text-green-700">Delivery Confirmed</h5>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+              <CalendarDays size={11} className="text-green-600 shrink-0" />
+              <span>
+                {step.deliveryCheckResult.city}
+                {step.deliveryDate ? ` • ${new Date(step.deliveryDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}` : ""}
+              </span>
+            </div>
+            {step.deliveryCheckResult.flatRateLKR != null && (
+              <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+                <Truck size={11} className="text-green-600 shrink-0" />
+                <span>Delivery fee: <span className="font-extrabold text-green-700">Rs. {step.deliveryCheckResult.flatRateLKR.toLocaleString()}</span></span>
+              </div>
+            )}
+            {step.personalMessage && (
+              <div className="flex items-start gap-2 text-[11px] text-slate-500 font-medium">
+                <Gift size={11} className="text-rose-400 mt-0.5 shrink-0" />
+                <span className="italic">"{step.personalMessage.length > 60 ? step.personalMessage.substring(0, 57) + "..." : step.personalMessage}"</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Payment Methods Section */}
         <div className="flex flex-col gap-3">
           <h5 className="text-xs font-bold text-slate-700">Choose Payment Method</h5>
@@ -1463,6 +1495,8 @@ export default function OrderStepBubble({ step, onAction, isActive = true }: Ord
       return <NewAddressFormBubble step={step} onAction={onAction} isActive={isActive} />;
     case "map_open":
       return <MapOpenBubble step={step} onAction={onAction} isActive={isActive} />;
+    case "delivery_date_ask":
+      return <DeliveryDateBubble step={step} onAction={onAction} isActive={isActive} />;
     case "payment_ask":
       return <PaymentAskBubble step={step} onAction={onAction} isActive={isActive} />;
     case "confirmed":

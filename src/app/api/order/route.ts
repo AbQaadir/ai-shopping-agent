@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
       priceLKR,
       imageUrl,
       paymentMethod, // "cod" | "card"
+      deliveryDate,  // YYYY-MM-DD — user-chosen delivery date
+      personalMessage, // optional gift message
     } = body;
 
     if (!recipient || !sessionId || (!items && (!productId || !quantity))) {
@@ -51,7 +53,9 @@ export async function POST(req: NextRequest) {
         ? items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }))
         : productId,
       items && items.length > 0 ? recipient : quantity,
-      items && items.length > 0 ? undefined : recipient
+      items && items.length > 0 ? undefined : recipient,
+      deliveryDate || undefined,
+      personalMessage || undefined
     );
 
     if (!orderResult) {
@@ -130,6 +134,9 @@ export async function POST(req: NextRequest) {
               userId,
               status: "pending",
               totalLKR: orderResult.totalLKR || checkoutLink.priceLKR,
+              kaprukaRef: orderResult.orderId || null,  // order_ref from MCP for tracking
+              deliveryDate: deliveryDate || null,
+              personalMessage: personalMessage || null,
               items: {
                 create: orderItemsData,
               },

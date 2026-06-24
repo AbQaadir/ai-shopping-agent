@@ -60,7 +60,7 @@ export default function AuthModal() {
           {/* Stylized Image box matching the product thumbnail container */}
           <div className="w-full aspect-square max-w-[260px] rounded-lg overflow-hidden border border-slate-200/60 bg-white shadow-md flex items-center justify-center p-5 relative z-10">
             <img
-              src="/auth_illustration.png"
+              src="/image.png"
               alt="Kapuruka AI"
               className="w-full h-full object-contain rounded"
             />

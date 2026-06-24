@@ -42,6 +42,7 @@ export type OrderFlowPhase =
   | "new_address_form"   // Combined name+phone+rough-location+map form (replaces address_ask)
   | "address_ask"        // LEGACY: kept for backward compat with old DB sessions → renders as map_open
   | "map_open"           // LEGACY: show embedded Google Map for pin drop (old sessions only)
+  | "delivery_date_ask" // NEW: user picks delivery date + optional gift/personal message
   | "payment_ask"        // AI asked payment method — show COD / Card buttons
   | "confirmed"          // Order placed — show confirmation card
   | "out_of_stock";      // Product out of stock — show apology
@@ -89,7 +90,17 @@ export interface OrderFlowStepData {
   paymentMethod?: "cod" | "card"; // confirmed payment method
   checkoutUrl?: string;           // card payment URL after order placed
   orderId?: string;               // order reference after placement
-  errorMessage?: string;          // e.g. "requested qty exceeds stock"
+  errorMessage?: string;          // e.g. "requested qty exceeds stock" or delivery date error
+  // Delivery date step fields
+  deliveryDate?: string;          // YYYY-MM-DD confirmed delivery date
+  personalMessage?: string;       // optional gift/personal message
+  deliveryCheckResult?: {         // result from kapruka_check_delivery, shown in DeliveryConfirmedBubble
+    city: string;
+    canDeliver: boolean;
+    flatRateLKR?: number;
+    nextAvailableDate?: string;   // shown if canDeliver = false
+    warning?: string;
+  };
 }
 
 export interface DeliveryResult {

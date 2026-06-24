@@ -8,6 +8,7 @@ import {
   SquarePen,
   History,
   Globe,
+  Package,
 } from "lucide-react";
 import SidebarHistoryList from "./SidebarHistoryList";
 import LanguagePopover from "../header/LanguagePopover";
@@ -15,6 +16,7 @@ import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
 import { HistoryItem } from "@/types/sourcing";
 import SettingsModal from "../profile/SettingsModal";
+import OrdersPanel from "./OrdersPanel";
 
 interface GlobalSidebarProps {
   isCollapsed: boolean;
@@ -49,6 +51,7 @@ export default function GlobalSidebar({
 }: GlobalSidebarProps) {
   const [showLanguagePopover, setShowLanguagePopover] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isOrdersOpen, setIsOrdersOpen] = useState(false);
 
   const { currency } = useSourcing();
   const { user, openAuthModal } = useAuth();
@@ -142,6 +145,28 @@ export default function GlobalSidebar({
               <span className="absolute -right-3 top-1/2 -translate-y-1/2 w-[4px] h-8 bg-[#402970] rounded-l-full" />
             )}
           </button>
+
+          {/* Orders button — only for logged-in users */}
+          {user && (
+            <button
+              onClick={() => setIsOrdersOpen(true)}
+              className={`w-full flex items-center rounded-xl text-sm transition-all duration-200 cursor-pointer outline-none group
+                text-slate-700 hover:bg-[#402970]/5 hover:text-[#402970] font-semibold
+                ${isEffectiveCollapsed ? "justify-center gap-0 px-3 py-3" : "gap-3 px-3 py-3"}
+              `}
+              title="My Orders"
+            >
+              <Package
+                size={19}
+                className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"
+              />
+              <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap font-semibold text-[13px] ${
+                isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+              }`}>
+                Orders
+              </span>
+            </button>
+          )}
 
           {/* History Section Header */}
           <div className="space-y-1 pt-2">
@@ -267,6 +292,9 @@ export default function GlobalSidebar({
 
       {/* Settings Modal */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+      {/* Orders Panel */}
+      <OrdersPanel isOpen={isOrdersOpen} onClose={() => setIsOrdersOpen(false)} />
     </>
   );
 }

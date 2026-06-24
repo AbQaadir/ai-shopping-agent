@@ -6,6 +6,9 @@
  * the context of the current checkout phase, extract structured data,
  * and determine the next phase transition.
  *
+ * Phase flow:
+ *   qty_ask → delivery_ask → [new_address_form?] → delivery_date_ask → payment_ask → confirmed
+ *
  * Replaces ~400 lines of hard-coded if-else phase handlers in the old route.ts.
  */
 
@@ -19,6 +22,7 @@ export interface OrderAgentOutput {
     | "qty_ask"
     | "delivery_ask"
     | "new_address_form"
+    | "delivery_date_ask"
     | "payment_ask"
     | "confirmed"
     | "stay";
@@ -38,6 +42,10 @@ export interface OrderAgentOutput {
     selectedAddressId?: string;
     /** Payment method chosen (payment_ask). */
     paymentMethod?: "cod" | "card";
+    /** Delivery date in YYYY-MM-DD format (from delivery_date_ask). */
+    deliveryDate?: string;
+    /** Optional personal/gift message (from delivery_date_ask). */
+    personalMessage?: string;
   };
 
   /** The response text to stream to the user (1–2 warm sentences). */
@@ -48,6 +56,9 @@ export interface OrderAgentOutput {
 
   /** True if an order should be placed (payment_ask → confirmed). */
   requiresOrderPlace: boolean;
+
+  /** True if kapruka_check_delivery must be called before advancing to payment_ask. */
+  requiresDeliveryCheck: boolean;
 }
 
 function cartToStr(cartItems: CartItem[]): string {
@@ -63,7 +74,7 @@ export async function orderAgent(
   ai: GoogleGenAI,
   reasoningModel: string
 ): Promise<OrderAgentOutput> {
-  const { phase, cartItems, product, confirmedQty, confirmedAddress, savedAddress, paymentMethod } = checkoutState;
+  const { phase, cartItems, product, confirmedQty, confirmedAddress, savedAddress, paymentMethod, deliveryDate, personalMessage } = checkoutState;
   const firstName = savedAddress?.name?.split(" ")[0] ?? "";
   const isCartFlow = cartItems && cartItems.length > 0;
 
@@ -77,6 +88,8 @@ ${isCartFlow
 Confirmed Qty: ${confirmedQty ?? "not yet set"}
 Saved Address: ${savedAddress ? `${savedAddress.address}, ${savedAddress.city} (Name: ${savedAddress.name}, Phone: ${savedAddress.phone})` : "none"}
 Confirmed Address: ${confirmedAddress ? `${confirmedAddress.address}, ${confirmedAddress.city}` : "not yet set"}
+Delivery Date: ${deliveryDate ?? "not yet set"}
+Personal Message: ${personalMessage ?? "none"}
 Payment: ${paymentMethod ?? "not yet chosen"}
 Customer First Name: "${firstName}"
 
@@ -89,7 +102,7 @@ Reason about what the user said and determine:
 1. nextPhase — Where to go next?
    GLOBAL OVERRIDE: If the user explicitly asks to "change my address", "use a different address", or "new address", ALWAYS set nextPhase to "new_address_form", REGARDLESS of the current phase.
    
-   Based on current phase:
+   Phase flow: qty_ask → delivery_ask → [new_address_form?] → delivery_date_ask → payment_ask → confirmed
    
    "qty_ask" phase:
      -> "delivery_ask" if user confirms quantities (e.g. "looks good", "confirm", "proceed", "yes")
@@ -97,14 +110,29 @@ Reason about what the user said and determine:
    
    "delivery_ask" phase:
      The user may have clicked a saved address card (message = "Use address: <id>") or asked for new address.
-     -> "payment_ask" if user chose a saved address (message starts with "Use address:", or says yes/saved/confirm)
+     -> "delivery_date_ask" if user chose a saved address (message starts with "Use address:", or says yes/saved/confirm)
        Set extractedData.usesSavedAddress=true and extract selectedAddressId from "Use address: <id>" if present.
      -> "new_address_form" if user wants a new/different address ("new address", "different location", "other place")
      -> "delivery_ask" + stay=true if unclear
    
    "new_address_form" phase:
      Message will be "New address confirmed: <name>|<phone>|<formattedAddress>|<city>" from the UI form.
-     -> "payment_ask" always
+     -> "delivery_date_ask" always (go to date selection after address is confirmed)
+   
+   "delivery_date_ask" phase:
+     The UI sends a structured message: "Delivery date confirmed: YYYY-MM-DD|Personal message: <text or empty>"
+     Parse this message to extract:
+     - deliveryDate: the YYYY-MM-DD part after "Delivery date confirmed: "
+     - personalMessage: the text after "Personal message: " (may be empty string — that is fine)
+     -> "payment_ask" always when this structured message is received (set requiresDeliveryCheck=true)
+     -> "delivery_date_ask" + stay=true if message is NOT the structured format (user typed something unclear)
+     
+     If user types a date naturally (not via the UI button), parse it:
+     - "tomorrow" → compute tomorrow's date as YYYY-MM-DD
+     - "Saturday", "next Friday" etc → compute nearest upcoming weekday as YYYY-MM-DD
+     - "25th", "June 25", "25/06" → parse as YYYY-MM-DD for current month/year
+     - If date is in the past → stay=true with an error message
+     In this case also set requiresDeliveryCheck=true when advancing.
    
    "payment_ask" phase:
      -> "confirmed" if user chose a payment method (set requiresOrderPlace=true)
@@ -117,7 +145,8 @@ Reason about what the user said and determine:
    qty_ask (single product): Did they mention a quantity? -> quantity: <number>
    qty_ask (cart): Did they change any item quantity? -> updatedCartItems: [updated cart array]
    delivery_ask: usesSavedAddress: true or false; if message is "Use address: <id>" also extract selectedAddressId: "<the-id>"
-   new_address_form: message is structured "New address confirmed: ...", just set nextPhase=payment_ask, no extractedData needed
+   new_address_form: message is structured "New address confirmed: ...", just set nextPhase=delivery_date_ask, no extractedData needed
+   delivery_date_ask: deliveryDate: "YYYY-MM-DD"; personalMessage: "<text or empty string>"
    payment_ask: paymentMethod: "cod" or "card"
    
    COD signals: cash, cod, cash on delivery, on delivery, pay on arrival
@@ -130,11 +159,18 @@ Reason about what the user said and determine:
    - Be warm and natural
    - ANY phase -> new_address_form (due to address change request): "Sure, let's update your delivery address. Please fill in the details and pin your new location below."
    - qty_ask -> delivery_ask: Acknowledge confirmed. Say "Please select a delivery address below."
-   - delivery_ask -> payment_ask: Acknowledge saved address. Ask how to pay (COD or card).
+   - delivery_ask -> delivery_date_ask: Acknowledge saved address chosen. Say "When would you like your order delivered? Pick a date below, and feel free to add a personal message!"
    - delivery_ask -> new_address_form: "Please fill in your delivery details and pin your exact location on the map below."
-   - new_address_form -> payment_ask: "Address confirmed! How would you like to pay - Cash on Delivery or Card?"
-   - payment_ask -> confirmed: This is just a placeholder - actual confirmation message is generated later.
+   - new_address_form -> delivery_date_ask: "Address confirmed! Now, when would you like your order delivered? Pick a date below."
+   - delivery_date_ask -> payment_ask: This is just a placeholder — actual confirmation message is generated by the route after checking delivery.
+   - delivery_date_ask + stay=true (date not given): "When would you like your order delivered? Please pick a date from the options below, and feel free to add a personal message for the recipient!"
+   - payment_ask -> confirmed: This is just a placeholder — actual confirmation message is generated later.
    - stay=true: Politely re-ask the same phase question.
+
+5. requiresDeliveryCheck — Set true ONLY when transitioning delivery_date_ask → payment_ask.
+   This tells the route to call kapruka_check_delivery before advancing.
+
+6. requiresOrderPlace — Set true ONLY when transitioning payment_ask → confirmed.
 
 Respond ONLY as valid JSON matching exactly this schema:
 {
@@ -144,12 +180,15 @@ Respond ONLY as valid JSON matching exactly this schema:
     "quantity": <number or null>,
     "updatedCartItems": <array or null>,
     "usesSavedAddress": <boolean or null>,
-    "addressText": <string or null>,
-    "paymentMethod": <"cod" | "card" | null>
+    "selectedAddressId": <string or null>,
+    "paymentMethod": <"cod" | "card" | null>,
+    "deliveryDate": <"YYYY-MM-DD" or null>,
+    "personalMessage": <string or null>
   },
   "responseText": "<1-2 sentences>",
   "requiresGeocode": <boolean>,
-  "requiresOrderPlace": <boolean>
+  "requiresOrderPlace": <boolean>,
+  "requiresDeliveryCheck": <boolean>
 }`;
 
   const fallbackOutput = (stayPhase = true): OrderAgentOutput => ({
@@ -159,6 +198,7 @@ Respond ONLY as valid JSON matching exactly this schema:
     responseText: getPhaseRepeatText(phase, savedAddress, cartItems),
     requiresGeocode: false,
     requiresOrderPlace: false,
+    requiresDeliveryCheck: false,
   });
 
   try {
@@ -180,13 +220,16 @@ Respond ONLY as valid JSON matching exactly this schema:
                 usesSavedAddress: { type: "BOOLEAN", nullable: true },
                 selectedAddressId: { type: "STRING", nullable: true },
                 paymentMethod: { type: "STRING", nullable: true },
+                deliveryDate: { type: "STRING", nullable: true },
+                personalMessage: { type: "STRING", nullable: true },
               },
             },
             responseText: { type: "STRING" },
             requiresGeocode: { type: "BOOLEAN" },
             requiresOrderPlace: { type: "BOOLEAN" },
+            requiresDeliveryCheck: { type: "BOOLEAN" },
           },
-          required: ["nextPhase", "stay", "extractedData", "responseText", "requiresGeocode", "requiresOrderPlace"],
+          required: ["nextPhase", "stay", "extractedData", "responseText", "requiresGeocode", "requiresOrderPlace", "requiresDeliveryCheck"],
         },
       },
     });
@@ -194,7 +237,7 @@ Respond ONLY as valid JSON matching exactly this schema:
     const raw = (result.text || "{}").trim();
     const parsed = JSON.parse(raw) as OrderAgentOutput;
 
-    console.log(`[OrderAgent] phase="${phase}" → nextPhase="${parsed.nextPhase}" stay=${parsed.stay}`);
+    console.log(`[OrderAgent] phase="${phase}" → nextPhase="${parsed.nextPhase}" stay=${parsed.stay} requiresDeliveryCheck=${parsed.requiresDeliveryCheck}`);
     return parsed;
   } catch (err) {
     console.error("[OrderAgent] LLM call failed:", (err as Error).message);
@@ -220,6 +263,8 @@ function getPhaseRepeatText(
         : "Please select a delivery address below, or add a new one.";
     case "new_address_form":
       return "Please fill in your name, phone, and location in the form below, then pin your exact address on the map.";
+    case "delivery_date_ask":
+      return "When would you like your order delivered? Please pick a date from the options below, and feel free to add a personal message for the recipient!";
     case "payment_ask":
       return "How would you like to pay? Please choose **Cash on Delivery** or **Card Payment**.";
     default:

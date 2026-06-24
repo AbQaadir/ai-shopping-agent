@@ -443,11 +443,16 @@ export async function getCachedCategories(): Promise<KaprukaCategoryDeep[]> {
 export async function createOrder(
   productIdOrItems: string | Array<{ productId: string; quantity: number }>,
   quantityOrRecipient: number | { name: string; phone: string; address: string; city: string },
-  recipientDetail?: { name: string; phone: string; address: string; city: string }
+  recipientDetail?: { name: string; phone: string; address: string; city: string },
+  deliveryDate?: string,   // YYYY-MM-DD — user-chosen; falls back to tomorrow if omitted
+  giftMessage?: string     // optional gift_message passed to kapruka_create_order
 ): Promise<MCPToolResult<KaprukaOrderResult>> {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split("T")[0]; // YYYY-MM-DD
+  // Resolve delivery date: use user-chosen date or fall back to tomorrow
+  const resolvedDate = deliveryDate ?? (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  })();
 
   let cartPayload: Array<{ product_id: string; quantity: number }> = [];
   let recipient: { name: string; phone: string; address: string; city: string };
@@ -477,12 +482,14 @@ export async function createOrder(
     delivery: {
       address: recipient.address,
       city: recipient.city,
-      date: tomorrowStr,
+      date: resolvedDate,
     },
     sender: {
       name: "Kapuruka Guest Client",
       anonymous: true,
     },
+    // Include gift_message only when provided
+    ...(giftMessage ? { gift_message: giftMessage } : {}),
     response_format: "json",
   };
 
