@@ -43,6 +43,16 @@ import {
   type CheckoutState,
 } from "@/lib/checkoutContext";
 
+// Normalize address data from DB to SavedAddress schema
+const mapToSavedAddress = (addr: any) => {
+  if (!addr) return undefined;
+  return {
+    name: addr.recipientName || addr.name || addr.label || "Customer",
+    phone: addr.phone || "",
+    address: addr.addressLine || addr.address || "",
+    city: addr.city || ""
+  };
+};
 
 interface SearchTermConfig {
   term: string;
@@ -780,12 +790,12 @@ Respond ONLY with valid JSON matching this schema:
               phase: "delivery_date_ask",
               cartItems: currentCart,
               savedAddress: savedAddr ?? undefined,
-              confirmedAddress: matchedAddress,
+              confirmedAddress: mapToSavedAddress(matchedAddress) as any,
               confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
             };
             await saveCheckoutState(sessionId, newCheckoutState);
 
-            const ofs = { phase: "delivery_date_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: matchedAddress };
+            const ofs = { phase: "delivery_date_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: mapToSavedAddress(matchedAddress) };
             send({ type: "order_flow_step", ...ofs });
             
             const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. When would you like it delivered? Pick a date below, and feel free to add a personal message!`;
@@ -1035,13 +1045,6 @@ Respond ONLY with valid JSON matching this schema:
             updatedState.cartItems = extractedData.updatedCartItems;
             await saveUserCart(extractedData.updatedCartItems);
           }
-          // Normalize address data
-          const mapToSavedAddress = (addr: any) => ({
-             name: addr.recipientName || addr.name || addr.label || "Customer",
-             phone: addr.phone || "",
-             address: addr.addressLine || addr.address || "",
-             city: addr.city || ""
-          });
 
           if (extractedData.usesSavedAddress === true && savedAddr) {
             updatedState.confirmedAddress = mapToSavedAddress(savedAddr);
