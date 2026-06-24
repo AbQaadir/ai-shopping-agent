@@ -1133,6 +1133,7 @@ Respond ONLY with valid JSON matching this schema:
 
             // Delivery IS available — build OFS with delivery check result and advance to payment_ask
             updatedState.phase = "payment_ask";
+            updatedState.deliveryFeeLKR = deliveryCheck.flatRateLKR;
             const deliveryOfs = {
               phase: "payment_ask" as const,
               cartItems: updatedState.cartItems,
@@ -1189,6 +1190,7 @@ Respond ONLY with valid JSON matching this schema:
                 paymentMethod: paymentMethod as "cod" | "card",
                 deliveryDate: updatedState.deliveryDate || undefined,
                 personalMessage: updatedState.personalMessage || undefined,
+                deliveryFeeLKR: updatedState.deliveryFeeLKR || undefined,
               });
 
               checkoutUrl = od.checkoutLink?.checkoutUrl;

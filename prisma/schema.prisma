@@ -87,6 +87,7 @@ model CheckoutSession {
   paymentMethod    String?     // "cod" | "card"
   deliveryDate     String?     // YYYY-MM-DD — chosen by user in delivery_date_ask phase
   personalMessage  String?     // optional gift message — passed to kapruka_create_order
+  deliveryFeeLKR   Float?      // flat rate delivery fee returned by kapruka_check_delivery
 
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt

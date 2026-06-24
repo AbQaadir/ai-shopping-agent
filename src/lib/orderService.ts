@@ -26,6 +26,7 @@ export interface OrderRequestParams {
   paymentMethod?: "cod" | "card";
   deliveryDate?: string;
   personalMessage?: string;
+  deliveryFeeLKR?: number;
 }
 
 export async function placeOrderInternally(params: OrderRequestParams) {
@@ -42,6 +43,7 @@ export async function placeOrderInternally(params: OrderRequestParams) {
     paymentMethod,
     deliveryDate,
     personalMessage,
+    deliveryFeeLKR,
   } = params;
 
   if (!recipient || !sessionId || (!items && (!productId || !quantity))) {
@@ -78,9 +80,9 @@ export async function placeOrderInternally(params: OrderRequestParams) {
     productTitle: items && items.length > 0 
       ? (items.length === 1 ? items[0].productName : `${items.length} items`)
       : (productTitle || "Kapruka Product"),
-    priceLKR: orderResult.totalLKR || (items && items.length > 0
+    priceLKR: orderResult.totalLKR || ((items && items.length > 0
       ? items.reduce((sum: number, i: any) => sum + ((i.priceLKR || 0) * i.quantity), 0)
-      : (priceLKR || 0) * (quantity || 1)),
+      : (priceLKR || 0) * (quantity || 1)) + (deliveryFeeLKR || 0)),
     checkoutUrl: orderResult.checkoutUrl,
     expiresAt: orderResult.expiresAt,
   };
