@@ -1483,7 +1483,7 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
               <div className="flex items-start gap-2.5 p-3.5 bg-amber-50/50 border border-amber-100 rounded-xl">
                 <Truck size={14} className="text-amber-600 shrink-0 mt-0.5" />
                 <p className="text-[11px] text-amber-700 font-semibold leading-relaxed">
-                  Courier will collect **Rs. {totalLKR.toLocaleString()}** in cash upon delivery.
+                  Courier will collect <strong className="font-extrabold">Rs. {totalLKR.toLocaleString()}</strong> in cash upon delivery.
                 </p>
               </div>
             )}
