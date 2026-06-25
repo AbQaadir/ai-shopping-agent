@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { withLogging } from "@/lib/logger";
+
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,7 +15,7 @@ export const fetchCache = "force-no-store";
  *
  * Used by the OrdersPanel sidebar component to display the user's order history.
  */
-export async function GET(req: NextRequest) {
+export const GET = withLogging(async function GET(req: NextRequest) {
   try {
     const userId = req.nextUrl.searchParams.get("userId");
 
@@ -38,4 +40,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

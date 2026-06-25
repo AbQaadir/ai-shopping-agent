@@ -101,6 +101,7 @@ Reason about what the user said and determine:
 
 1. nextPhase — Where to go next?
    GLOBAL OVERRIDE: If the user explicitly asks to "change my address", "use a different address", or "new address", ALWAYS set nextPhase to "new_address_form", REGARDLESS of the current phase.
+   GLOBAL OVERRIDE: If the user explicitly asks to "change my delivery date", "deliver on a different date", or specifies a date (e.g. "deliver tomorrow instead", "send it on Saturday"), ALWAYS set nextPhase to "delivery_date_ask", REGARDLESS of the current phase.
    
    Phase flow: qty_ask → delivery_ask → [new_address_form?] → delivery_date_ask → payment_ask → confirmed
    

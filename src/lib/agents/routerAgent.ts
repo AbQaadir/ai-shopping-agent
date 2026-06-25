@@ -154,7 +154,8 @@ AI classified intent: "${intent}"
     new_address_form: User fills in the new address form. Any response = continue.
     payment_ask: User says cash/cod or card/online. "cash on delivery", "card please", "cod" = continue.
 → GLOBAL EXCEPTION: If the user explicitly asks to "change my address", "use a different address", or "deliver somewhere else" from ANY phase, this IS a valid checkout_continue.
-→ CRITICAL RULE: If the message is a QUESTION, a SEARCH REQUEST, a comparison, or about something DIFFERENT from the current phase (except address changes) — it is NOT checkout_continue.
+→ GLOBAL EXCEPTION: If the user explicitly asks to "change my delivery date", "use a different date", or specifies a date (e.g. "deliver tomorrow instead", "send it on Saturday") from ANY phase, this IS a valid checkout_continue.
+→ CRITICAL RULE: If the message is a QUESTION, a SEARCH REQUEST, a comparison, or about something DIFFERENT from the current phase (except address/date changes) — it is NOT checkout_continue.
 → CRITICAL RULE: "yes" or "no" alone are ambiguous. Check if they make sense for the CURRENT PHASE. If not, use checkout_pause.
 
 "checkout_pause"
@@ -246,7 +247,14 @@ Respond ONLY as valid JSON:
       const questionWords = /^(what|which|how|where|when|why|is there|are there|can you|do you|could you)/i;
       if (searchOrBuyPatterns.test(message) || questionWords.test(message.trim())) {
         let isMatched = false;
-        if (action === "cart_modify") {
+        
+        // Bypass safety override for address, location, or delivery date modification requests
+        const isAddressOrDateChange = /\b(address|location|place|destination|date|tomorrow|saturday|sunday|monday|tuesday|wednesday|thursday|friday|weekday|deliver|send|ship)\b/i.test(message);
+        if (isAddressOrDateChange) {
+          isMatched = true;
+        }
+
+        if (action === "cart_modify" && !isMatched) {
           const lowerMsg = message.toLowerCase();
           const allItems = [...(checkoutState?.cartItems || []), ...(availableProducts || [])];
           for (const item of allItems) {

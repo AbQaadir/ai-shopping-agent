@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { withLogging } from "@/lib/logger";
 import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ const serverCache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes cache TTL
 const MAX_CACHE_SIZE = 1000;
 
-export async function POST(req: NextRequest) {
+export const POST = withLogging(async function POST(req: NextRequest) {
   try {
     const { inputText } = await req.json().catch(() => ({}));
 
@@ -118,7 +119,7 @@ Output format MUST be: ["Completion 1", "Completion 2", "Completion 3"]`;
     console.error("[Autocomplete API] Critical error:", error);
     return NextResponse.json({ suggestions: [] }, { status: 500 });
   }
-}
+});
 
 function extractFirstJsonArray(text: string): string {
   const start = text.indexOf("[");

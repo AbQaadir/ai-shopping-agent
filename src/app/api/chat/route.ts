@@ -1,6 +1,7 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { withLogging } from "@/lib/logger";
 import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 import { findRelevantCategories } from "@/lib/categories";
 import {
@@ -124,7 +125,7 @@ Do NOT use [INTRO] or [DETAILS] tags. Be warm, direct, and detailed in your anal
 If asked to compare, create a markdown table comparing their features, price, stock, and highlight the best option.`;
 
 // ── Main Chat POST Handler ─────────────────────────────────────────────────
-export async function POST(req: NextRequest) {
+export const POST = withLogging(async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
 
   try {
@@ -700,7 +701,7 @@ User query to classify: "${message}"`;
               return {
                 ...item,
                 inStock: fresh ? fresh.inStock !== false : item.inStock,
-                stockQty: (fresh as any)?.stockQty ?? 50,
+                stockQty: fresh ? (fresh.stockCount ?? undefined) : undefined,
               };
             })
           );
@@ -904,8 +905,8 @@ Respond ONLY with valid JSON matching this schema:
               let nextPhase = checkoutState.phase;
               let resetConfirmedQty = checkoutState.confirmedQty;
 
-              // If items are added, reset checkout phase to qty_ask so user can confirm
-              if (modification.type === "add") {
+              // Reset checkout phase to qty_ask for all cart modifications so user can verify
+              if (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") {
                 nextPhase = "qty_ask";
                 resetConfirmedQty = undefined;
               }
@@ -953,10 +954,10 @@ Respond ONLY with valid JSON matching this schema:
                   intent: "product",
                   orderFlowStep: checkoutState
                     ? {
-                        phase: modification.type === "add" ? "qty_ask" : checkoutState.phase,
+                        phase: (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") ? "qty_ask" : checkoutState.phase,
                         cartItems: modification.updatedCart,
                         savedAddress: checkoutState.savedAddress,
-                        confirmedQuantity: modification.type === "add" ? undefined : checkoutState.confirmedQty,
+                        confirmedQuantity: (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") ? undefined : checkoutState.confirmedQty,
                         confirmedAddress: checkoutState.confirmedAddress,
                         geocodedLocation: checkoutState.geocodedLocation,
                         paymentMethod: checkoutState.paymentMethod,
@@ -1103,7 +1104,19 @@ Respond ONLY with valid JSON matching this schema:
           }
 
           // Determine the actual next phase
-          const nextPhase = agentOutput.stay ? checkoutState.phase : agentOutput.nextPhase;
+          let nextPhase = agentOutput.stay ? checkoutState.phase : agentOutput.nextPhase;
+
+          // Fast-track checkout transition when adding items to an active session
+          if (!agentOutput.stay && checkoutState.phase === "qty_ask" && nextPhase === "delivery_ask" && updatedState.confirmedAddress) {
+            if (updatedState.deliveryDate) {
+              nextPhase = "payment_ask";
+              (agentOutput as any).requiresDeliveryCheck = true;
+            } else {
+              nextPhase = "delivery_date_ask";
+              agentOutput.responseText = "Quantities confirmed! Since I already have your delivery address, when would you like this delivered? Please select a date below, and feel free to add a personal message.";
+            }
+          }
+
           updatedState.phase = nextPhase;
 
           // Handle map_open confirmation (LEGACY fallback)
@@ -1170,6 +1183,12 @@ Respond ONLY with valid JSON matching this schema:
                 console.error("Failed to auto-save new address:", err);
               }
             }
+          }
+
+          // Fast-track after new address confirmation if delivery date is already set
+          if (checkoutState.phase === "new_address_form" && updatedState.phase === "delivery_date_ask" && updatedState.confirmedAddress && updatedState.deliveryDate) {
+            updatedState.phase = "payment_ask";
+            (agentOutput as any).requiresDeliveryCheck = true;
           }
 
           // ── Handle delivery date check (delivery_date_ask → payment_ask) ──────────
@@ -1471,7 +1490,7 @@ Respond ONLY with valid JSON matching this schema:
                    if (ai) {
                      send({ type: "thought", step: "validating_relevance", term: group.groupName, status: "running", content: `Validating ${mergedProducts.length} scraped products from ${group.groupName}...` });
                      const tVal = Date.now();
-                     validatedProducts = await llmValidateRelevance(mergedProducts, group.groupName, message, ai, config.gemini.fastModel, true);
+                     validatedProducts = await llmValidateRelevance(mergedProducts, message, ai, config.gemini.fastModel);
                      const discarded = mergedProducts.length - validatedProducts.length;
                      send({ type: "thought", step: "validating_relevance", term: group.groupName, status: "completed", content: discarded > 0 ? `Relevance check: ✓ kept ${validatedProducts.length}, removed ${discarded}.` : `All ${validatedProducts.length} passed ✓`, durationMs: Date.now() - tVal });
                    }
@@ -1666,18 +1685,17 @@ Respond ONLY with valid JSON matching this schema:
                 send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "completed", content: `Found ${filteredPriceProducts.length} raw result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.` + (priceFilterDiscarded > 0 ? ` (Filtered out ${priceFilterDiscarded} product(s) outside price limits)` : ""), durationMs: searchDur });
 
                 // Rely on raw search engine relevance and run the LLM relevance validator.
-                const keywordFiltered: KaprukaProduct[] = filteredPriceProducts.map((p) => ({ ...p, _relevanceScore: 10 }));
                 const keywordDiscarded = priceFilterDiscarded;
 
-                let validated = keywordFiltered;
+                let validated = filteredPriceProducts;
                 let llmDiscarded = 0;
 
-                if (ai && keywordFiltered.length > 0) {
-                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "running", content: `Validating ${keywordFiltered.length} result${keywordFiltered.length !== 1 ? "s" : ""} for "${baseTerm}"...` });
+                if (ai && filteredPriceProducts.length > 0) {
+                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "running", content: `Validating ${filteredPriceProducts.length} result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}"...` });
                   const t2 = Date.now();
-                  validated = await llmValidateRelevance(keywordFiltered, baseTerm, message, ai, config.gemini.fastModel);
+                  validated = await llmValidateRelevance(filteredPriceProducts, message, ai, config.gemini.fastModel);
                   const validationDur = Date.now() - t2;
-                  llmDiscarded = keywordFiltered.length - validated.length;
+                  llmDiscarded = filteredPriceProducts.length - validated.length;
                   send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "completed", content: llmDiscarded > 0 ? `Relevance check: ✓ kept ${validated.length}, removed ${llmDiscarded} irrelevant.` : `All ${validated.length} result${validated.length !== 1 ? "s" : ""} passed ✓`, durationMs: validationDur });
                 }
 
@@ -2100,7 +2118,7 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
       headers: { "Content-Type": "application/json" },
     });
   }
-}
+});
 
 // ── Static follow-up fallbacks per intent ─────────────────────────────────
 const STATIC_FOLLOW_UPS: Record<Intent, string[]> = {
@@ -2216,24 +2234,17 @@ function scoreAndFilterProducts(products: KaprukaProduct[], baseTerm: string): K
 // ── LLM Relevance Validator ────────────────────────────────────────────────
 async function llmValidateRelevance(
   products: KaprukaProduct[],
-  searchTerm: string,
   userQuery: string,
   aiClient: GoogleGenAI,
-  fastModel: string,
-  isCategoryBrowse: boolean = false
+  fastModel: string
 ): Promise<KaprukaProduct[]> {
   if (products.length === 0) return [];
   const productsToCheck = products.slice(0, 50);
   const productList = productsToCheck.map((p, i) => `${i + 1}. [${p.id}] ${p.name}`).join("\n");
 
-  const constraintText = isCategoryBrowse 
-    ? "" 
-    : `\nConstraint:\n- You must NOT discard more than 10 products. If there are more than 10 irrelevant products, only select the 10 most irrelevant ones to DISCARD, and mark all others as KEEP.`;
-
   const prompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
 
 User's query: "${userQuery}"
-Search term: "${searchTerm}"
 
 For each product below, decide if it should be kept and assign a relevance score (1-100).
 - KEEP (Score > 0): The product IS what the user wants or strongly related.
@@ -2246,7 +2257,7 @@ Score criteria:
 
 Examples:
 - Searching "shoes" → sandals, boots, sneakers = KEEP (high score). Shoe rack, shoe box = DISCARD.
-- Searching "cake" → birthday cake = KEEP. Cake mold = DISCARD.${constraintText}
+- Searching "cake" → birthday cake = KEEP. Cake mold = DISCARD.
 
 Products:
 ${productList}
@@ -2283,11 +2294,6 @@ Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"
     let text = (result.text || "{}").trim().replace(/```json/i, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(text);
     const keptItems = Array.isArray(parsed?.kept_items) ? parsed.kept_items : [];
-    
-    if (keptItems.length === 0 && productsToCheck.length > 0) {
-      console.warn(`[LLM Validator] "${searchTerm}": validator returned 0 IDs — using raw set.`);
-      return products;
-    }
 
     const scoreMap = new Map<string, number>();
     for (const item of keptItems) {
@@ -2310,10 +2316,10 @@ Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"
       return scoreB - scoreA;
     });
 
-    console.log(`[LLM Validator] "${searchTerm}": kept ${filtered.length}/${productsToCheck.length}. Reason: ${parsed?.reason || "n/a"}`);
+    console.log(`[LLM Validator] "${userQuery.substring(0, 40)}": kept ${filtered.length}/${productsToCheck.length}. Reason: ${parsed?.reason || "n/a"}`);
     return combined;
   } catch (err) {
-    console.error(`[LLM Validator] Failed for "${searchTerm}":`, (err as Error).message);
+    console.error(`[LLM Validator] Failed for "${userQuery.substring(0, 40)}":`, (err as Error).message);
     return products;
   }
 }

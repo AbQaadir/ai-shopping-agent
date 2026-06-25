@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pillar2_findCity } from "@/lib/tools";
+import { withLogging } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
-export async function GET(req: NextRequest) {
+export const GET = withLogging(async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") || "";
@@ -23,4 +24,5 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
+

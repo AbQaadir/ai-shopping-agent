@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { withLogging } from "@/lib/logger";
+
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
-export async function GET(req: NextRequest) {
+export const GET = withLogging(async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("sessionId") || searchParams.get("id");
@@ -95,9 +97,9 @@ export async function GET(req: NextRequest) {
     console.error("Session GET error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
-}
+});
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withLogging(async function PATCH(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const { userId, sessionId, cart } = body;
@@ -139,9 +141,9 @@ export async function PATCH(req: NextRequest) {
     console.error("Session PATCH error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withLogging(async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const { title, userId } = body;
@@ -172,9 +174,9 @@ export async function POST(req: NextRequest) {
     console.error("Session POST error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withLogging(async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("sessionId") || searchParams.get("id");
@@ -221,4 +223,5 @@ export async function DELETE(req: NextRequest) {
     console.error("Session DELETE error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
-}
+});
+

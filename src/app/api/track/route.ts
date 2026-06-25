@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pillar2_trackOrder } from "@/lib/tools";
+import { withLogging } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,7 +14,7 @@ export const fetchCache = "force-no-store";
  *
  * Returns the tracking result (current status, steps, estimated delivery).
  */
-export async function GET(req: NextRequest) {
+export const GET = withLogging(async function GET(req: NextRequest) {
   try {
     const kaprukaRef = req.nextUrl.searchParams.get("kaprukaRef");
 
@@ -41,4 +42,5 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
+
