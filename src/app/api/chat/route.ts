@@ -1489,7 +1489,7 @@ Respond ONLY with valid JSON matching this schema:
                    if (ai) {
                      send({ type: "thought", step: "validating_relevance", term: group.groupName, status: "running", content: `Validating ${mergedProducts.length} scraped products from ${group.groupName}...` });
                      const tVal = Date.now();
-                     validatedProducts = await llmValidateRelevance(mergedProducts, group.groupName, message, ai, config.gemini.fastModel, true);
+                     validatedProducts = await llmValidateRelevance(mergedProducts, message, ai, config.gemini.fastModel);
                      const discarded = mergedProducts.length - validatedProducts.length;
                      send({ type: "thought", step: "validating_relevance", term: group.groupName, status: "completed", content: discarded > 0 ? `Relevance check: ✓ kept ${validatedProducts.length}, removed ${discarded}.` : `All ${validatedProducts.length} passed ✓`, durationMs: Date.now() - tVal });
                    }
@@ -1684,18 +1684,17 @@ Respond ONLY with valid JSON matching this schema:
                 send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "completed", content: `Found ${filteredPriceProducts.length} raw result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}" in ${searchDur}ms.` + (priceFilterDiscarded > 0 ? ` (Filtered out ${priceFilterDiscarded} product(s) outside price limits)` : ""), durationMs: searchDur });
 
                 // Rely on raw search engine relevance and run the LLM relevance validator.
-                const keywordFiltered: KaprukaProduct[] = filteredPriceProducts.map((p) => ({ ...p, _relevanceScore: 10 }));
                 const keywordDiscarded = priceFilterDiscarded;
 
-                let validated = keywordFiltered;
+                let validated = filteredPriceProducts;
                 let llmDiscarded = 0;
 
-                if (ai && keywordFiltered.length > 0) {
-                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "running", content: `Validating ${keywordFiltered.length} result${keywordFiltered.length !== 1 ? "s" : ""} for "${baseTerm}"...` });
+                if (ai && filteredPriceProducts.length > 0) {
+                  send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "running", content: `Validating ${filteredPriceProducts.length} result${filteredPriceProducts.length !== 1 ? "s" : ""} for "${baseTerm}"...` });
                   const t2 = Date.now();
-                  validated = await llmValidateRelevance(keywordFiltered, baseTerm, message, ai, config.gemini.fastModel);
+                  validated = await llmValidateRelevance(filteredPriceProducts, message, ai, config.gemini.fastModel);
                   const validationDur = Date.now() - t2;
-                  llmDiscarded = keywordFiltered.length - validated.length;
+                  llmDiscarded = filteredPriceProducts.length - validated.length;
                   send({ type: "thought", step: "validating_relevance", term: baseTerm, status: "completed", content: llmDiscarded > 0 ? `Relevance check: ✓ kept ${validated.length}, removed ${llmDiscarded} irrelevant.` : `All ${validated.length} result${validated.length !== 1 ? "s" : ""} passed ✓`, durationMs: validationDur });
                 }
 
@@ -2234,11 +2233,9 @@ function scoreAndFilterProducts(products: KaprukaProduct[], baseTerm: string): K
 // ── LLM Relevance Validator ────────────────────────────────────────────────
 async function llmValidateRelevance(
   products: KaprukaProduct[],
-  searchTerm: string,
   userQuery: string,
   aiClient: GoogleGenAI,
-  fastModel: string,
-  isCategoryBrowse: boolean = false
+  fastModel: string
 ): Promise<KaprukaProduct[]> {
   if (products.length === 0) return [];
   const productsToCheck = products.slice(0, 50);
@@ -2247,7 +2244,6 @@ async function llmValidateRelevance(
   const prompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
 
 User's query: "${userQuery}"
-Search term: "${searchTerm}"
 
 For each product below, decide if it should be kept and assign a relevance score (1-100).
 - KEEP (Score > 0): The product IS what the user wants or strongly related.
@@ -2319,10 +2315,10 @@ Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"
       return scoreB - scoreA;
     });
 
-    console.log(`[LLM Validator] "${searchTerm}": kept ${filtered.length}/${productsToCheck.length}. Reason: ${parsed?.reason || "n/a"}`);
+    console.log(`[LLM Validator] "${userQuery.substring(0, 40)}": kept ${filtered.length}/${productsToCheck.length}. Reason: ${parsed?.reason || "n/a"}`);
     return combined;
   } catch (err) {
-    console.error(`[LLM Validator] Failed for "${searchTerm}":`, (err as Error).message);
+    console.error(`[LLM Validator] Failed for "${userQuery.substring(0, 40)}":`, (err as Error).message);
     return products;
   }
 }
