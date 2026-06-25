@@ -13,6 +13,9 @@ import {
   ChevronUp,
   Loader2,
   AlertCircle,
+  Clock,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import type { TrackingResult } from "@/types/sourcing";
@@ -48,15 +51,36 @@ interface OrdersPanelProps {
 // ── Status Badge ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg: Record<string, { label: string; className: string }> = {
-    pending: { label: "⏳ Pending", className: "bg-amber-50 text-amber-700 border-amber-200" },
-    processing: { label: "🔵 Processing", className: "bg-blue-50 text-blue-700 border-blue-200" },
-    completed: { label: "✅ Delivered", className: "bg-green-50 text-green-700 border-green-200" },
-    cancelled: { label: "❌ Cancelled", className: "bg-red-50 text-red-700 border-red-200" },
+  const cfg: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
+    pending: { 
+      label: "Pending", 
+      icon: <Clock size={11} className="shrink-0" />, 
+      className: "bg-amber-50 text-amber-700 border-amber-200/60" 
+    },
+    processing: { 
+      label: "Processing", 
+      icon: <Loader2 size={11} className="animate-spin shrink-0" />, 
+      className: "bg-blue-50 text-blue-700 border-blue-200/60" 
+    },
+    completed: { 
+      label: "Delivered", 
+      icon: <CheckCircle size={11} className="shrink-0" />, 
+      className: "bg-emerald-50 text-emerald-700 border-emerald-200/60" 
+    },
+    cancelled: { 
+      label: "Cancelled", 
+      icon: <XCircle size={11} className="shrink-0" />, 
+      className: "bg-rose-50 text-rose-700 border-rose-200/60" 
+    },
   };
-  const { label, className } = cfg[status] ?? { label: status, className: "bg-slate-50 text-slate-600 border-slate-200" };
+  const { label, icon, className } = cfg[status] ?? { 
+    label: status, 
+    icon: <AlertCircle size={11} className="shrink-0" />, 
+    className: "bg-slate-50 text-slate-600 border-slate-200/60" 
+  };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-extrabold border ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-extrabold border ${className}`}>
+      {icon}
       {label}
     </span>
   );
@@ -66,16 +90,25 @@ function StatusBadge({ status }: { status: string }) {
 
 function SkeletonCard() {
   return (
-    <div className="bg-white border border-slate-100 rounded-2xl p-4 animate-pulse">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-12 h-12 rounded-xl bg-slate-100 shrink-0" />
-        <div className="flex-1 space-y-1.5">
-          <div className="h-3 bg-slate-100 rounded w-3/4" />
-          <div className="h-2.5 bg-slate-100 rounded w-1/2" />
-        </div>
+    <div className="bg-white border border-slate-100 rounded-2xl p-5 animate-pulse space-y-4 shadow-xs">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="h-3 bg-slate-100 rounded w-1/3" />
+        <div className="h-4 bg-slate-100 rounded w-16" />
       </div>
-      <div className="h-2 bg-slate-100 rounded w-full mb-1.5" />
-      <div className="h-2 bg-slate-100 rounded w-2/3" />
+      <div className="flex items-center justify-between gap-4 p-2 bg-slate-50/50 rounded-xl border border-slate-100/40">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-lg bg-slate-100" />
+          <div className="space-y-1.5">
+            <div className="h-3 bg-slate-100 rounded w-40" />
+            <div className="h-2 bg-slate-100 rounded w-20" />
+          </div>
+        </div>
+        <div className="h-3 bg-slate-100 rounded w-16" />
+      </div>
+      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+        <div className="h-3 bg-slate-100 rounded w-1/4" />
+        <div className="h-4 bg-slate-100 rounded w-20" />
+      </div>
     </div>
   );
 }
@@ -83,43 +116,59 @@ function SkeletonCard() {
 // ── Tracking Timeline ────────────────────────────────────────────────────────
 
 function TrackingTimeline({ tracking }: { tracking: TrackingResult }) {
-  const statusIcons: Record<string, string> = {
-    pending: "⏳",
-    packed: "📦",
-    dispatched: "🚚",
-    in_transit: "🚚",
-    out_for_delivery: "🛵",
-    delivered: "✅",
-    failed: "❌",
-  };
+  const steps = tracking.steps || [];
+
   return (
-    <div className="mt-3 pt-3 border-t border-slate-100">
-      <div className="flex items-center gap-2 mb-2.5">
-        <span className="text-base">{statusIcons[tracking.currentStatus.toLowerCase()] ?? "📦"}</span>
+    <div className="mt-4 p-4.5 bg-slate-50 rounded-2xl border border-slate-100/80 animate-fadeIn">
+      <div className="flex items-center gap-3 mb-4.5 pb-3 border-b border-slate-200/50">
+        <div className="w-8 h-8 rounded-lg bg-[#402970]/10 flex items-center justify-center text-[#402970] shrink-0">
+          <Truck size={14} />
+        </div>
         <div>
-          <div className="text-xs font-extrabold text-slate-700 capitalize">
-            {tracking.currentStatus.replace(/_/g, " ")}
+          <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <span>Status:</span>
+            <span className="font-black text-[#402970] uppercase tracking-wider text-[10px] bg-[#402970]/5 px-2 py-0.5 rounded-md">
+              {tracking.currentStatus.replace(/_/g, " ")}
+            </span>
           </div>
           {tracking.estimatedDelivery && (
-            <div className="text-[10px] text-slate-400">Expected: {tracking.estimatedDelivery}</div>
+            <div className="text-[10px] text-slate-400 font-semibold mt-0.5">Est. Delivery: {tracking.estimatedDelivery}</div>
           )}
         </div>
       </div>
-      {tracking.steps && tracking.steps.length > 0 && (
-        <div className="space-y-2.5 border-l-2 border-slate-100 pl-3.5 ml-1">
-          {tracking.steps.map((step, i) => (
-            <div key={i} className="relative">
-              <div className="absolute -left-[19px] w-2.5 h-2.5 rounded-full bg-white border-2 border-slate-300 top-0.5" />
-              <div className="text-[10px] font-bold text-slate-400">{step.timestamp}</div>
-              <div className="text-[11px] font-semibold text-slate-700">{step.description}</div>
-              {step.location && (
-                <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                  <MapPin size={8} />
-                  {step.location}
+
+      {steps.length > 0 ? (
+        <div className="relative pl-6 border-l-2 border-slate-200/85 space-y-5 ml-2.5">
+          {steps.map((step, i) => {
+            const isLatest = i === 0;
+            return (
+              <div key={i} className="relative">
+                {/* Stepper Dot Indicator */}
+                <span className={`absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border-2 bg-white flex items-center justify-center transition-colors ${
+                  isLatest ? "border-[#402970] ring-4 ring-[#402970]/10" : "border-slate-300"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isLatest ? "bg-[#402970]" : "bg-slate-300"}`} />
+                </span>
+
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] font-bold text-slate-400">{step.timestamp}</span>
+                  <h6 className={`text-xs font-bold leading-normal ${isLatest ? "text-slate-850 font-extrabold" : "text-slate-600"}`}>
+                    {step.description}
+                  </h6>
+                  {step.location && (
+                    <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-0.5">
+                      <MapPin size={9} className="text-[#402970]" />
+                      <span>{step.location}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-[11px] text-slate-500 text-center py-2 font-medium">
+          No detailed tracking steps available yet.
         </div>
       )}
     </div>
@@ -138,8 +187,6 @@ function OrderCard({
   trackingState?: TrackingResult | "loading" | "error";
 }) {
   const [expanded, setExpanded] = useState(false);
-  const firstItem = order.items[0];
-  const extraItems = order.items.length - 1;
   const isDelivered = order.status === "completed";
 
   const formattedDate = order.deliveryDate
@@ -160,91 +207,97 @@ function OrderCard({
   };
 
   return (
-    <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-xs transition-shadow hover:shadow-sm">
-      {/* Top row: thumbnail + info + status */}
-      <div className="flex items-start gap-3">
-        {/* Thumbnail */}
-        <div className="relative shrink-0">
-          {firstItem?.imageUrl ? (
-            <img
-              src={firstItem.imageUrl}
-              alt={firstItem.productName}
-              className="w-14 h-14 rounded-xl object-cover border border-slate-200 bg-white"
-            />
-          ) : (
-            <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center">
-              <Package size={20} className="text-slate-400" />
+    <div className="bg-white border border-slate-100/80 rounded-2xl p-5 shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#402970]/30 flex flex-col gap-4">
+      {/* Top Header Row */}
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-500 bg-slate-50 border border-slate-200/80 px-2 py-0.5 rounded-md">
+            {order.kaprukaRef ? `#${order.kaprukaRef}` : `#${order.id.slice(0, 8).toUpperCase()}`}
+          </span>
+          <span className="text-[10px] text-slate-300 font-bold">•</span>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">Ordered {formattedCreated}</span>
+        </div>
+        <StatusBadge status={order.status} />
+      </div>
+
+      {/* Products list (one below another) */}
+      <div className="flex flex-col gap-2.5">
+        {order.items.map((item, index) => (
+          <div key={item.id || index} className="flex items-center justify-between gap-4 p-2.5 bg-slate-50/60 rounded-xl border border-slate-100/80 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center gap-3 min-w-0">
+              {item.imageUrl ? (
+                <img
+                  src={item.imageUrl}
+                  alt={item.productName}
+                  className="w-11 h-11 rounded-lg object-cover border border-slate-200 bg-white shrink-0"
+                />
+              ) : (
+                <div className="w-11 h-11 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                  <Package size={16} className="text-slate-400" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <h5 className="text-[11px] sm:text-xs font-extrabold text-slate-700 truncate max-w-[220px] sm:max-w-[420px]">
+                  {item.productName}
+                </h5>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                  Qty: {item.quantity} × Rs. {item.priceLKR.toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-black text-[#402970] shrink-0">
+              Rs. {(item.priceLKR * item.quantity).toLocaleString()}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer Row: Delivery dates, message, and grand total */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        <div className="flex flex-col gap-1.5 min-w-0">
+          {formattedDate && (
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-bold">
+              <CalendarDays size={12} className="text-[#402970]/70" />
+              <span>Deliver by: <span className="text-slate-800 font-extrabold">{formattedDate}</span></span>
             </div>
           )}
-          {extraItems > 0 && (
-            <div className="absolute -bottom-1 -right-1 bg-[#402970] text-white text-[9px] font-extrabold rounded-full px-1.5 py-0.5 leading-none">
-              +{extraItems}
+          {order.personalMessage && (
+            <div className="flex items-center gap-1.5 text-[10px] text-rose-600 bg-rose-50/50 border border-rose-100/50 px-2 py-0.5 rounded-lg w-fit">
+              <Gift size={10} className="text-rose-500 shrink-0" />
+              <span className="italic font-bold">"{order.personalMessage}"</span>
             </div>
           )}
         </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 flex-wrap">
-            <h4 className="text-xs font-extrabold text-slate-800 truncate max-w-[160px]">
-              {firstItem?.productName ?? "Order"}
-              {extraItems > 0 ? ` + ${extraItems} more` : ""}
-            </h4>
-            <StatusBadge status={order.status} />
-          </div>
-
-          <div className="mt-1.5 space-y-1">
-            <div className="text-sm font-extrabold text-[#402970]">
-              Rs. {order.totalLKR.toLocaleString()}
-            </div>
-
-            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
-              <CalendarDays size={9} />
-              {formattedDate ? (
-                <span>Deliver by <span className="font-bold text-slate-600">{formattedDate}</span></span>
-              ) : (
-                <span>Ordered {formattedCreated}</span>
-              )}
-            </div>
-
-            {order.kaprukaRef && (
-              <div className="text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-100 rounded-md px-1.5 py-0.5 inline-block">
-                #{order.kaprukaRef}
-              </div>
-            )}
-
-            {order.personalMessage && (
-              <div className="flex items-start gap-1 text-[10px] text-slate-400 font-medium">
-                <Gift size={9} className="mt-0.5 text-rose-400 shrink-0" />
-                <span className="italic truncate max-w-[180px]">"{order.personalMessage}"</span>
-              </div>
-            )}
-          </div>
+        <div className="text-left sm:text-right shrink-0">
+          <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Total Amount</span>
+          <span className="text-base font-black text-[#402970]">
+            Rs. {order.totalLKR.toLocaleString()}
+          </span>
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Tracking actions */}
       {!isDelivered && order.kaprukaRef && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="pt-3 border-t border-slate-100/60 flex items-center justify-between">
           <button
             onClick={handleTrackClick}
             disabled={trackingState === "loading"}
-            className="flex items-center gap-1.5 text-[11px] font-bold text-[#402970] hover:text-[#2e1f52] border border-[#402970]/20 bg-[#402970]/5 hover:bg-[#402970]/10 rounded-lg px-3 py-1.5 transition-all cursor-pointer outline-none disabled:opacity-50"
+            className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-[#402970] hover:bg-[#301e54] rounded-lg px-4 py-2 transition-all cursor-pointer outline-none disabled:opacity-50 shadow-sm active:scale-[0.98]"
           >
             {trackingState === "loading" ? (
-              <Loader2 size={11} className="animate-spin" />
+              <Loader2 size={12} className="animate-spin text-white" />
             ) : (
-              <Truck size={11} />
+              <Truck size={12} className="text-white" />
             )}
-            Track Order
+            Track Delivery Status
           </button>
           {trackingState && trackingState !== "loading" && (
             <button
               onClick={() => setExpanded((e) => !e)}
-              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer outline-none transition-colors"
+              className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-700 cursor-pointer outline-none transition-colors border-none bg-transparent"
             >
-              {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              {expanded ? "Hide" : "Show"}
+              {expanded ? "Hide Details" : "Show Details"}
+              {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             </button>
           )}
         </div>
@@ -252,9 +305,9 @@ function OrderCard({
 
       {/* Tracking error */}
       {trackingState === "error" && (
-        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-red-500 font-medium">
-          <AlertCircle size={10} />
-          Tracking unavailable right now
+        <div className="flex items-center gap-1.5 text-[10px] text-rose-500 font-bold bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl">
+          <AlertCircle size={12} />
+          Tracking is currently unavailable for this order reference.
         </div>
       )}
 
@@ -371,8 +424,7 @@ export default function OrdersPanel({ isOpen, onClose }: OrdersPanelProps) {
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5 bg-slate-50/30">
           {/* Loading state */}
           {loading && orders.length === 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <SkeletonCard />
+            <div className="flex flex-col gap-4">
               <SkeletonCard />
               <SkeletonCard />
               <SkeletonCard />
@@ -418,7 +470,7 @@ export default function OrdersPanel({ isOpen, onClose }: OrdersPanelProps) {
               <h3 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest px-1">
                 Active Orders
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-4">
                 {activeOrders.map((order) => (
                   <OrderCard
                     key={order.id}
@@ -437,7 +489,7 @@ export default function OrdersPanel({ isOpen, onClose }: OrdersPanelProps) {
               <h3 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest px-1">
                 Delivered
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-4">
                 {deliveredOrders.map((order) => (
                   <OrderCard
                     key={order.id}
