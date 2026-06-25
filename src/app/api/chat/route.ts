@@ -463,6 +463,45 @@ User query to classify: "${message}"`;
     const savedAddressLabels = allUserAddresses.map((a: any) => a.label || a.type);
     const savedAddr = allUserAddresses.find((a: any) => a.isDefault) || allUserAddresses[0] || null;
 
+    // Fetch products from the last assistant response to serve as contextual available products
+    let availableProducts: any[] = [];
+    try {
+      const msgs = await prisma.chatMessage.findMany({
+        where: {
+          sessionId,
+          role: "assistant",
+        },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      });
+      const lastAssistantMsg = msgs.find((m) => m.products !== null && m.products !== undefined);
+      if (lastAssistantMsg?.products) {
+        const parsed = typeof lastAssistantMsg.products === "string"
+          ? JSON.parse(lastAssistantMsg.products)
+          : lastAssistantMsg.products;
+        if (Array.isArray(parsed)) {
+          if (parsed.length > 0 && "products" in parsed[0]) {
+            // Product groups structure
+            availableProducts = parsed.flatMap((g: any) => g.products || []);
+          } else {
+            // Flat products array structure
+            availableProducts = parsed;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[route.ts] failed to fetch last assistant products:", err);
+    }
+
+    // Combine with any fetched selected products from request body
+    if (fetchedSelectedProducts.length > 0) {
+      for (const fp of fetchedSelectedProducts) {
+        if (!availableProducts.some((ap) => ap.id === fp.id)) {
+          availableProducts.push(fp);
+        }
+      }
+    }
+
     // 8. Call Router Agent (Intent / Checkout state switch)
     let routerDecision: RouterDecision = { action: "shop", reason: "Fallback logic hit" };
     if (!ai) {
@@ -474,7 +513,7 @@ User query to classify: "${message}"`;
     }
     
     if (ai) {
-      routerDecision = await routerAgent(message, historySnippet, checkoutState, intent, ai, config.gemini.fastModel, savedAddressLabels);
+      routerDecision = await routerAgent(message, historySnippet, checkoutState, intent, ai, config.gemini.fastModel, savedAddressLabels, availableProducts);
     }
 
     // 9. Build SSE stream
@@ -599,7 +638,7 @@ User query to classify: "${message}"`;
         // ROUTING — Switch on Router Agent decision
         // ══════════════════════════════════════════════════════════════════
 
-        const { action } = routerDecision;
+        let action = routerDecision.action;
 
         // ── Action: checkout_cancel ────────────────────────────────────────
         if (action === "checkout_cancel") {
@@ -830,45 +869,6 @@ Respond ONLY with valid JSON matching this schema:
 
           const currentCart = await loadUserCart();
 
-          // Fetch products from the last assistant response to serve as contextual available products
-          let availableProducts: any[] = [];
-          try {
-            const msgs = await prisma.chatMessage.findMany({
-              where: {
-                sessionId,
-                role: "assistant",
-              },
-              orderBy: { createdAt: "desc" },
-              take: 5,
-            });
-            const lastAssistantMsg = msgs.find((m) => m.products !== null && m.products !== undefined);
-            if (lastAssistantMsg?.products) {
-              const parsed = typeof lastAssistantMsg.products === "string"
-                ? JSON.parse(lastAssistantMsg.products)
-                : lastAssistantMsg.products;
-              if (Array.isArray(parsed)) {
-                if (parsed.length > 0 && "products" in parsed[0]) {
-                  // Product groups structure
-                  availableProducts = parsed.flatMap((g: any) => g.products || []);
-                } else {
-                  // Flat products array structure
-                  availableProducts = parsed;
-                }
-              }
-            }
-          } catch (err) {
-            console.error("[route.ts] failed to fetch last assistant products:", err);
-          }
-
-          // Combine with any fetched selected products from request body
-          if (fetchedSelectedProducts.length > 0) {
-            for (const fp of fetchedSelectedProducts) {
-              if (!availableProducts.some((ap) => ap.id === fp.id)) {
-                availableProducts.push(fp);
-              }
-            }
-          }
-
           let modification: CartModification = {
             type: "remove" as any,
             itemId: null,
@@ -885,77 +885,86 @@ Respond ONLY with valid JSON matching this schema:
 
           send({ type: "thought", step: "cart_agent", status: "completed", content: `Cart: ${modification.type} ${modification.type === "add" ? `${modification.itemsToAdd?.length ?? 0} item(s)` : `"${modification.itemName}"`}`, durationMs: 0 });
 
-          // Apply and persist
-          await saveUserCart(modification.updatedCart);
+          // Fallback: If user tried to add items but none were matched in availableProducts,
+          // it means they want to add a new product not currently loaded.
+          // Pause checkout and perform a product search instead of failing the cart modification.
+          if (modification.type === "add" && (!modification.itemsToAdd || modification.itemsToAdd.length === 0)) {
+            console.log("[route.ts] cart_modify 'add' returned 0 items. Overriding to checkout_pause to search for the product.");
+            action = "checkout_pause";
+            intent = "product";
+          } else {
+            // Apply and persist
+            await saveUserCart(modification.updatedCart);
 
-          // Update the checkout session's cartItems too
-          if (checkoutState) {
-            let nextPhase = checkoutState.phase;
-            let resetConfirmedQty = checkoutState.confirmedQty;
+            // Update the checkout session's cartItems too
+            if (checkoutState) {
+              let nextPhase = checkoutState.phase;
+              let resetConfirmedQty = checkoutState.confirmedQty;
 
-            // If items are added, reset checkout phase to qty_ask so user can confirm
-            if (modification.type === "add") {
-              nextPhase = "qty_ask";
-              resetConfirmedQty = undefined;
-            }
+              // If items are added, reset checkout phase to qty_ask so user can confirm
+              if (modification.type === "add") {
+                nextPhase = "qty_ask";
+                resetConfirmedQty = undefined;
+              }
 
-            const updatedState: CheckoutState = {
-              ...checkoutState,
-              cartItems: modification.updatedCart,
-              phase: nextPhase,
-              confirmedQty: resetConfirmedQty,
-            };
-
-            if (modification.updatedCart.length === 0) {
-              // Cart is now empty — cancel checkout
-              await clearCheckoutState(sessionId);
-              const ofs = { phase: "cancelled", cartItems: [] };
-              send({ type: "order_flow_step", ...ofs });
-              await streamWords("Your cart is now empty. Checkout has been cancelled. Feel free to search for more products!");
-              await saveOrderMessage("Your cart is now empty. Checkout has been cancelled. Feel free to search for more products!", ofs);
-              controller.close();
-              return;
-            } else {
-              await saveCheckoutState(sessionId, updatedState);
-              // Update the UI checkout card with new cart
-              const ofs = {
-                phase: updatedState.phase,
+              const updatedState: CheckoutState = {
+                ...checkoutState,
                 cartItems: modification.updatedCart,
-                savedAddress: updatedState.savedAddress,
-                confirmedQuantity: updatedState.confirmedQty,
-                confirmedAddress: updatedState.confirmedAddress,
-                geocodedLocation: updatedState.geocodedLocation,
-                paymentMethod: updatedState.paymentMethod,
+                phase: nextPhase,
+                confirmedQty: resetConfirmedQty,
               };
-              send({ type: "order_flow_step", ...ofs });
-            }
-          }
 
-          await streamWords(modification.responseText);
-          await prisma.chatMessage.create({
-            data: {
-              sessionId,
-              role: "assistant",
-              content: modification.responseText,
-              thoughtProcess: JSON.stringify({
-                steps: [{ step: "cart_agent", status: "completed", content: `Cart modified: ${modification.type}`, durationMs: 0 }],
-                intent: "product",
-                orderFlowStep: checkoutState
-                  ? {
-                      phase: modification.type === "add" ? "qty_ask" : checkoutState.phase,
-                      cartItems: modification.updatedCart,
-                      savedAddress: checkoutState.savedAddress,
-                      confirmedQuantity: modification.type === "add" ? undefined : checkoutState.confirmedQty,
-                      confirmedAddress: checkoutState.confirmedAddress,
-                      geocodedLocation: checkoutState.geocodedLocation,
-                      paymentMethod: checkoutState.paymentMethod,
-                    }
-                  : undefined,
-              }),
-            },
-          });
-          controller.close();
-          return;
+              if (modification.updatedCart.length === 0) {
+                // Cart is now empty — cancel checkout
+                await clearCheckoutState(sessionId);
+                const ofs = { phase: "cancelled", cartItems: [] };
+                send({ type: "order_flow_step", ...ofs });
+                await streamWords("Your cart is now empty. Checkout has been cancelled. Feel free to search for more products!");
+                await saveOrderMessage("Your cart is now empty. Checkout has been cancelled. Feel free to search for more products!", ofs);
+                controller.close();
+                return;
+              } else {
+                await saveCheckoutState(sessionId, updatedState);
+                // Update the UI checkout card with new cart
+                const ofs = {
+                  phase: updatedState.phase,
+                  cartItems: modification.updatedCart,
+                  savedAddress: updatedState.savedAddress,
+                  confirmedQuantity: updatedState.confirmedQty,
+                  confirmedAddress: updatedState.confirmedAddress,
+                  geocodedLocation: updatedState.geocodedLocation,
+                  paymentMethod: updatedState.paymentMethod,
+                };
+                send({ type: "order_flow_step", ...ofs });
+              }
+            }
+
+            await streamWords(modification.responseText);
+            await prisma.chatMessage.create({
+              data: {
+                sessionId,
+                role: "assistant",
+                content: modification.responseText,
+                thoughtProcess: JSON.stringify({
+                  steps: [{ step: "cart_agent", status: "completed", content: `Cart modified: ${modification.type}`, durationMs: 0 }],
+                  intent: "product",
+                  orderFlowStep: checkoutState
+                    ? {
+                        phase: modification.type === "add" ? "qty_ask" : checkoutState.phase,
+                        cartItems: modification.updatedCart,
+                        savedAddress: checkoutState.savedAddress,
+                        confirmedQuantity: modification.type === "add" ? undefined : checkoutState.confirmedQty,
+                        confirmedAddress: checkoutState.confirmedAddress,
+                        geocodedLocation: checkoutState.geocodedLocation,
+                        paymentMethod: checkoutState.paymentMethod,
+                      }
+                    : undefined,
+                }),
+              },
+            });
+            controller.close();
+            return;
+          }
         }
 
         // ── Action: checkout_continue ──────────────────────────────────────

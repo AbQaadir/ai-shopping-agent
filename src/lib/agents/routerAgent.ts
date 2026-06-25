@@ -68,7 +68,8 @@ export async function routerAgent(
   intent: string,
   ai: GoogleGenAI,
   fastModel: string,
-  savedAddressLabels?: string[] // e.g. ["Home", "Work", "Parents Place"]
+  savedAddressLabels?: string[], // e.g. ["Home", "Work", "Parents Place"]
+  availableProducts?: any[]
 ): Promise<RouterDecision> {
   // ── Hardcoded shortcuts (obvious cases, no LLM needed) ─────────────────────
   // These are unambiguous UI-generated messages — always correct.
@@ -102,6 +103,12 @@ export async function routerAgent(
     ? `Saved Address Labels: [${savedAddressLabels.map(l => `"${l}"`).join(", ")}]`
     : "Saved Address Labels: (none — user has no saved addresses)";
 
+  const availableListStr = availableProducts && availableProducts.length > 0
+    ? (availableProducts || [])
+        .map((item, i) => `  ${i + 1}. ID: "${item.id}", Name: "${item.name}", Price: Rs. ${item.price?.toLocaleString()}`)
+        .join("\n")
+    : "  (none)";
+
   const prompt = `You are the orchestrator for Kapuruka, a Sri Lankan e-commerce shopping agent.
 
 Your ONLY job is to decide what action to take for the user's message given the full context below.
@@ -109,6 +116,8 @@ Your ONLY job is to decide what action to take for the user's message given the 
 ═══ CURRENT STATE ═══
 ${stateBlock}
 ${addressLabelsBlock}
+AVAILABLE/REFERENCED PRODUCTS (recently viewed/selected in the chat):
+${availableListStr}
 
 ═══ RECENT CONVERSATION (last messages, newest last) ═══
 ${historySnippet}
@@ -158,11 +167,13 @@ AI classified intent: "${intent}"
     "can you deliver to Galle?" → pause, check delivery
     "actually wait, can I see more options?" → pause, search
     "how much is the shipping?" → pause, answer
+    "I want to buy another shoe as well for me" (when shoe is not in cart/available products) → pause, search for shoe
 → The checkout session stays ALIVE — it is not cancelled.
 → When in doubt between checkout_continue and checkout_pause: ALWAYS choose checkout_pause.
 
 "cart_modify"
 → Use when: User wants to change the cart contents (remove an item, change a quantity, or add products they have selected or just viewed/discussed in the chat).
+→ CRITICAL RULE: ONLY choose "cart_modify" to add an item if the item to add is present in the CURRENT CART or the AVAILABLE/REFERENCED PRODUCTS list above. If the user wants to buy, search for, or add a NEW product that is not in either list (for example, "I want to buy another shoe as well" when there is no shoe in the lists), you MUST choose "checkout_pause" so they can search for it first.
 → Examples:
     "remove the shoes from cart"
     "delete the second item"
@@ -228,18 +239,31 @@ Respond ONLY as valid JSON:
     }
 
     // ── Phase 5: Search-pattern safety guard ────────────────────────────────
-    // If the LLM decided checkout_continue but the message looks like a search/browse
-    // request, override to checkout_pause. This prevents the orderAgent from consuming
-    // queries like "show me other cakes" or "what about the Samsung one" as phase answers.
-    if (action === "checkout_continue" && hasActiveCheckout) {
-      const searchPatterns = /\b(show me|find|search|look for|browse|what about|any other|other options|different|compare|recommend|suggest|available|see more|more options|something else|instead|actually|never mind|wait|hold on)\b/i;
+    // If the LLM decided checkout_continue or cart_modify but the message looks like a search/browse
+    // or new product request, override to checkout_pause.
+    if ((action === "checkout_continue" || action === "cart_modify") && hasActiveCheckout) {
+      const searchOrBuyPatterns = /\b(show me|find|search|look for|browse|what about|any other|other options|different|compare|recommend|suggest|available|see more|more options|something else|instead|actually|never mind|wait|hold on|buy\s+(another|a|an|some|more|the\s+other|new)|add\s+(another|a|an|some|more|the\s+other|new)|order\s+(another|a|an|some|more|the\s+other|new))\b/i;
       const questionWords = /^(what|which|how|where|when|why|is there|are there|can you|do you|could you)/i;
-      if (searchPatterns.test(message) || questionWords.test(message.trim())) {
-        console.log(`[RouterAgent] Safety override: checkout_continue → checkout_pause (search pattern detected in: "${message.substring(0, 60)}")`);
-        return {
-          action: "checkout_pause",
-          reason: `Safety override: message looks like a search/browse query, not a checkout phase answer`,
-        };
+      if (searchOrBuyPatterns.test(message) || questionWords.test(message.trim())) {
+        let isMatched = false;
+        if (action === "cart_modify") {
+          const lowerMsg = message.toLowerCase();
+          const allItems = [...(checkoutState?.cartItems || []), ...(availableProducts || [])];
+          for (const item of allItems) {
+            const nameWords = item.name.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+            if (nameWords.some((word: string) => lowerMsg.includes(word))) {
+              isMatched = true;
+              break;
+            }
+          }
+        }
+        if (!isMatched) {
+          console.log(`[RouterAgent] Safety override: ${action} → checkout_pause (search/buy pattern detected in: "${message.substring(0, 60)}")`);
+          return {
+            action: "checkout_pause",
+            reason: `Safety override: message looks like a search/browse/buy query for a new product, not a checkout/cart modification answer`,
+          };
+        }
       }
     }
 
