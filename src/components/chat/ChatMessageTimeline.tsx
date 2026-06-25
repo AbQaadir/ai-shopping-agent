@@ -873,7 +873,7 @@ export default function ChatTimeline({
                             ? "bg-[#402970]/5 border border-[#402970]/10 text-[#402970] rounded-2xl"
                             : "bg-slate-100 text-slate-800 rounded-full border border-slate-200/20"
                         }`}>
-                          {msg.text.startsWith("Delivery date confirmed:") ? "Delivery Date Confirmed" : msg.text}
+                          {msg.text.startsWith("Delivery date confirmed:") ? "Delivery Date Confirmed" : msg.text.startsWith("New address confirmed:") ? "New delivery address added" : msg.text}
                         </div>
 
                         {/* Hover Actions (Copy / Edit) */}

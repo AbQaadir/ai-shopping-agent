@@ -40,28 +40,6 @@ type Step =
   | "order_summary"
   | "completed";
 
-interface UserDefaults {
-  name: string;
-  phone: string;
-  address: string;
-  city: string;
-}
-
-const USER_DEFAULTS: Record<string, UserDefaults> = {
-  "e17d0577-c93d-4c3e-9080-60b6bbfdf071": {
-    name: "Kamal Silva",
-    phone: "0771234567",
-    address: "123 Galle Road, Colombo 3",
-    city: "Colombo 3",
-  },
-  "b91d2a14-e58f-4ad1-97b0-cce218fd7d32": {
-    name: "Nimal Perera",
-    phone: "0719876543",
-    address: "45 Flower Road, Colombo 7",
-    city: "Colombo 7",
-  },
-};
-
 type PaymentMethod = "cod" | "card";
 
 export default function OrderFlowCard({ product, stockStatus = "in_stock", stockQty }: OrderFlowCardProps) {
@@ -73,7 +51,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
     phone: defaultAddr.phone || "",
     address: defaultAddr.formattedAddress || defaultAddr.addressLine || "",
     city: defaultAddr.city || "",
-  } : (USER_DEFAULTS[activeUserId] || { name: "", phone: "", address: "", city: "" });
+  } : { name: "", phone: "", address: "", city: "" };
 
   const hasSavedAddress = !!(savedDefaults.address && savedDefaults.city);
 

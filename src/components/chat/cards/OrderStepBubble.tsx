@@ -560,7 +560,7 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
             <label className="text-[10px] font-bold text-slate-700">Recipient Name</label>
             <input
               type="text"
-              placeholder="e.g. Kamal Silva"
+              placeholder="e.g. Recipient Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={submitted || !isActive}
@@ -575,7 +575,7 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
               </span>
               <input
                 type="tel"
-                placeholder="77 123 4567"
+                placeholder="71 234 5678"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                 disabled={submitted || !isActive}

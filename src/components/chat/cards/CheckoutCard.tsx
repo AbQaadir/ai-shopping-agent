@@ -11,29 +11,7 @@ interface CheckoutCardProps {
   product: InlineProduct;
 }
 
-const getUserCheckoutDefaults = (userId: string) => {
-  if (userId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071") {
-    return {
-      name: "Kamal Silva",
-      phone: "0771234567",
-      address: "123 Galle Road, Colombo 3",
-      city: "Colombo 3",
-    };
-  } else if (userId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32") {
-    return {
-      name: "Nimal Perera",
-      phone: "0719876543",
-      address: "45 Flower Road, Colombo 7",
-      city: "Colombo 7",
-    };
-  }
-  return {
-    name: "",
-    phone: "",
-    address: "",
-    city: "",
-  };
-};
+
 
 export default function CheckoutCard({ product }: CheckoutCardProps) {
   const { activeUserId, activeHistoryId, setMessages, userAddresses } = useSourcing();
@@ -245,7 +223,7 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
       phone: defaultAddr.phone || "",
       address: defaultAddr.formattedAddress || defaultAddr.addressLine || "",
       city: defaultAddr.city || "",
-    } : getUserCheckoutDefaults(activeUserId);
+    } : { name: "", phone: "", address: "", city: "" };
 
     setName(d.name);
     setPhone(d.phone);
@@ -256,12 +234,8 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
       let newLatLng = { lat: 6.9271, lng: 79.8612 };
       if (defaultAddr && defaultAddr.lat && defaultAddr.lng) {
         newLatLng = { lat: defaultAddr.lat, lng: defaultAddr.lng };
-      } else if (activeUserId === "e17d0577-c93d-4c3e-9080-60b6bbfdf071") {
-        newLatLng = { lat: 6.9157, lng: 79.8510 };
-      } else if (activeUserId === "b91d2a14-e58f-4ad1-97b0-cce218fd7d32") {
-        newLatLng = { lat: 6.9064, lng: 79.8698 };
       }
-      mapInstanceRef.current.setCenter(newLatLng);
+      mapInstanceRef.current.panTo(newLatLng);
       if (isAdvancedMarkerRef.current) {
         markerInstanceRef.current.position = newLatLng;
       } else {
@@ -427,7 +401,7 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Kamal Silva"
+                placeholder="e.g. Recipient Name"
                 className="w-full text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg p-2 focus:border-[#402970] focus:ring-1 focus:ring-[#402970] outline-none bg-slate-50/50 transition-all"
               />
             </div>
@@ -439,7 +413,7 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="0771234567"
+                placeholder="0712345678"
                 className="w-full text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg p-2 focus:border-[#402970] focus:ring-1 focus:ring-[#402970] outline-none bg-slate-50/50 transition-all"
               />
             </div>

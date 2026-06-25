@@ -1085,12 +1085,52 @@ Respond ONLY with valid JSON matching this schema:
           if (checkoutState.phase === "new_address_form" && /^new address confirmed:/i.test(message.trim())) {
             const parts = message.replace(/^new address confirmed:\s*/i, "").split("|");
             if (parts.length >= 4) {
+              const name = parts[0].trim();
+              const phone = parts[1].trim();
+              const address = parts[2].trim();
+              const city = parts[3].trim();
+              
               updatedState.confirmedAddress = {
-                name: parts[0].trim(),
-                phone: parts[1].trim(),
-                address: parts[2].trim(),
-                city: parts[3].trim(),
+                name,
+                phone,
+                address,
+                city,
               };
+
+              // Automatically save this new address to the user's profile
+              const currentUserId = session?.userId || userId || "guest";
+              try {
+                const userRec = await (prisma.user as any).findUnique({ where: { id: currentUserId }, select: { addresses: true } });
+                let existingAddrs: any[] = [];
+                if (userRec?.addresses) {
+                  existingAddrs = typeof userRec.addresses === "string" ? JSON.parse(userRec.addresses) : userRec.addresses;
+                  if (!Array.isArray(existingAddrs)) existingAddrs = [];
+                }
+                
+                const newAddrId = crypto.randomUUID();
+                const newAddr = {
+                  id: newAddrId,
+                  type: "custom",
+                  label: name.split(" ")[0] + "'s Address", // custom label based on recipient
+                  recipientName: name,
+                  phone: phone,
+                  addressLine: address,
+                  city: city,
+                  isDefault: existingAddrs.length === 0,
+                };
+                
+                existingAddrs.push(newAddr);
+                
+                await (prisma.user as any).update({
+                  where: { id: currentUserId },
+                  data: { addresses: existingAddrs },
+                });
+                
+                // Update local array so it gets passed down to the client in the SSE packet
+                allUserAddresses = existingAddrs;
+              } catch (err) {
+                console.error("Failed to auto-save new address:", err);
+              }
             }
           }
 
