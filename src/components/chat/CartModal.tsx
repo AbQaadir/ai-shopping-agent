@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
 import { cleanProductTitle } from "@/lib/product";
-import type { CartItem } from "@/types/sourcing";
+import type { CartItem, InlineProduct } from "@/types/sourcing";
 
 interface GroupedCartItem {
   sessionId: string;
@@ -38,6 +38,7 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
     activeHistoryId,
     handleSelectHistory,
     setCartItems,
+    setSelectedProducts,
   } = useSourcing();
 
   const [globalGroups, setGlobalGroups] = useState<GroupedCartItem[]>([]);
@@ -117,7 +118,17 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
 
   const handleCheckoutLocal = () => {
     onClose();
-    handleDirectSend("checkout cart");
+    const productsToCheckout: InlineProduct[] = cartItems.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      inStock: item.inStock
+    }));
+    setSelectedProducts(productsToCheckout);
+    setTimeout(() => {
+      handleDirectSend("checkout cart");
+    }, 50);
   };
 
   // --- Global Cart Helpers ---
@@ -202,8 +213,18 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
 
   const handleCheckoutGlobal = () => {
     onClose();
-    // Redirect to checkout in whatever is the active history session
-    handleDirectSend("checkout cart");
+    const allItems = globalGroups.flatMap((group) => group.items);
+    const productsToCheckout: InlineProduct[] = allItems.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      inStock: item.inStock
+    }));
+    setSelectedProducts(productsToCheckout);
+    setTimeout(() => {
+      handleDirectSend("checkout cart");
+    }, 50);
   };
 
   const handleRedirectToSession = (sid: string) => {
