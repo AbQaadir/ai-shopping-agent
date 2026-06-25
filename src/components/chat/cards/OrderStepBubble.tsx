@@ -1396,27 +1396,48 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
                   </div>
                 </div>
               ) : step.product ? (
-                <div className="flex items-center gap-3 pb-3.5 border-b border-slate-100">
-                  {step.product.imageUrl ? (
-                    <img
-                      src={step.product.imageUrl}
-                      alt=""
-                      className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                      <Package size={20} className="text-slate-400" />
+                <div className="flex flex-col gap-3.5 pb-3.5 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    {step.product.imageUrl ? (
+                      <img
+                        src={step.product.imageUrl}
+                        alt=""
+                        className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 bg-white"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                        <Package size={20} className="text-slate-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-xs font-bold text-slate-800 truncate">{cleanProductTitle(step.product.name || step.product.title)}</h5>
+                      <p className="text-xs text-slate-400 font-semibold mt-1">
+                        Qty: {step.confirmedQuantity || 1} × Rs. {(step.product.price || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className="text-sm font-extrabold text-[#402970] shrink-0">
+                      Rs. {cartSubtotal.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-3 border-t border-slate-100 mt-1">
+                    <span className="text-xs font-bold text-slate-700">Subtotal</span>
+                    <span className="text-sm font-black text-[#402970]">Rs. {cartSubtotal.toLocaleString()}</span>
+                  </div>
+                  
+                  {/* Delivery Fee Row */}
+                  {deliveryFee > 0 && (
+                    <div className="flex justify-between items-center text-slate-500 pb-2 border-b border-slate-100/60 border-dashed mt-1">
+                      <span className="text-xs font-medium">Delivery Fee</span>
+                      <span className="text-xs font-medium">Rs. {deliveryFee.toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <h5 className="text-xs font-bold text-slate-800 truncate">{cleanProductTitle(step.product.name || step.product.title)}</h5>
-                    <p className="text-xs text-slate-400 font-semibold mt-1">
-                      Qty: {step.confirmedQuantity || 1} × Rs. {(step.product.price || 0).toLocaleString()}
-                    </p>
+                  
+                  {/* Total Row */}
+                  <div className="flex justify-between items-center pt-1 mt-1">
+                    <span className="text-base font-bold text-slate-800">Total Charged</span>
+                    <span className="text-base font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
                   </div>
-                  <span className="text-sm font-extrabold text-[#402970] shrink-0">
-                    Rs. {totalLKR.toLocaleString()}
-                  </span>
                 </div>
               ) : null}
 
@@ -1462,7 +1483,7 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
               <div className="flex items-start gap-2.5 p-3.5 bg-amber-50/50 border border-amber-100 rounded-xl">
                 <Truck size={14} className="text-amber-600 shrink-0 mt-0.5" />
                 <p className="text-[11px] text-amber-700 font-semibold leading-relaxed">
-                  Courier will collect **Rs. {totalLKR.toLocaleString()}** in cash upon delivery.
+                  Courier will collect <strong className="font-extrabold">Rs. {totalLKR.toLocaleString()}</strong> in cash upon delivery.
                 </p>
               </div>
             )}
