@@ -2244,10 +2244,6 @@ async function llmValidateRelevance(
   const productsToCheck = products.slice(0, 50);
   const productList = productsToCheck.map((p, i) => `${i + 1}. [${p.id}] ${p.name}`).join("\n");
 
-  const constraintText = isCategoryBrowse 
-    ? "" 
-    : `\nConstraint:\n- You must NOT discard more than 10 products. If there are more than 10 irrelevant products, only select the 10 most irrelevant ones to DISCARD, and mark all others as KEEP.`;
-
   const prompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
 
 User's query: "${userQuery}"
@@ -2264,7 +2260,7 @@ Score criteria:
 
 Examples:
 - Searching "shoes" → sandals, boots, sneakers = KEEP (high score). Shoe rack, shoe box = DISCARD.
-- Searching "cake" → birthday cake = KEEP. Cake mold = DISCARD.${constraintText}
+- Searching "cake" → birthday cake = KEEP. Cake mold = DISCARD.
 
 Products:
 ${productList}
@@ -2301,11 +2297,6 @@ Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"
     let text = (result.text || "{}").trim().replace(/```json/i, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(text);
     const keptItems = Array.isArray(parsed?.kept_items) ? parsed.kept_items : [];
-    
-    if (keptItems.length === 0 && productsToCheck.length > 0) {
-      console.warn(`[LLM Validator] "${searchTerm}": validator returned 0 IDs — using raw set.`);
-      return products;
-    }
 
     const scoreMap = new Map<string, number>();
     for (const item of keptItems) {
