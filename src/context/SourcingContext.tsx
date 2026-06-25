@@ -1006,7 +1006,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to update cart:", err);
     }
-  }, [activeUserId]);
+  }, [activeUserId, activeHistoryId]);
 
   /**
    * "Add to Cart" handler — SILENT, no LLM involved.

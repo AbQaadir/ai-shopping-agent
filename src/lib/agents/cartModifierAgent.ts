@@ -175,7 +175,7 @@ Respond ONLY as valid JSON:
             quantity: addReq.quantity || 1,
             imageUrl: productDetail.imageUrl || productDetail.image,
             inStock: productDetail.inStock !== false,
-            stockQty: productDetail.stockQty ?? 50,
+            stockQty: productDetail.stockCount ?? undefined,
           });
         }
       }

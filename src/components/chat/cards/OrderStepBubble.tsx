@@ -40,7 +40,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
   const [qty, setQty] = useState(1);
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
-  const maxQty = step.stockQty ?? 50;
+  const maxQty = step.stockQty;
   const hasError = !!step.errorMessage;
 
   const handleConfirm = () => {
@@ -61,7 +61,9 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
     const updated = (step.cartItems || []).map((item) => {
       const matchId = item.id || item.name;
       if (matchId === itemId) {
-        return { ...item, quantity: Math.max(1, currentQty + delta) };
+        const nextQty = currentQty + delta;
+        const maxLimit = item.stockQty !== undefined ? item.stockQty : Infinity;
+        return { ...item, quantity: Math.max(1, Math.min(maxLimit, nextQty)) };
       }
       return item;
     });
@@ -131,7 +133,7 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
                     <span className="text-xs font-extrabold text-slate-800 w-5 text-center">{item.quantity}</span>
                     <button
                       onClick={() => handleQtyChange(item.id || item.name, item.quantity, 1)}
-                      disabled={submitted}
+                      disabled={submitted || (item.stockQty !== undefined && item.quantity >= item.stockQty)}
                       className="p-1 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 cursor-pointer"
                     >
                       <Plus size={10} />
@@ -232,7 +234,11 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
           }`}
         >
           {hasError ? <AlertCircle size={12} className="shrink-0" /> : <CheckCircle size={12} className="shrink-0" />}
-          {hasError ? `Only ${maxQty} left` : `In Stock (Up to ${maxQty} units)`}
+          {hasError 
+            ? `Only ${maxQty} left` 
+            : maxQty !== undefined 
+              ? `In Stock (Up to ${maxQty} units)` 
+              : "In Stock"}
         </div>
       </div>
 
@@ -251,8 +257,8 @@ function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps)
             </button>
             <span className="text-xs font-extrabold text-slate-800 w-8 text-center">{qty}</span>
             <button
-              onClick={() => setQty(Math.min(maxQty, qty + 1))}
-              disabled={qty >= maxQty || submitted || !isActive}
+              onClick={() => setQty(Math.min(maxQty ?? Infinity, qty + 1))}
+              disabled={(maxQty !== undefined && qty >= maxQty) || submitted || !isActive}
               className="p-2 hover:bg-white rounded-lg text-slate-500 disabled:opacity-30 transition-all cursor-pointer hover:shadow-xs active:scale-95"
             >
               <Plus size={12} />

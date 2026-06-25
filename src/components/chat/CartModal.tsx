@@ -100,7 +100,9 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
   const handleQtyChangeLocal = (itemId: string, currentQty: number, delta: number) => {
     const updated = cartItems.map((item) => {
       if (item.id === itemId) {
-        return { ...item, quantity: Math.max(1, currentQty + delta) };
+        const nextQty = currentQty + delta;
+        const maxLimit = item.stockQty !== undefined ? item.stockQty : Infinity;
+        return { ...item, quantity: Math.max(1, Math.min(maxLimit, nextQty)) };
       }
       return item;
     });
@@ -138,14 +140,15 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
     currentQty: number,
     delta: number
   ) => {
-    const nextQty = Math.max(1, currentQty + delta);
     let targetGroupItems: CartItem[] = [];
 
     const updatedGroups = globalGroups.map((group) => {
       if (group.sessionId === sid) {
         const newItems = group.items.map((item) => {
           if (item.id === itemId) {
-            return { ...item, quantity: nextQty };
+            const nextQty = currentQty + delta;
+            const maxLimit = item.stockQty !== undefined ? item.stockQty : Infinity;
+            return { ...item, quantity: Math.max(1, Math.min(maxLimit, nextQty)) };
           }
           return item;
         });
@@ -393,7 +396,8 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
                               onClick={() =>
                                 handleQtyChangeGlobal(group.sessionId, item.id, item.quantity, 1)
                               }
-                              className="p-1 hover:bg-slate-50 rounded text-slate-500 hover:text-slate-800 transition-all cursor-pointer"
+                              disabled={item.stockQty !== undefined && item.quantity >= item.stockQty}
+                              className="p-1 hover:bg-slate-50 rounded text-slate-500 hover:text-slate-800 transition-all cursor-pointer disabled:opacity-30"
                               title="Increase quantity"
                             >
                               <Plus size={11} />
@@ -470,7 +474,8 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
                       </span>
                       <button
                         onClick={() => handleQtyChangeLocal(item.id, item.quantity, 1)}
-                        className="p-1 hover:bg-slate-50 rounded text-slate-500 hover:text-slate-800 transition-all cursor-pointer"
+                        disabled={item.stockQty !== undefined && item.quantity >= item.stockQty}
+                        className="p-1 hover:bg-slate-50 rounded text-slate-500 hover:text-slate-800 transition-all cursor-pointer disabled:opacity-30"
                         title="Increase quantity"
                       >
                         <Plus size={11} />

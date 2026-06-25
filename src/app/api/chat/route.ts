@@ -700,7 +700,7 @@ User query to classify: "${message}"`;
               return {
                 ...item,
                 inStock: fresh ? fresh.inStock !== false : item.inStock,
-                stockQty: (fresh as any)?.stockQty ?? 50,
+                stockQty: fresh ? (fresh.stockCount ?? undefined) : undefined,
               };
             })
           );
