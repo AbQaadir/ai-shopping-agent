@@ -560,7 +560,7 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
             <label className="text-[10px] font-bold text-slate-700">Recipient Name</label>
             <input
               type="text"
-              placeholder="e.g. Kamal Silva"
+              placeholder="e.g. Recipient Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={submitted || !isActive}
@@ -575,7 +575,7 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
               </span>
               <input
                 type="tel"
-                placeholder="77 123 4567"
+                placeholder="71 234 5678"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                 disabled={submitted || !isActive}
@@ -1066,10 +1066,11 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
-  
-  const totalLKR = step.cartItems && step.cartItems.length > 0
+  const cartSubtotal = step.cartItems && step.cartItems.length > 0
     ? step.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     : (step.product?.price || 0) * (step.confirmedQuantity || 1);
+  const deliveryFee = step.deliveryCheckResult?.flatRateLKR || 0;
+  const totalLKR = cartSubtotal + deliveryFee;
 
   const addr = step.confirmedAddress || step.savedAddress;
 
@@ -1154,7 +1155,7 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
                 </div>
               </div>
               <span className="text-xs font-extrabold text-[#402970] shrink-0">
-                Rs. {totalLKR.toLocaleString()}
+                Rs. {( (step.product?.price || 0) * (step.confirmedQuantity || 1) ).toLocaleString()}
               </span>
             </div>
           ) : null}
@@ -1162,6 +1163,20 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
           {/* Subtotal Row */}
           <div className="flex justify-between items-center pt-3 border-t border-slate-100/70 mt-1">
             <span className="text-xs font-bold text-slate-700">Order Subtotal</span>
+            <span className="text-sm font-black text-[#402970]">Rs. {cartSubtotal.toLocaleString()}</span>
+          </div>
+
+          {/* Delivery Fee Row */}
+          {deliveryFee > 0 && (
+            <div className="flex justify-between items-center text-slate-500 pb-2 border-b border-slate-100/60 border-dashed">
+              <span>Delivery Fee</span>
+              <span>Rs. {deliveryFee.toLocaleString()}</span>
+            </div>
+          )}
+          
+          {/* Total Row */}
+          <div className="flex justify-between items-center pt-1 mt-1">
+            <span className="text-sm font-bold text-slate-800">Total</span>
             <span className="text-sm font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
           </div>
         </div>
@@ -1296,10 +1311,12 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
 // ── Confirmed Variant ──────────────────────────────────────────────────────
 function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
   const addr = step.confirmedAddress;
-  const totalLKR = step.cartItems && step.cartItems.length > 0
+  const cartSubtotal = step.cartItems && step.cartItems.length > 0
     ? step.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     : (step.product?.price || 0) * (step.confirmedQuantity || 1);
-  const orderFailed = !step.orderId && step.paymentMethod === "card" && !step.checkoutUrl;
+  const deliveryFee = step.deliveryCheckResult?.flatRateLKR || 0;
+  const totalLKR = cartSubtotal + deliveryFee;
+  const orderFailed = !step.orderId;
 
   return (
     <div
@@ -1383,6 +1400,20 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
                   ))}
                   <div className="flex justify-between items-center pt-3 border-t border-slate-100 mt-1">
                     <span className="text-xs font-bold text-slate-700">Subtotal</span>
+                    <span className="text-sm font-black text-[#402970]">Rs. {cartSubtotal.toLocaleString()}</span>
+                  </div>
+                  
+                  {/* Delivery Fee Row */}
+                  {deliveryFee > 0 && (
+                    <div className="flex justify-between items-center text-slate-500 pb-2 border-b border-slate-100/60 border-dashed mt-1">
+                      <span className="text-xs font-medium">Delivery Fee</span>
+                      <span className="text-xs font-medium">Rs. {deliveryFee.toLocaleString()}</span>
+                    </div>
+                  )}
+                  
+                  {/* Total Row */}
+                  <div className="flex justify-between items-center pt-1 mt-1">
+                    <span className="text-base font-bold text-slate-800">Total Charged</span>
                     <span className="text-base font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
                   </div>
                 </div>

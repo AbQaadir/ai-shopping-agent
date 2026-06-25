@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   PanelLeftClose,
   PanelLeft,
@@ -52,6 +52,22 @@ export default function GlobalSidebar({
   const [showLanguagePopover, setShowLanguagePopover] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
+
+  const languageContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (languageContainerRef.current && !languageContainerRef.current.contains(event.target as Node)) {
+        setShowLanguagePopover(false);
+      }
+    }
+    if (showLanguagePopover) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showLanguagePopover]);
 
   const { currency, handleDeleteHistory } = useSourcing();
   const { user, openAuthModal } = useAuth();
@@ -182,7 +198,7 @@ export default function GlobalSidebar({
         <div className="p-3 border-t border-slate-100/50 space-y-1 shrink-0">
 
           {/* Language & Currency */}
-          <div className="relative">
+          <div className="relative" ref={languageContainerRef}>
             <button
               onClick={() => setShowLanguagePopover(!showLanguagePopover)}
               className={`flex items-center transition-all duration-200 cursor-pointer outline-none group border border-slate-200 bg-white hover:bg-slate-50 hover:border-[#402970]/20 hover:shadow-sm text-slate-700 font-bold text-xs ${
@@ -200,10 +216,7 @@ export default function GlobalSidebar({
               </span>
             </button>
             {showLanguagePopover && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowLanguagePopover(false)} />
-                <LanguagePopover onClose={() => setShowLanguagePopover(false)} align="right" />
-              </>
+              <LanguagePopover onClose={() => setShowLanguagePopover(false)} align="right" />
             )}
           </div>
 

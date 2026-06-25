@@ -574,7 +574,22 @@ export async function trackOrder(orderId: string): Promise<MCPToolResult<Kapruka
         delivery_date?: string;
         progress?: RawTrackingStep[];
       }
-      const raw = parseJSON<RawTrackingResponse>(text);
+      let raw: RawTrackingResponse;
+      try {
+        raw = parseJSON<RawTrackingResponse>(text);
+      } catch (e) {
+        // Kapruka API returns a plain string (e.g. "Error (ord-xxx)...") if tracking fails
+        return {
+          orderId,
+          currentStatus: "Tracking Not Available",
+          steps: [{
+            timestamp: new Date().toISOString(),
+            status: "Error",
+            description: text || "Invalid tracking ID or order not found",
+          }]
+        };
+      }
+      
       return {
         orderId: raw.order_number,
         currentStatus: raw.status_display,

@@ -112,9 +112,14 @@ export default function DeliveryDateBubble({ step, onAction, isActive = true }: 
             <span className="font-semibold">{displayDate ? formatFull(displayDate) : "—"}</span>
           </div>
           {displayMsg && (
-            <div className="flex items-start gap-2 text-slate-600">
-              <Gift size={13} className="text-rose-400 mt-0.5 shrink-0" />
-              <span className="italic text-xs">"{displayMsg}"</span>
+            <div className="mt-3 p-3 bg-rose-50/50 border border-rose-100 rounded-xl flex items-start gap-2.5 transition-all hover:bg-rose-50/80">
+              <div className="p-1.5 bg-rose-100/50 text-rose-500 rounded-lg shrink-0">
+                <Gift size={14} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-0.5">Personal Message</span>
+                <span className="text-xs font-medium text-slate-700 italic leading-relaxed">"{displayMsg}"</span>
+              </div>
             </div>
           )}
         </div>

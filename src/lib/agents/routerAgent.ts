@@ -87,6 +87,14 @@ export async function routerAgent(
   if (/^checkout cart$/i.test(message.trim())) {
     return { action: "checkout_start", reason: "Explicit checkout trigger from Order button" };
   }
+  // "Confirm quantities" is sent by the cart checkout UI.
+  if (/^confirm quantities$/i.test(message.trim())) {
+    return { action: "checkout_continue", reason: "UI-generated cart quantity confirmation" };
+  }
+  // "I'd like to order X units" is sent by the single product checkout UI.
+  if (/^I'd like to order \d+ unit/i.test(message.trim())) {
+    return { action: "checkout_continue", reason: "UI-generated single item quantity confirmation" };
+  }
 
   const stateBlock = buildCheckoutStateBlock(checkoutState);
   const hasActiveCheckout = checkoutState !== null;

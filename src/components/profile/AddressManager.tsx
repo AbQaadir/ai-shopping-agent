@@ -324,7 +324,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
               type="tel"
               value={recipientPhone}
               onChange={e => setRecipientPhone(e.target.value)}
-              placeholder="77 123 4567"
+              placeholder="e.g. 71 234 5678"
               className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
             />
           </div>

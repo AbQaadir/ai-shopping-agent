@@ -765,8 +765,17 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   errorMessage: packet.errorMessage,
                 } as OrderFlowStepData;
 
+                if (packet.savedAddresses && Array.isArray(packet.savedAddresses)) {
+                  setUserAddresses(packet.savedAddresses);
+                }
+
                 if (packet.cartItems && Array.isArray(packet.cartItems)) {
-                  setCartItems(packet.cartItems);
+                  // If the order was confirmed and succeeded, clear the active cart
+                  if (packet.phase === "confirmed" && packet.orderId && !packet.errorMessage) {
+                    setCartItems([]);
+                  } else {
+                    setCartItems(packet.cartItems);
+                  }
                 }
 
                 setMessages(prev => prev.map(m =>

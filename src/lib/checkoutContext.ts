@@ -39,6 +39,7 @@ export interface CheckoutState {
   paymentMethod?: "cod" | "card";
   deliveryDate?: string;           // YYYY-MM-DD chosen by user in delivery_date_ask phase
   personalMessage?: string;        // optional gift/personal message passed to kapruka_create_order
+  deliveryFeeLKR?: number;         // flat rate delivery fee returned by kapruka_check_delivery
 }
 
 /** Load the active checkout state for a chat session. Returns null if none. */
@@ -61,6 +62,7 @@ export async function getCheckoutState(chatSessionId: string): Promise<CheckoutS
       paymentMethod: (row.paymentMethod as "cod" | "card") ?? undefined,
       deliveryDate: row.deliveryDate ?? undefined,
       personalMessage: row.personalMessage ?? undefined,
+      deliveryFeeLKR: row.deliveryFeeLKR ?? undefined,
     };
   } catch (err) {
     console.error("[CheckoutContext] getCheckoutState failed:", err);
@@ -87,6 +89,7 @@ export async function saveCheckoutState(
         paymentMethod: state.paymentMethod ?? null,
         deliveryDate: state.deliveryDate ?? null,
         personalMessage: state.personalMessage ?? null,
+        deliveryFeeLKR: state.deliveryFeeLKR ?? null,
       },
       create: {
         chatSessionId,
@@ -100,6 +103,7 @@ export async function saveCheckoutState(
         paymentMethod: state.paymentMethod ?? null,
         deliveryDate: state.deliveryDate ?? null,
         personalMessage: state.personalMessage ?? null,
+        deliveryFeeLKR: state.deliveryFeeLKR ?? null,
       },
     });
   } catch (err) {

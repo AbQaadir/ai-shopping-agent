@@ -24,6 +24,7 @@ import {
 } from "@/lib/tools";
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest } from "next/server";
+import { placeOrderInternally } from "@/lib/orderService";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -42,6 +43,16 @@ import {
   type CheckoutState,
 } from "@/lib/checkoutContext";
 
+// Normalize address data from DB to SavedAddress schema
+const mapToSavedAddress = (addr: any) => {
+  if (!addr) return undefined;
+  return {
+    name: addr.recipientName || addr.name || addr.label || "Customer",
+    phone: addr.phone || "",
+    address: addr.addressLine || addr.address || "",
+    city: addr.city || ""
+  };
+};
 
 interface SearchTermConfig {
   term: string;
@@ -779,12 +790,12 @@ Respond ONLY with valid JSON matching this schema:
               phase: "delivery_date_ask",
               cartItems: currentCart,
               savedAddress: savedAddr ?? undefined,
-              confirmedAddress: matchedAddress,
+              confirmedAddress: mapToSavedAddress(matchedAddress) as any,
               confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
             };
             await saveCheckoutState(sessionId, newCheckoutState);
 
-            const ofs = { phase: "delivery_date_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: matchedAddress };
+            const ofs = { phase: "delivery_date_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: mapToSavedAddress(matchedAddress) };
             send({ type: "order_flow_step", ...ofs });
             
             const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. When would you like it delivered? Pick a date below, and feel free to add a personal message!`;
@@ -1034,13 +1045,6 @@ Respond ONLY with valid JSON matching this schema:
             updatedState.cartItems = extractedData.updatedCartItems;
             await saveUserCart(extractedData.updatedCartItems);
           }
-          // Normalize address data
-          const mapToSavedAddress = (addr: any) => ({
-             name: addr.recipientName || addr.name || addr.label || "Customer",
-             phone: addr.phone || "",
-             address: addr.addressLine || addr.address || "",
-             city: addr.city || ""
-          });
 
           if (extractedData.usesSavedAddress === true && savedAddr) {
             updatedState.confirmedAddress = mapToSavedAddress(savedAddr);
@@ -1081,12 +1085,52 @@ Respond ONLY with valid JSON matching this schema:
           if (checkoutState.phase === "new_address_form" && /^new address confirmed:/i.test(message.trim())) {
             const parts = message.replace(/^new address confirmed:\s*/i, "").split("|");
             if (parts.length >= 4) {
+              const name = parts[0].trim();
+              const phone = parts[1].trim();
+              const address = parts[2].trim();
+              const city = parts[3].trim();
+              
               updatedState.confirmedAddress = {
-                name: parts[0].trim(),
-                phone: parts[1].trim(),
-                address: parts[2].trim(),
-                city: parts[3].trim(),
+                name,
+                phone,
+                address,
+                city,
               };
+
+              // Automatically save this new address to the user's profile
+              const currentUserId = session?.userId || userId || "guest";
+              try {
+                const userRec = await (prisma.user as any).findUnique({ where: { id: currentUserId }, select: { addresses: true } });
+                let existingAddrs: any[] = [];
+                if (userRec?.addresses) {
+                  existingAddrs = typeof userRec.addresses === "string" ? JSON.parse(userRec.addresses) : userRec.addresses;
+                  if (!Array.isArray(existingAddrs)) existingAddrs = [];
+                }
+                
+                const newAddrId = crypto.randomUUID();
+                const newAddr = {
+                  id: newAddrId,
+                  type: "custom",
+                  label: name.split(" ")[0] + "'s Address", // custom label based on recipient
+                  recipientName: name,
+                  phone: phone,
+                  addressLine: address,
+                  city: city,
+                  isDefault: existingAddrs.length === 0,
+                };
+                
+                existingAddrs.push(newAddr);
+                
+                await (prisma.user as any).update({
+                  where: { id: currentUserId },
+                  data: { addresses: existingAddrs },
+                });
+                
+                // Update local array so it gets passed down to the client in the SSE packet
+                allUserAddresses = existingAddrs;
+              } catch (err) {
+                console.error("Failed to auto-save new address:", err);
+              }
             }
           }
 
@@ -1129,6 +1173,7 @@ Respond ONLY with valid JSON matching this schema:
 
             // Delivery IS available — build OFS with delivery check result and advance to payment_ask
             updatedState.phase = "payment_ask";
+            updatedState.deliveryFeeLKR = deliveryCheck.flatRateLKR;
             const deliveryOfs = {
               phase: "payment_ask" as const,
               cartItems: updatedState.cartItems,
@@ -1162,9 +1207,9 @@ Respond ONLY with valid JSON matching this schema:
 
             let checkoutUrl: string | undefined;
             let orderId: string | undefined;
+            let orderFailed = false;
 
             try {
-              const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
               const cartItems = updatedState.cartItems || [];
               const confirmedAddress = updatedState.confirmedAddress;
               const paymentMethod = updatedState.paymentMethod || "cod";
@@ -1177,43 +1222,42 @@ Respond ONLY with valid JSON matching this schema:
                 imageUrl: i.imageUrl,
               }));
 
-              const orderRes = await fetch(`${baseUrl}/api/order`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  items: orderItems,
-                  recipient: confirmedAddress,
-                  sessionId,
-                  userId,
-                  paymentMethod,
-                  deliveryDate: updatedState.deliveryDate || null,
-                  personalMessage: updatedState.personalMessage || null,
-                }),
+              const od = await placeOrderInternally({
+                items: orderItems,
+                recipient: confirmedAddress as any,
+                sessionId,
+                userId: userId || undefined,
+                paymentMethod: paymentMethod as "cod" | "card",
+                deliveryDate: updatedState.deliveryDate || undefined,
+                personalMessage: updatedState.personalMessage || undefined,
+                deliveryFeeLKR: updatedState.deliveryFeeLKR || undefined,
               });
 
-              if (orderRes.ok) {
-                const od = await orderRes.json();
-                checkoutUrl = od.checkoutLink?.checkoutUrl;
-                orderId = od.orderResult?.orderId || `ord-${Date.now()}`;
+              checkoutUrl = od.checkoutLink?.checkoutUrl;
+              orderId = od.orderResult?.orderId || `ord-${Date.now()}`;
 
-                // Clear cart and checkout session on success
-                await saveUserCart([]);
-                await clearCheckoutState(sessionId);
-              }
-            } catch (err) {
+              // Clear cart and checkout session on success
+              await saveUserCart([]);
+              await clearCheckoutState(sessionId);
+            } catch (err: any) {
               console.error("[OrderAgent] place order failed:", err);
+              orderFailed = true;
             }
 
-            send({ type: "thought", step: "placing_order", status: "completed", content: "Order placed ✓", durationMs: 0 });
+            send({ type: "thought", step: "placing_order", status: "completed", content: orderFailed ? "Order placement failed ❌" : "Order placed ✓", durationMs: 0 });
 
             const cartItems = updatedState.cartItems || [];
             const totalLKR = cartItems.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
             const itemsListStr = cartItems.map((i: any) => `${i.quantity}x **${i.name}**`).join(", ");
 
-            const confirmationText =
-              updatedState.paymentMethod === "cod"
-                ? `Your order for ${itemsListStr} is confirmed! 🎉 Our courier will deliver and collect **Rs. ${totalLKR.toLocaleString()}** in cash on arrival.`
-                : `Your order for ${itemsListStr} is confirmed! 🎉 Complete the payment via the secure link below to finalise your order.`;
+            let confirmationText = "";
+            if (orderFailed) {
+              confirmationText = `We encountered an issue placing your order for ${itemsListStr}. Please try again later.`;
+            } else if (updatedState.paymentMethod === "cod") {
+              confirmationText = `Your order for ${itemsListStr} is confirmed! 🎉 Our courier will deliver and collect **Rs. ${totalLKR.toLocaleString()}** in cash on arrival.`;
+            } else {
+              confirmationText = `Your order for ${itemsListStr} is confirmed! 🎉 Complete the payment via the secure link below to finalise your order.`;
+            }
 
             const cs = {
               phase: "confirmed",
@@ -1221,7 +1265,7 @@ Respond ONLY with valid JSON matching this schema:
               confirmedAddress: updatedState.confirmedAddress,
               paymentMethod: updatedState.paymentMethod,
               checkoutUrl,
-              orderId,
+              orderId: orderFailed ? null : orderId, // Ensure it's null on failure
             };
             send({ type: "order_flow_step", ...cs });
             await streamWords(confirmationText);
