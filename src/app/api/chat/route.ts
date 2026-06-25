@@ -1026,6 +1026,32 @@ Respond ONLY with valid JSON matching this schema:
             }
           }
 
+          if (checkoutState.phase === "payment_ask") {
+            if (message.trim() === "I'll pay cash on delivery") {
+              bypassedAI = true;
+              agentOutput = {
+                nextPhase: "confirmed",
+                stay: false,
+                extractedData: { paymentMethod: "cod" },
+                responseText: "Placing your order...",
+                requiresGeocode: false,
+                requiresOrderPlace: true,
+                requiresDeliveryCheck: false,
+              };
+            } else if (message.trim() === "I want to pay by card online") {
+              bypassedAI = true;
+              agentOutput = {
+                nextPhase: "confirmed",
+                stay: false,
+                extractedData: { paymentMethod: "card" },
+                responseText: "Placing your order...",
+                requiresGeocode: false,
+                requiresOrderPlace: true,
+                requiresDeliveryCheck: false,
+              };
+            }
+          }
+
           if (ai && !bypassedAI) {
             agentOutput = await orderAgent(message, checkoutState, ai, config.gemini.fastModel);
           }
