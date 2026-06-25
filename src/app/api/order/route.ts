@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { placeOrderInternally } from "@/lib/orderService";
+import { withLogging } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
-export async function POST(req: NextRequest) {
+export const POST = withLogging(async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     
@@ -20,4 +21,5 @@ export async function POST(req: NextRequest) {
       { status: error.message?.includes("Missing") || error.message?.includes("Invalid") ? 400 : 500 }
     );
   }
-}
+});
+

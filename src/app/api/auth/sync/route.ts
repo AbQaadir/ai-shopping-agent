@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db";
 
-export async function POST(req: Request) {
+import { withLogging } from "@/lib/logger";
+
+export const POST = withLogging(async function POST(req: Request) {
   try {
     const supabase = await createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -51,4 +53,4 @@ export async function POST(req: Request) {
     console.error("Error in /api/auth/sync:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-}
+});

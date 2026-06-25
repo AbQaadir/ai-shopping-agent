@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withLogging } from "@/lib/logger";
 
 /**
  * GET /auth/callback
@@ -11,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
  * Required in Railway (and any non-Vercel) deployment because
  * Supabase needs a server-side route to finalize the OAuth handshake.
  */
-export async function GET(request: Request) {
+export const GET = withLogging(async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   // Where to send the user after sign-in (default: home page)
@@ -39,4 +40,5 @@ export async function GET(request: Request) {
   // If something went wrong, redirect to home with an error flag
   console.error("Auth callback error: no code or exchange failed");
   return NextResponse.redirect(`${origin}/?auth_error=true`);
-}
+});
+

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { KAPRUKA_CITIES_SET } from "@/constants/cities";
+import { withLogging } from "@/lib/logger";
+
 
 /**
  * GET /api/user/profile?userId=X
  * Returns the user's profile: name, phone, addresses, profileComplete.
  */
-export async function GET(req: NextRequest) {
+export const GET = withLogging(async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
 
@@ -36,14 +38,14 @@ export async function GET(req: NextRequest) {
     console.error("[GET /api/user/profile] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+});
 
 /**
  * PATCH /api/user/profile
  * Updates the user's profile. Only updates provided fields.
  * Body: { userId, name?, phone?, addresses?, profileComplete? }
  */
-export async function PATCH(req: NextRequest) {
+export const PATCH = withLogging(async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     const { userId, name, phone, addresses, profileComplete } = body;
@@ -91,4 +93,4 @@ export async function PATCH(req: NextRequest) {
     console.error("[PATCH /api/user/profile] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+});

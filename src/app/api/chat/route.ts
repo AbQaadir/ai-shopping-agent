@@ -1,6 +1,7 @@
 import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { withLogging } from "@/lib/logger";
 import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 import { findRelevantCategories } from "@/lib/categories";
 import {
@@ -124,7 +125,7 @@ Do NOT use [INTRO] or [DETAILS] tags. Be warm, direct, and detailed in your anal
 If asked to compare, create a markdown table comparing their features, price, stock, and highlight the best option.`;
 
 // ── Main Chat POST Handler ─────────────────────────────────────────────────
-export async function POST(req: NextRequest) {
+export const POST = withLogging(async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
 
   try {
@@ -2117,7 +2118,7 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
       headers: { "Content-Type": "application/json" },
     });
   }
-}
+});
 
 // ── Static follow-up fallbacks per intent ─────────────────────────────────
 const STATIC_FOLLOW_UPS: Record<Intent, string[]> = {
