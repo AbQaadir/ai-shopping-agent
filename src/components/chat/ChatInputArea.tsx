@@ -36,7 +36,7 @@ export default function ChatInputArea({
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { handleAddToCart, handleBuyProduct, handleOrderCart, isSharedReadOnly } = useSourcing();
+  const { handleAddToCart, handleBuyProduct, handleOrderCart, isSharedReadOnly, setSelectedProducts } = useSourcing();
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -300,6 +300,7 @@ export default function ChatInputArea({
                 <button
                   onClick={() => {
                     handleAddToCart(selectedProducts);
+                    setSelectedProducts([]);
                   }}
                   className="px-3.5 py-1.5 bg-[#402970] text-white hover:bg-[#402970]/90 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 select-none"
                 >
