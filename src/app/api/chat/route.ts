@@ -250,6 +250,9 @@ export async function POST(req: NextRequest) {
           savedAddress: orderFlowStep.savedAddress,
           geocodedLocation: orderFlowStep.geocodedLocation,
           paymentMethod: orderFlowStep.paymentMethod,
+          deliveryDate: orderFlowStep.deliveryDate,
+          personalMessage: orderFlowStep.personalMessage,
+          deliveryFeeLKR: orderFlowStep.deliveryCheckResult?.flatRateLKR ?? orderFlowStep.deliveryFeeLKR,
         });
 
         // Synchronize user cart in DB
@@ -1310,7 +1313,8 @@ Respond ONLY with valid JSON matching this schema:
             send({ type: "thought", step: "placing_order", status: "completed", content: orderFailed ? "Order placement failed ❌" : "Order placed ✓", durationMs: 0 });
 
             const cartItems = updatedState.cartItems || [];
-            const totalLKR = cartItems.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+            const subtotalLKR = cartItems.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+            const totalLKR = subtotalLKR + (updatedState.deliveryFeeLKR || 0);
             const itemsListStr = cartItems.map((i: any) => `${i.quantity}x **${i.name}**`).join(", ");
 
             let confirmationText = "";
@@ -1323,12 +1327,19 @@ Respond ONLY with valid JSON matching this schema:
             }
 
             const cs = {
-              phase: "confirmed",
+              phase: "confirmed" as const,
               cartItems,
               confirmedAddress: updatedState.confirmedAddress,
               paymentMethod: updatedState.paymentMethod,
               checkoutUrl,
               orderId: orderFailed ? null : orderId, // Ensure it's null on failure
+              deliveryDate: updatedState.deliveryDate,
+              personalMessage: updatedState.personalMessage,
+              deliveryCheckResult: updatedState.deliveryFeeLKR ? {
+                city: updatedState.confirmedAddress?.city || "",
+                canDeliver: true,
+                flatRateLKR: updatedState.deliveryFeeLKR,
+              } : undefined,
             };
             send({ type: "order_flow_step", ...cs });
             await streamWords(confirmationText);
@@ -1352,6 +1363,13 @@ Respond ONLY with valid JSON matching this schema:
             confirmedAddress: updatedState.confirmedAddress,
             geocodedLocation: updatedState.geocodedLocation,
             paymentMethod: updatedState.paymentMethod,
+            deliveryDate: updatedState.deliveryDate,
+            personalMessage: updatedState.personalMessage,
+            deliveryCheckResult: updatedState.deliveryFeeLKR ? {
+              city: updatedState.confirmedAddress?.city || "",
+              canDeliver: true,
+              flatRateLKR: updatedState.deliveryFeeLKR,
+            } : undefined,
           };
           if (updatedState.product) ofs.product = updatedState.product;
           send({ type: "order_flow_step", ...ofs });
