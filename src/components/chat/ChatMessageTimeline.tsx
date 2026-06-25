@@ -673,8 +673,11 @@ export default function ChatTimeline({
   // Find index of the last active order flow step to compute isActive prop
   const lastOrderStepIdx = messages.map(m => !!m.orderFlowStep).lastIndexOf(true);
 
+  const lastAiMessage = [...messages].reverse().find(m => m.sender === "ai");
   const lastOrderFlowStep = [...messages].reverse().find(m => !!m.orderFlowStep)?.orderFlowStep;
-  const isCheckoutActive = !!(lastOrderFlowStep && lastOrderFlowStep.phase !== "confirmed" && (lastOrderFlowStep.phase as string) !== "cancelled");
+  const hasActiveCheckout = !!(lastOrderFlowStep && lastOrderFlowStep.phase !== "confirmed" && (lastOrderFlowStep.phase as string) !== "cancelled");
+  const isLatestMessageCheckout = !!(lastAiMessage && lastAiMessage.orderFlowStep);
+  const isCheckoutActive = hasActiveCheckout && !isLatestMessageCheckout;
 
   // Helper to render closable B2B card wrappers
   const renderClosableToolCard = (

@@ -97,8 +97,11 @@ export default function ChatWorkspace({
     });
   };
 
+  const lastAiMessage = [...messages].reverse().find(m => m.sender === "ai");
   const lastOrderFlowStep = [...messages].reverse().find(m => !!m.orderFlowStep)?.orderFlowStep;
-  const isCheckoutActive = !!(lastOrderFlowStep && lastOrderFlowStep.phase !== "confirmed" && (lastOrderFlowStep.phase as string) !== "cancelled");
+  const hasActiveCheckout = !!(lastOrderFlowStep && lastOrderFlowStep.phase !== "confirmed" && (lastOrderFlowStep.phase as string) !== "cancelled");
+  const isLatestMessageCheckout = !!(lastAiMessage && lastAiMessage.orderFlowStep);
+  const isCheckoutActive = hasActiveCheckout && !isLatestMessageCheckout;
 
   return (
     <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-[#fbfbfe] relative">
