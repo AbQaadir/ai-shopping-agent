@@ -2039,14 +2039,7 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
 
         send({ type: "follow_ups", questions: followUpQuestions });
 
-        // ── Phase 4: Checkout-pause resume nudge ───────────────────────────
-        // When the user interrupted an active checkout to browse (checkout_pause),
-        // remind them that their checkout is still alive and waiting.
-        if (action === "checkout_pause" && checkoutState) {
-          const pauseNudge = "\n\n---\n💬 *Your checkout is still saved and ready. Whenever you'd like to continue, just say **\"continue checkout\"**.*";
-          fullResponseText += pauseNudge;
-          send({ type: "text", content: pauseNudge });
-        }
+
 
         // ── Save AI response to DB ─────────────────────────────────────
         await prisma.chatMessage.create({

@@ -673,6 +673,9 @@ export default function ChatTimeline({
   // Find index of the last active order flow step to compute isActive prop
   const lastOrderStepIdx = messages.map(m => !!m.orderFlowStep).lastIndexOf(true);
 
+  const lastOrderFlowStep = [...messages].reverse().find(m => !!m.orderFlowStep)?.orderFlowStep;
+  const isCheckoutActive = !!(lastOrderFlowStep && lastOrderFlowStep.phase !== "confirmed" && (lastOrderFlowStep.phase as string) !== "cancelled");
+
   // Helper to render closable B2B card wrappers
   const renderClosableToolCard = (
     msgId: string,
@@ -1209,7 +1212,7 @@ export default function ChatTimeline({
       </div>
       <div 
         className={`w-full shrink-0 transition-all duration-300 ${
-          selectedProductIds.length > 0 ? "h-56" : "h-24"
+          selectedProductIds.length > 0 ? "h-56" : isCheckoutActive ? "h-32" : "h-24"
         }`} 
       />
       <div ref={bottomRef} />
