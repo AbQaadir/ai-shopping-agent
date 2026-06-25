@@ -1136,35 +1136,62 @@ Respond ONLY with valid JSON matching this schema:
 
           // ── Handle delivery date check (delivery_date_ask → payment_ask) ──────────
           if ((agentOutput as any).requiresDeliveryCheck && updatedState.confirmedAddress?.city && updatedState.deliveryDate) {
-            send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery to ${updatedState.confirmedAddress.city} on ${updatedState.deliveryDate}...` });
-            send({ type: "tool_call", name: "kapruka_check_delivery", args: { city: updatedState.confirmedAddress.city, date: updatedState.deliveryDate } });
+            const city = updatedState.confirmedAddress.city;
+            const date = updatedState.deliveryDate;
+            
+            let totalFee = 0;
+            let deliveryCheck = null;
+            let canDeliverAll = true;
+            let nextAvail = null;
+            let exactCityName = city;
 
-            const deliveryCheck = await pillar2_checkDelivery(
-              updatedState.confirmedAddress.city,
-              updatedState.deliveryDate,
-              false
-            );
+            const itemsToCheck = updatedState.cartItems && updatedState.cartItems.length > 0 
+                ? updatedState.cartItems.map(i => i.id) 
+                : updatedState.product ? [updatedState.product.id] : [];
 
-            send({ type: "thought", step: "checking_delivery", status: "completed", content: deliveryCheck ? `Delivery ${deliveryCheck.canDeliver ? "✓ available" : "✗ not available"} in ${updatedState.confirmedAddress.city}` : "Delivery check failed", durationMs: 0 });
+            send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery to ${city} on ${date} for ${itemsToCheck.length} item(s)...` });
+            
+            for (const pid of itemsToCheck) {
+                send({ type: "tool_call", name: "kapruka_check_delivery", args: { city: city, date: date, product_id: pid } });
+                const check = await pillar2_checkDelivery(city, date, pid);
+                if (!check) {
+                    canDeliverAll = false;
+                    break;
+                }
+                if (!check.canDeliver) {
+                    canDeliverAll = false;
+                    nextAvail = check.deliveryDate;
+                    break;
+                }
+                totalFee += (check.flatRateLKR || 0);
+                deliveryCheck = check;
+                exactCityName = check.city;
+            }
 
-            if (!deliveryCheck || !deliveryCheck.canDeliver) {
+            if (exactCityName) {
+                updatedState.confirmedAddress.city = exactCityName;
+            }
+
+            send({ type: "thought", step: "checking_delivery", status: "completed", content: canDeliverAll ? `Delivery ✓ available in ${exactCityName}` : "Delivery not available on requested date", durationMs: 0 });
+
+            if (!canDeliverAll || !deliveryCheck) {
               // Delivery NOT available — stay in delivery_date_ask with error message
-              const nextAvail = deliveryCheck?.deliveryDate || "a later date";
+              const nextAvailDate = nextAvail || deliveryCheck?.deliveryDate || "a later date";
               updatedState.phase = "delivery_date_ask";
               const errorOfs = {
                 phase: "delivery_date_ask" as const,
                 cartItems: updatedState.cartItems,
                 confirmedAddress: updatedState.confirmedAddress,
-                errorMessage: `Delivery to ${updatedState.confirmedAddress.city} is not available on ${updatedState.deliveryDate}. Next available: ${nextAvail}.`,
+                errorMessage: `Delivery to ${updatedState.confirmedAddress.city} is not available on ${updatedState.deliveryDate}. Next available: ${nextAvailDate}.`,
                 deliveryCheckResult: {
                   city: updatedState.confirmedAddress.city,
                   canDeliver: false,
-                  nextAvailableDate: nextAvail,
+                  nextAvailableDate: nextAvailDate,
                 },
               };
               await saveCheckoutState(sessionId, updatedState);
               send({ type: "order_flow_step", ...errorOfs });
-              const errText = `Sorry, Grasshoppers can't deliver to **${updatedState.confirmedAddress.city}** on **${updatedState.deliveryDate}**. The next available date is **${nextAvail}**. Please pick a different date!`;
+              const errText = `Sorry, Grasshoppers can't deliver to **${updatedState.confirmedAddress.city}** on **${updatedState.deliveryDate}**. The next available date is **${nextAvailDate}**. Please pick a different date!`;
               await streamWords(errText);
               await saveOrderMessage(errText, errorOfs);
               controller.close();
@@ -1173,6 +1200,7 @@ Respond ONLY with valid JSON matching this schema:
 
             // Delivery IS available — build OFS with delivery check result and advance to payment_ask
             updatedState.phase = "payment_ask";
+            deliveryCheck.flatRateLKR = totalFee; // override with summed total fee
             updatedState.deliveryFeeLKR = deliveryCheck.flatRateLKR;
             const deliveryOfs = {
               phase: "payment_ask" as const,
@@ -1752,9 +1780,9 @@ Respond ONLY with valid JSON matching this schema:
           } else if (city) {
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Checking Grasshoppers delivery to ${city}`, durationMs: 0 });
             send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery availability to ${city} on ${date}${isPerishable ? " (perishable)" : ""}...` });
-            send({ type: "tool_call", name: "kapruka_check_delivery", args: { city, date, is_perishable: isPerishable } });
+            send({ type: "tool_call", name: "kapruka_check_delivery", args: { city, date, product_id: "GENERAL" } });
             const t = Date.now();
-            const delivery = await pillar2_checkDelivery(city, date, isPerishable);
+            const delivery = await pillar2_checkDelivery(city, date, "GENERAL");
             const dur = Date.now() - t;
             if (delivery) {
               steps.push({ step: "checking_delivery", status: "completed", content: `Delivery to ${city}: ${delivery.canDeliver ? "Available" : "Not available"}. Rate: Rs. ${delivery.flatRateLKR?.toLocaleString() || "N/A"}`, durationMs: dur });
