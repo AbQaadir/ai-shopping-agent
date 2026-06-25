@@ -904,8 +904,8 @@ Respond ONLY with valid JSON matching this schema:
               let nextPhase = checkoutState.phase;
               let resetConfirmedQty = checkoutState.confirmedQty;
 
-              // If items are added, reset checkout phase to qty_ask so user can confirm
-              if (modification.type === "add") {
+              // Reset checkout phase to qty_ask for all cart modifications so user can verify
+              if (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") {
                 nextPhase = "qty_ask";
                 resetConfirmedQty = undefined;
               }
@@ -953,10 +953,10 @@ Respond ONLY with valid JSON matching this schema:
                   intent: "product",
                   orderFlowStep: checkoutState
                     ? {
-                        phase: modification.type === "add" ? "qty_ask" : checkoutState.phase,
+                        phase: (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") ? "qty_ask" : checkoutState.phase,
                         cartItems: modification.updatedCart,
                         savedAddress: checkoutState.savedAddress,
-                        confirmedQuantity: modification.type === "add" ? undefined : checkoutState.confirmedQty,
+                        confirmedQuantity: (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") ? undefined : checkoutState.confirmedQty,
                         confirmedAddress: checkoutState.confirmedAddress,
                         geocodedLocation: checkoutState.geocodedLocation,
                         paymentMethod: checkoutState.paymentMethod,
@@ -1103,7 +1103,19 @@ Respond ONLY with valid JSON matching this schema:
           }
 
           // Determine the actual next phase
-          const nextPhase = agentOutput.stay ? checkoutState.phase : agentOutput.nextPhase;
+          let nextPhase = agentOutput.stay ? checkoutState.phase : agentOutput.nextPhase;
+
+          // Fast-track checkout transition when adding items to an active session
+          if (!agentOutput.stay && checkoutState.phase === "qty_ask" && nextPhase === "delivery_ask" && updatedState.confirmedAddress) {
+            if (updatedState.deliveryDate) {
+              nextPhase = "payment_ask";
+              (agentOutput as any).requiresDeliveryCheck = true;
+            } else {
+              nextPhase = "delivery_date_ask";
+              agentOutput.responseText = "Quantities confirmed! Since I already have your delivery address, when would you like this delivered? Please select a date below, and feel free to add a personal message.";
+            }
+          }
+
           updatedState.phase = nextPhase;
 
           // Handle map_open confirmation (LEGACY fallback)
@@ -1170,6 +1182,12 @@ Respond ONLY with valid JSON matching this schema:
                 console.error("Failed to auto-save new address:", err);
               }
             }
+          }
+
+          // Fast-track after new address confirmation if delivery date is already set
+          if (checkoutState.phase === "new_address_form" && updatedState.phase === "delivery_date_ask" && updatedState.confirmedAddress && updatedState.deliveryDate) {
+            updatedState.phase = "payment_ask";
+            (agentOutput as any).requiresDeliveryCheck = true;
           }
 
           // ── Handle delivery date check (delivery_date_ask → payment_ask) ──────────
