@@ -130,9 +130,9 @@ export async function pillar1_createOrderLink(
 export async function pillar2_checkDelivery(
   city: string,
   date: string,
-  isPerishable = false
+  productId: string
 ): Promise<KaprukaDeliveryResult | null> {
-  const result = await checkDelivery(city, date, isPerishable);
+  const result = await checkDelivery(city, date, productId);
   if (!result.success || !result.data) {
     console.error("[Pillar2] checkDelivery failed:", result.error);
     return null;

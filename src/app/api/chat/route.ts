@@ -250,6 +250,9 @@ export async function POST(req: NextRequest) {
           savedAddress: orderFlowStep.savedAddress,
           geocodedLocation: orderFlowStep.geocodedLocation,
           paymentMethod: orderFlowStep.paymentMethod,
+          deliveryDate: orderFlowStep.deliveryDate,
+          personalMessage: orderFlowStep.personalMessage,
+          deliveryFeeLKR: orderFlowStep.deliveryCheckResult?.flatRateLKR ?? orderFlowStep.deliveryFeeLKR,
         });
 
         // Synchronize user cart in DB
@@ -463,6 +466,45 @@ User query to classify: "${message}"`;
     const savedAddressLabels = allUserAddresses.map((a: any) => a.label || a.type);
     const savedAddr = allUserAddresses.find((a: any) => a.isDefault) || allUserAddresses[0] || null;
 
+    // Fetch products from the last assistant response to serve as contextual available products
+    let availableProducts: any[] = [];
+    try {
+      const msgs = await prisma.chatMessage.findMany({
+        where: {
+          sessionId,
+          role: "assistant",
+        },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      });
+      const lastAssistantMsg = msgs.find((m) => m.products !== null && m.products !== undefined);
+      if (lastAssistantMsg?.products) {
+        const parsed = typeof lastAssistantMsg.products === "string"
+          ? JSON.parse(lastAssistantMsg.products)
+          : lastAssistantMsg.products;
+        if (Array.isArray(parsed)) {
+          if (parsed.length > 0 && "products" in parsed[0]) {
+            // Product groups structure
+            availableProducts = parsed.flatMap((g: any) => g.products || []);
+          } else {
+            // Flat products array structure
+            availableProducts = parsed;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[route.ts] failed to fetch last assistant products:", err);
+    }
+
+    // Combine with any fetched selected products from request body
+    if (fetchedSelectedProducts.length > 0) {
+      for (const fp of fetchedSelectedProducts) {
+        if (!availableProducts.some((ap) => ap.id === fp.id)) {
+          availableProducts.push(fp);
+        }
+      }
+    }
+
     // 8. Call Router Agent (Intent / Checkout state switch)
     let routerDecision: RouterDecision = { action: "shop", reason: "Fallback logic hit" };
     if (!ai) {
@@ -474,7 +516,7 @@ User query to classify: "${message}"`;
     }
     
     if (ai) {
-      routerDecision = await routerAgent(message, historySnippet, checkoutState, intent, ai, config.gemini.fastModel, savedAddressLabels);
+      routerDecision = await routerAgent(message, historySnippet, checkoutState, intent, ai, config.gemini.fastModel, savedAddressLabels, availableProducts);
     }
 
     // 9. Build SSE stream
@@ -599,7 +641,7 @@ User query to classify: "${message}"`;
         // ROUTING — Switch on Router Agent decision
         // ══════════════════════════════════════════════════════════════════
 
-        const { action } = routerDecision;
+        let action = routerDecision.action;
 
         // ── Action: checkout_cancel ────────────────────────────────────────
         if (action === "checkout_cancel") {
@@ -830,45 +872,6 @@ Respond ONLY with valid JSON matching this schema:
 
           const currentCart = await loadUserCart();
 
-          // Fetch products from the last assistant response to serve as contextual available products
-          let availableProducts: any[] = [];
-          try {
-            const msgs = await prisma.chatMessage.findMany({
-              where: {
-                sessionId,
-                role: "assistant",
-              },
-              orderBy: { createdAt: "desc" },
-              take: 5,
-            });
-            const lastAssistantMsg = msgs.find((m) => m.products !== null && m.products !== undefined);
-            if (lastAssistantMsg?.products) {
-              const parsed = typeof lastAssistantMsg.products === "string"
-                ? JSON.parse(lastAssistantMsg.products)
-                : lastAssistantMsg.products;
-              if (Array.isArray(parsed)) {
-                if (parsed.length > 0 && "products" in parsed[0]) {
-                  // Product groups structure
-                  availableProducts = parsed.flatMap((g: any) => g.products || []);
-                } else {
-                  // Flat products array structure
-                  availableProducts = parsed;
-                }
-              }
-            }
-          } catch (err) {
-            console.error("[route.ts] failed to fetch last assistant products:", err);
-          }
-
-          // Combine with any fetched selected products from request body
-          if (fetchedSelectedProducts.length > 0) {
-            for (const fp of fetchedSelectedProducts) {
-              if (!availableProducts.some((ap) => ap.id === fp.id)) {
-                availableProducts.push(fp);
-              }
-            }
-          }
-
           let modification: CartModification = {
             type: "remove" as any,
             itemId: null,
@@ -885,77 +888,86 @@ Respond ONLY with valid JSON matching this schema:
 
           send({ type: "thought", step: "cart_agent", status: "completed", content: `Cart: ${modification.type} ${modification.type === "add" ? `${modification.itemsToAdd?.length ?? 0} item(s)` : `"${modification.itemName}"`}`, durationMs: 0 });
 
-          // Apply and persist
-          await saveUserCart(modification.updatedCart);
+          // Fallback: If user tried to add items but none were matched in availableProducts,
+          // it means they want to add a new product not currently loaded.
+          // Pause checkout and perform a product search instead of failing the cart modification.
+          if (modification.type === "add" && (!modification.itemsToAdd || modification.itemsToAdd.length === 0)) {
+            console.log("[route.ts] cart_modify 'add' returned 0 items. Overriding to checkout_pause to search for the product.");
+            action = "checkout_pause";
+            intent = "product";
+          } else {
+            // Apply and persist
+            await saveUserCart(modification.updatedCart);
 
-          // Update the checkout session's cartItems too
-          if (checkoutState) {
-            let nextPhase = checkoutState.phase;
-            let resetConfirmedQty = checkoutState.confirmedQty;
+            // Update the checkout session's cartItems too
+            if (checkoutState) {
+              let nextPhase = checkoutState.phase;
+              let resetConfirmedQty = checkoutState.confirmedQty;
 
-            // If items are added, reset checkout phase to qty_ask so user can confirm
-            if (modification.type === "add") {
-              nextPhase = "qty_ask";
-              resetConfirmedQty = undefined;
-            }
+              // If items are added, reset checkout phase to qty_ask so user can confirm
+              if (modification.type === "add") {
+                nextPhase = "qty_ask";
+                resetConfirmedQty = undefined;
+              }
 
-            const updatedState: CheckoutState = {
-              ...checkoutState,
-              cartItems: modification.updatedCart,
-              phase: nextPhase,
-              confirmedQty: resetConfirmedQty,
-            };
-
-            if (modification.updatedCart.length === 0) {
-              // Cart is now empty — cancel checkout
-              await clearCheckoutState(sessionId);
-              const ofs = { phase: "cancelled", cartItems: [] };
-              send({ type: "order_flow_step", ...ofs });
-              await streamWords("Your cart is now empty. Checkout has been cancelled. Feel free to search for more products!");
-              await saveOrderMessage("Your cart is now empty. Checkout has been cancelled. Feel free to search for more products!", ofs);
-              controller.close();
-              return;
-            } else {
-              await saveCheckoutState(sessionId, updatedState);
-              // Update the UI checkout card with new cart
-              const ofs = {
-                phase: updatedState.phase,
+              const updatedState: CheckoutState = {
+                ...checkoutState,
                 cartItems: modification.updatedCart,
-                savedAddress: updatedState.savedAddress,
-                confirmedQuantity: updatedState.confirmedQty,
-                confirmedAddress: updatedState.confirmedAddress,
-                geocodedLocation: updatedState.geocodedLocation,
-                paymentMethod: updatedState.paymentMethod,
+                phase: nextPhase,
+                confirmedQty: resetConfirmedQty,
               };
-              send({ type: "order_flow_step", ...ofs });
-            }
-          }
 
-          await streamWords(modification.responseText);
-          await prisma.chatMessage.create({
-            data: {
-              sessionId,
-              role: "assistant",
-              content: modification.responseText,
-              thoughtProcess: JSON.stringify({
-                steps: [{ step: "cart_agent", status: "completed", content: `Cart modified: ${modification.type}`, durationMs: 0 }],
-                intent: "product",
-                orderFlowStep: checkoutState
-                  ? {
-                      phase: modification.type === "add" ? "qty_ask" : checkoutState.phase,
-                      cartItems: modification.updatedCart,
-                      savedAddress: checkoutState.savedAddress,
-                      confirmedQuantity: modification.type === "add" ? undefined : checkoutState.confirmedQty,
-                      confirmedAddress: checkoutState.confirmedAddress,
-                      geocodedLocation: checkoutState.geocodedLocation,
-                      paymentMethod: checkoutState.paymentMethod,
-                    }
-                  : undefined,
-              }),
-            },
-          });
-          controller.close();
-          return;
+              if (modification.updatedCart.length === 0) {
+                // Cart is now empty — cancel checkout
+                await clearCheckoutState(sessionId);
+                const ofs = { phase: "cancelled", cartItems: [] };
+                send({ type: "order_flow_step", ...ofs });
+                await streamWords("Your cart is now empty. Checkout has been cancelled. Feel free to search for more products!");
+                await saveOrderMessage("Your cart is now empty. Checkout has been cancelled. Feel free to search for more products!", ofs);
+                controller.close();
+                return;
+              } else {
+                await saveCheckoutState(sessionId, updatedState);
+                // Update the UI checkout card with new cart
+                const ofs = {
+                  phase: updatedState.phase,
+                  cartItems: modification.updatedCart,
+                  savedAddress: updatedState.savedAddress,
+                  confirmedQuantity: updatedState.confirmedQty,
+                  confirmedAddress: updatedState.confirmedAddress,
+                  geocodedLocation: updatedState.geocodedLocation,
+                  paymentMethod: updatedState.paymentMethod,
+                };
+                send({ type: "order_flow_step", ...ofs });
+              }
+            }
+
+            await streamWords(modification.responseText);
+            await prisma.chatMessage.create({
+              data: {
+                sessionId,
+                role: "assistant",
+                content: modification.responseText,
+                thoughtProcess: JSON.stringify({
+                  steps: [{ step: "cart_agent", status: "completed", content: `Cart modified: ${modification.type}`, durationMs: 0 }],
+                  intent: "product",
+                  orderFlowStep: checkoutState
+                    ? {
+                        phase: modification.type === "add" ? "qty_ask" : checkoutState.phase,
+                        cartItems: modification.updatedCart,
+                        savedAddress: checkoutState.savedAddress,
+                        confirmedQuantity: modification.type === "add" ? undefined : checkoutState.confirmedQty,
+                        confirmedAddress: checkoutState.confirmedAddress,
+                        geocodedLocation: checkoutState.geocodedLocation,
+                        paymentMethod: checkoutState.paymentMethod,
+                      }
+                    : undefined,
+                }),
+              },
+            });
+            controller.close();
+            return;
+          }
         }
 
         // ── Action: checkout_continue ──────────────────────────────────────
@@ -1023,6 +1035,32 @@ Respond ONLY with valid JSON matching this schema:
                    requiresDeliveryCheck: false,
                  };
                }
+            }
+          }
+
+          if (checkoutState.phase === "payment_ask") {
+            if (message.trim() === "I'll pay cash on delivery") {
+              bypassedAI = true;
+              agentOutput = {
+                nextPhase: "confirmed",
+                stay: false,
+                extractedData: { paymentMethod: "cod" },
+                responseText: "Placing your order...",
+                requiresGeocode: false,
+                requiresOrderPlace: true,
+                requiresDeliveryCheck: false,
+              };
+            } else if (message.trim() === "I want to pay by card online") {
+              bypassedAI = true;
+              agentOutput = {
+                nextPhase: "confirmed",
+                stay: false,
+                extractedData: { paymentMethod: "card" },
+                responseText: "Placing your order...",
+                requiresGeocode: false,
+                requiresOrderPlace: true,
+                requiresDeliveryCheck: false,
+              };
             }
           }
 
@@ -1136,35 +1174,62 @@ Respond ONLY with valid JSON matching this schema:
 
           // ── Handle delivery date check (delivery_date_ask → payment_ask) ──────────
           if ((agentOutput as any).requiresDeliveryCheck && updatedState.confirmedAddress?.city && updatedState.deliveryDate) {
-            send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery to ${updatedState.confirmedAddress.city} on ${updatedState.deliveryDate}...` });
-            send({ type: "tool_call", name: "kapruka_check_delivery", args: { city: updatedState.confirmedAddress.city, date: updatedState.deliveryDate } });
+            const city = updatedState.confirmedAddress.city;
+            const date = updatedState.deliveryDate;
+            
+            let totalFee = 0;
+            let deliveryCheck = null;
+            let canDeliverAll = true;
+            let nextAvail = null;
+            let exactCityName = city;
 
-            const deliveryCheck = await pillar2_checkDelivery(
-              updatedState.confirmedAddress.city,
-              updatedState.deliveryDate,
-              false
-            );
+            const itemsToCheck = updatedState.cartItems && updatedState.cartItems.length > 0 
+                ? updatedState.cartItems.map(i => i.id) 
+                : updatedState.product ? [updatedState.product.id] : [];
 
-            send({ type: "thought", step: "checking_delivery", status: "completed", content: deliveryCheck ? `Delivery ${deliveryCheck.canDeliver ? "✓ available" : "✗ not available"} in ${updatedState.confirmedAddress.city}` : "Delivery check failed", durationMs: 0 });
+            send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery to ${city} on ${date} for ${itemsToCheck.length} item(s)...` });
+            
+            for (const pid of itemsToCheck) {
+                send({ type: "tool_call", name: "kapruka_check_delivery", args: { city: city, date: date, product_id: pid } });
+                const check = await pillar2_checkDelivery(city, date, pid);
+                if (!check) {
+                    canDeliverAll = false;
+                    break;
+                }
+                if (!check.canDeliver) {
+                    canDeliverAll = false;
+                    nextAvail = check.deliveryDate;
+                    break;
+                }
+                totalFee += (check.flatRateLKR || 0);
+                deliveryCheck = check;
+                exactCityName = check.city;
+            }
 
-            if (!deliveryCheck || !deliveryCheck.canDeliver) {
+            if (exactCityName) {
+                updatedState.confirmedAddress.city = exactCityName;
+            }
+
+            send({ type: "thought", step: "checking_delivery", status: "completed", content: canDeliverAll ? `Delivery ✓ available in ${exactCityName}` : "Delivery not available on requested date", durationMs: 0 });
+
+            if (!canDeliverAll || !deliveryCheck) {
               // Delivery NOT available — stay in delivery_date_ask with error message
-              const nextAvail = deliveryCheck?.deliveryDate || "a later date";
+              const nextAvailDate = nextAvail || deliveryCheck?.deliveryDate || "a later date";
               updatedState.phase = "delivery_date_ask";
               const errorOfs = {
                 phase: "delivery_date_ask" as const,
                 cartItems: updatedState.cartItems,
                 confirmedAddress: updatedState.confirmedAddress,
-                errorMessage: `Delivery to ${updatedState.confirmedAddress.city} is not available on ${updatedState.deliveryDate}. Next available: ${nextAvail}.`,
+                errorMessage: `Delivery to ${updatedState.confirmedAddress.city} is not available on ${updatedState.deliveryDate}. Next available: ${nextAvailDate}.`,
                 deliveryCheckResult: {
                   city: updatedState.confirmedAddress.city,
                   canDeliver: false,
-                  nextAvailableDate: nextAvail,
+                  nextAvailableDate: nextAvailDate,
                 },
               };
               await saveCheckoutState(sessionId, updatedState);
               send({ type: "order_flow_step", ...errorOfs });
-              const errText = `Sorry, Grasshoppers can't deliver to **${updatedState.confirmedAddress.city}** on **${updatedState.deliveryDate}**. The next available date is **${nextAvail}**. Please pick a different date!`;
+              const errText = `Sorry, Grasshoppers can't deliver to **${updatedState.confirmedAddress.city}** on **${updatedState.deliveryDate}**. The next available date is **${nextAvailDate}**. Please pick a different date!`;
               await streamWords(errText);
               await saveOrderMessage(errText, errorOfs);
               controller.close();
@@ -1173,6 +1238,7 @@ Respond ONLY with valid JSON matching this schema:
 
             // Delivery IS available — build OFS with delivery check result and advance to payment_ask
             updatedState.phase = "payment_ask";
+            deliveryCheck.flatRateLKR = totalFee; // override with summed total fee
             updatedState.deliveryFeeLKR = deliveryCheck.flatRateLKR;
             const deliveryOfs = {
               phase: "payment_ask" as const,
@@ -1247,7 +1313,8 @@ Respond ONLY with valid JSON matching this schema:
             send({ type: "thought", step: "placing_order", status: "completed", content: orderFailed ? "Order placement failed ❌" : "Order placed ✓", durationMs: 0 });
 
             const cartItems = updatedState.cartItems || [];
-            const totalLKR = cartItems.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+            const subtotalLKR = cartItems.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+            const totalLKR = subtotalLKR + (updatedState.deliveryFeeLKR || 0);
             const itemsListStr = cartItems.map((i: any) => `${i.quantity}x **${i.name}**`).join(", ");
 
             let confirmationText = "";
@@ -1260,12 +1327,19 @@ Respond ONLY with valid JSON matching this schema:
             }
 
             const cs = {
-              phase: "confirmed",
+              phase: "confirmed" as const,
               cartItems,
               confirmedAddress: updatedState.confirmedAddress,
               paymentMethod: updatedState.paymentMethod,
               checkoutUrl,
               orderId: orderFailed ? null : orderId, // Ensure it's null on failure
+              deliveryDate: updatedState.deliveryDate,
+              personalMessage: updatedState.personalMessage,
+              deliveryCheckResult: updatedState.deliveryFeeLKR ? {
+                city: updatedState.confirmedAddress?.city || "",
+                canDeliver: true,
+                flatRateLKR: updatedState.deliveryFeeLKR,
+              } : undefined,
             };
             send({ type: "order_flow_step", ...cs });
             await streamWords(confirmationText);
@@ -1289,6 +1363,13 @@ Respond ONLY with valid JSON matching this schema:
             confirmedAddress: updatedState.confirmedAddress,
             geocodedLocation: updatedState.geocodedLocation,
             paymentMethod: updatedState.paymentMethod,
+            deliveryDate: updatedState.deliveryDate,
+            personalMessage: updatedState.personalMessage,
+            deliveryCheckResult: updatedState.deliveryFeeLKR ? {
+              city: updatedState.confirmedAddress?.city || "",
+              canDeliver: true,
+              flatRateLKR: updatedState.deliveryFeeLKR,
+            } : undefined,
           };
           if (updatedState.product) ofs.product = updatedState.product;
           send({ type: "order_flow_step", ...ofs });
@@ -1752,9 +1833,9 @@ Respond ONLY with valid JSON matching this schema:
           } else if (city) {
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Checking Grasshoppers delivery to ${city}`, durationMs: 0 });
             send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery availability to ${city} on ${date}${isPerishable ? " (perishable)" : ""}...` });
-            send({ type: "tool_call", name: "kapruka_check_delivery", args: { city, date, is_perishable: isPerishable } });
+            send({ type: "tool_call", name: "kapruka_check_delivery", args: { city, date, product_id: "GENERAL" } });
             const t = Date.now();
-            const delivery = await pillar2_checkDelivery(city, date, isPerishable);
+            const delivery = await pillar2_checkDelivery(city, date, "GENERAL");
             const dur = Date.now() - t;
             if (delivery) {
               steps.push({ step: "checking_delivery", status: "completed", content: `Delivery to ${city}: ${delivery.canDeliver ? "Available" : "Not available"}. Rate: Rs. ${delivery.flatRateLKR?.toLocaleString() || "N/A"}`, durationMs: dur });
@@ -1976,14 +2057,7 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
 
         send({ type: "follow_ups", questions: followUpQuestions });
 
-        // ── Phase 4: Checkout-pause resume nudge ───────────────────────────
-        // When the user interrupted an active checkout to browse (checkout_pause),
-        // remind them that their checkout is still alive and waiting.
-        if (action === "checkout_pause" && checkoutState) {
-          const pauseNudge = "\n\n---\n💬 *Your checkout is still saved and ready. Whenever you'd like to continue, just say **\"continue checkout\"**.*";
-          fullResponseText += pauseNudge;
-          send({ type: "text", content: pauseNudge });
-        }
+
 
         // ── Save AI response to DB ─────────────────────────────────────
         await prisma.chatMessage.create({

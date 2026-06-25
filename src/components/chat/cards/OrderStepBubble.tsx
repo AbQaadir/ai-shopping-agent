@@ -1168,14 +1168,14 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
 
           {/* Delivery Fee Row */}
           {deliveryFee > 0 && (
-            <div className="flex justify-between items-center text-slate-500 pb-2 border-b border-slate-100/60 border-dashed">
-              <span>Delivery Fee</span>
-              <span>Rs. {deliveryFee.toLocaleString()}</span>
+            <div className="flex justify-between items-center pt-2">
+              <span className="text-xs font-bold text-slate-700">Delivery Fee</span>
+              <span className="text-sm font-black text-[#402970]">Rs. {deliveryFee.toLocaleString()}</span>
             </div>
           )}
           
           {/* Total Row */}
-          <div className="flex justify-between items-center pt-1 mt-1">
+          <div className="flex justify-between items-center pt-3 border-t border-slate-100/70 mt-2">
             <span className="text-sm font-bold text-slate-800">Total</span>
             <span className="text-sm font-black text-[#402970]">Rs. {totalLKR.toLocaleString()}</span>
           </div>
@@ -1185,7 +1185,7 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
         {addr && (
           <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-3">
             <h5 className="text-xs font-bold text-slate-700">Delivery Location</h5>
-            <div className="flex items-center gap-3 bg-white border border-slate-100/80 rounded-xl p-3 shadow-xs">
+            <div className="flex items-center gap-3 bg-white rounded-xl p-3 shadow-xs">
               <div className="p-2.5 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
                 <MapPin size={16} />
               </div>
@@ -1207,34 +1207,6 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
           </div>
         )}
 
-        {/* Delivery Confirmed Card — shown when kapruka_check_delivery succeeded */}
-        {step.deliveryCheckResult?.canDeliver && (
-          <div className="bg-green-50 border border-green-100 rounded-2xl p-4 flex flex-col gap-2">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle size={14} className="text-green-500 shrink-0" />
-              <h5 className="text-xs font-extrabold text-green-700">Delivery Confirmed</h5>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
-              <CalendarDays size={11} className="text-green-600 shrink-0" />
-              <span>
-                {step.deliveryCheckResult.city}
-                {step.deliveryDate ? ` • ${new Date(step.deliveryDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}` : ""}
-              </span>
-            </div>
-            {step.deliveryCheckResult.flatRateLKR != null && (
-              <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
-                <Truck size={11} className="text-green-600 shrink-0" />
-                <span>Delivery fee: <span className="font-extrabold text-green-700">Rs. {step.deliveryCheckResult.flatRateLKR.toLocaleString()}</span></span>
-              </div>
-            )}
-            {step.personalMessage && (
-              <div className="flex items-start gap-2 text-[11px] text-slate-500 font-medium">
-                <Gift size={11} className="text-rose-400 mt-0.5 shrink-0" />
-                <span className="italic">"{step.personalMessage.length > 60 ? step.personalMessage.substring(0, 57) + "..." : step.personalMessage}"</span>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Payment Methods Section */}
         <div className="flex flex-col gap-3">

@@ -105,7 +105,8 @@ Reason about what the user said and determine:
    Phase flow: qty_ask → delivery_ask → [new_address_form?] → delivery_date_ask → payment_ask → confirmed
    
    "qty_ask" phase:
-     -> "delivery_ask" if user confirms quantities (e.g. "looks good", "confirm", "proceed", "yes")
+     -> "delivery_ask" if user confirms quantities (e.g. "Confirm quantities", "I'd like to order X units", "looks good", "confirm", "proceed", "yes")
+        NOTE: The exact phrases "Confirm quantities" and "I'd like to order X units" are UI-generated buttons. They mean the user HAS confirmed the quantities. Do NOT ask for further confirmation. Proceed immediately to delivery_ask.
      -> "qty_ask" + stay=true if user is unclear or asks a question
    
    "delivery_ask" phase:

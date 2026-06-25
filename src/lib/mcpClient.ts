@@ -518,7 +518,7 @@ export async function createOrder(
 export async function checkDelivery(
   city: string,
   date: string,          // YYYY-MM-DD
-  isPerishable = false
+  productId: string
 ): Promise<MCPToolResult<KaprukaDeliveryResult>> {
   return safeCallMCPTool(
     "kapruka_check_delivery",
@@ -526,6 +526,7 @@ export async function checkDelivery(
       params: {
         city,
         delivery_date: date,
+        product_id: productId,
         response_format: "json",
       },
     },

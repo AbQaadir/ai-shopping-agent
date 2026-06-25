@@ -80,9 +80,9 @@ export async function placeOrderInternally(params: OrderRequestParams) {
     productTitle: items && items.length > 0 
       ? (items.length === 1 ? items[0].productName : `${items.length} items`)
       : (productTitle || "Kapruka Product"),
-    priceLKR: orderResult.totalLKR || ((items && items.length > 0
+    priceLKR: (orderResult.totalLKR || (items && items.length > 0
       ? items.reduce((sum: number, i: any) => sum + ((i.priceLKR || 0) * i.quantity), 0)
-      : (priceLKR || 0) * (quantity || 1)) + (deliveryFeeLKR || 0)),
+      : (priceLKR || 0) * (quantity || 1))) + (deliveryFeeLKR || 0),
     checkoutUrl: orderResult.checkoutUrl,
     expiresAt: orderResult.expiresAt,
   };
@@ -142,7 +142,7 @@ export async function placeOrderInternally(params: OrderRequestParams) {
             id: orderResult.orderId || `ord-${Date.now()}`,
             userId,
             status: "pending",
-            totalLKR: orderResult.totalLKR || checkoutLink.priceLKR,
+            totalLKR: checkoutLink.priceLKR,
             kaprukaRef: orderResult.orderId || null,  // order_ref from MCP for tracking
             deliveryDate: deliveryDate || null,
             personalMessage: personalMessage || null,

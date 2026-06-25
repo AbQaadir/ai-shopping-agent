@@ -97,6 +97,12 @@ export default function ChatWorkspace({
     });
   };
 
+  const lastAiMessage = [...messages].reverse().find(m => m.sender === "ai");
+  const lastOrderFlowStep = [...messages].reverse().find(m => !!m.orderFlowStep)?.orderFlowStep;
+  const hasActiveCheckout = !!(lastOrderFlowStep && lastOrderFlowStep.phase !== "confirmed" && (lastOrderFlowStep.phase as string) !== "cancelled");
+  const isLatestMessageCheckout = !!(lastAiMessage && lastAiMessage.orderFlowStep);
+  const isCheckoutActive = hasActiveCheckout && !isLatestMessageCheckout;
+
   return (
     <div className="flex-1 w-full flex flex-col overflow-hidden h-full bg-[#fbfbfe] relative">
       {/* Background World Map Watermark */}
@@ -207,6 +213,7 @@ export default function ChatWorkspace({
           onStopGeneration={onStopGeneration}
           selectedProducts={selectedProducts}
           onToggleSelectProduct={handleToggleSelectProduct}
+          isCheckoutActive={isCheckoutActive}
           chatHistory={messages.map((m) => ({
             role: m.sender === "ai" ? "assistant" as const : "user" as const,
             content: m.text,
