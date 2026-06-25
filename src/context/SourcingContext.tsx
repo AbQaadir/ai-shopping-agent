@@ -763,6 +763,9 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   checkoutUrl: packet.checkoutUrl,
                   orderId: packet.orderId,
                   errorMessage: packet.errorMessage,
+                  deliveryDate: packet.deliveryDate,
+                  personalMessage: packet.personalMessage,
+                  deliveryCheckResult: packet.deliveryCheckResult,
                 } as OrderFlowStepData;
 
                 if (packet.savedAddresses && Array.isArray(packet.savedAddresses)) {

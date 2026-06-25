@@ -1185,7 +1185,7 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
         {addr && (
           <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-3">
             <h5 className="text-xs font-bold text-slate-700">Delivery Location</h5>
-            <div className="flex items-center gap-3 bg-white border border-slate-100/80 rounded-xl p-3 shadow-xs">
+            <div className="flex items-center gap-3 bg-white rounded-xl p-3 shadow-xs">
               <div className="p-2.5 bg-[#402970]/10 text-[#402970] rounded-xl shrink-0">
                 <MapPin size={16} />
               </div>
