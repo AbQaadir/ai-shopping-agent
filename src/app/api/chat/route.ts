@@ -322,6 +322,7 @@ export const POST = withLogging(async function POST(req: NextRequest) {
     let llmSearchTerms: SearchTermConfig[] = [];
     let reorderTarget: string | null = null;
     let reorderTimeline: string | null = null;
+    let isAgeRestricted = false;
 
     if (hasSelectedProducts) {
       intent = "product";
@@ -368,6 +369,9 @@ Analyze the user query in the context of the recent conversation history, and pe
      "reorderTimeline": string | null (an ISO 8601 date string representing the start of the timeframe requested. e.g., "last week" = 7 days ago. Today's date is ${new Date().toISOString()}. Set to null if NO timeline is provided)
    }
 
+5. Determine if the query is for an age-restricted product (e.g., alcohol, tobacco, adult items, cigars).
+   - Set "isAgeRestricted" to true if the user is asking for or searching for 21+ products. Otherwise, false.
+
 [Candidate Store Categories matching query]
 ${matchedCategoriesText}
 
@@ -375,7 +379,7 @@ ${matchedCategoriesText}
 Use the candidate categories above to understand the listing taxonomy and prepare/translate the search query keyword ("term") to match the category's typical product noun (e.g., translate "phone cases" to "backcover" or "cover" or "casing" if the matched category is mobile_phone_accessories, and "cake" or "bento cake" to "cake" or "ribbon cake").
 
 Respond ONLY with JSON matching this structure:
-{"intent": "product"|"category_browse"|"delivery"|"service"|"qa"|"reorder", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reorderTarget": "...", "reorderTimeline": "...", "reason": "brief explanation"}
+{"intent": "product"|"category_browse"|"delivery"|"service"|"qa"|"reorder", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reorderTarget": "...", "reorderTimeline": "...", "isAgeRestricted": boolean, "reason": "brief explanation"}
 
 [Recent Conversation History]
 ${historySnippet || "No previous history."}
@@ -405,6 +409,9 @@ User query to classify: "${message}"`;
         }
         if (typeof parsed?.isRelated === "boolean") {
           isRelated = parsed.isRelated;
+        }
+        if (typeof parsed?.isAgeRestricted === "boolean") {
+          isAgeRestricted = parsed.isAgeRestricted;
         }
         if (typeof parsed?.reorderTarget === "string") {
           reorderTarget = parsed.reorderTarget;
@@ -526,6 +533,10 @@ User query to classify: "${message}"`;
         const send = (payload: Record<string, unknown>) => {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
         };
+
+        if (isAgeRestricted) {
+          send({ type: "age_verification_required" });
+        }
 
         // ── Helper: stream text word by word ──────────────────────────────
         const streamWords = async (text: string) => {

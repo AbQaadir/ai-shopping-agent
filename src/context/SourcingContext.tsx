@@ -56,6 +56,8 @@ interface SourcingContextType {
   /** Saved delivery addresses for the logged-in user */
   userAddresses: UserAddress[];
   setUserAddresses: React.Dispatch<React.SetStateAction<UserAddress[]>>;
+  isAgeVerificationRequired: boolean;
+  setIsAgeVerificationRequired: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const SourcingContext = createContext<SourcingContextType | undefined>(undefined);
@@ -106,6 +108,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [cartToast, setCartToast] = useState<string | null>(null);
   const cartToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userAddresses, setUserAddresses] = useState<UserAddress[]>([]);
+  const [isAgeVerificationRequired, setIsAgeVerificationRequired] = useState<boolean>(false);
 
   const showCartToast = useCallback((msg: string) => {
     setCartToast(msg);
@@ -713,6 +716,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                   m.id === aiMessageId ? { ...m, activeToolCall: null, trackingResult } : m
                 ));
 
+              } else if (packet.type === "age_verification_required") {
+                setIsAgeVerificationRequired(true);
 
               } else if (packet.type === "service_listing") {
                 serviceListing = packet.result as ServiceListing;
@@ -1219,6 +1224,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         clearCartToast,
         userAddresses,
         setUserAddresses,
+        isAgeVerificationRequired,
+        setIsAgeVerificationRequired,
       }}
     >
       {children}
