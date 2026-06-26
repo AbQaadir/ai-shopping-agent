@@ -911,6 +911,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
    */
   const handleBuyProduct = useCallback(async (product: InlineProduct) => {
     if (!user) {
+      localStorage.setItem("pending_order_products", JSON.stringify([product]));
       openAuthModal("checkout");
       return;
     }
@@ -1102,6 +1103,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
    */
   const handleOrderCart = useCallback(async (products: InlineProduct[]) => {
     if (!user) {
+      localStorage.setItem("pending_order_products", JSON.stringify(products));
       openAuthModal("checkout");
       return;
     }
@@ -1173,6 +1175,28 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     // Await briefly to ensure state updates, then trigger the checkout cart
     handleSendMessage("checkout cart");
   }, [activeHistoryId, activeUserId, cartItems, handleSendMessage, user, openAuthModal]);
+
+  // Resume pending order if user successfully authenticated
+  useEffect(() => {
+    if (user) {
+      try {
+        const pending = localStorage.getItem("pending_order_products");
+        if (pending) {
+          const productsToOrder = JSON.parse(pending) as InlineProduct[];
+          localStorage.removeItem("pending_order_products");
+          if (productsToOrder && productsToOrder.length > 0) {
+            // Slight delay ensures session state and UI have finished hydrating before triggering checkout
+            setTimeout(() => {
+              handleOrderCart(productsToOrder);
+            }, 500);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to resume pending order", e);
+        localStorage.removeItem("pending_order_products");
+      }
+    }
+  }, [user, handleOrderCart]);
 
   return (
     <SourcingContext.Provider

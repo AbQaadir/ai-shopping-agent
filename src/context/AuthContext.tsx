@@ -74,7 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const siteUrl = (
       process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
     ).replace(/\/$/, "");
-    const callbackUrl = `${siteUrl}/auth/callback`;
+    
+    // Pass the current path so the callback can redirect back to the current chat session
+    const nextPath = encodeURIComponent(window.location.pathname + window.location.search);
+    const callbackUrl = `${siteUrl}/auth/callback?next=${nextPath}`;
 
     await supabase.auth.signInWithOAuth({
       provider: "google",

@@ -1425,9 +1425,6 @@ Respond ONLY with valid JSON matching this schema:
             await new Promise((r) => setTimeout(r, 40));
           }
 
-          const followUps = STATIC_FOLLOW_UPS["product"];
-          send({ type: "follow_ups", questions: followUps });
-
           await prisma.chatMessage.create({
             data: {
               sessionId: sessionId,
@@ -1436,7 +1433,6 @@ Respond ONLY with valid JSON matching this schema:
               thoughtProcess: JSON.stringify({
                 steps: [{ step: "intent_routing", status: "completed", content: "Query filtered by guardrails.", durationMs: 0 }],
                 intent: "qa",
-                followUpQuestions: followUps,
               }),
             },
           });
