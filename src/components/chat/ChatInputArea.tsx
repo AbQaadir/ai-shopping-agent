@@ -3,15 +3,12 @@
 import { useSourcing } from "@/context/SourcingContext";
 import type { InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
-import { ArrowRight, Paperclip, Square, X, Search, Plus, Send } from "lucide-react";
+import { ArrowRight, Square, X, Search, Plus, Send } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
 
 interface ChatInputAreaProps {
   inputText: string;
   setInputText: (text: string) => void;
-  attachedFiles: File[];
-  onRemoveFile: (index: number) => void;
-  onAttachFile: (files: File[]) => void;
   onSubmit: (overrideText?: string) => void;
   isGenerating: boolean;
   onStopGeneration?: () => void;
@@ -24,9 +21,6 @@ interface ChatInputAreaProps {
 export default function ChatInputArea({
   inputText,
   setInputText,
-  attachedFiles,
-  onRemoveFile,
-  onAttachFile,
   onSubmit,
   isGenerating,
   onStopGeneration,
@@ -36,7 +30,6 @@ export default function ChatInputArea({
   isCheckoutActive = false,
 }: ChatInputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { handleAddToCart, handleBuyProduct, handleOrderCart, isSharedReadOnly, setSelectedProducts } = useSourcing();
 
@@ -156,11 +149,7 @@ export default function ChatInputArea({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      onAttachFile(Array.from(e.target.files));
-    }
-  };
+
 
   const handleCompareClick = () => {
     if (selectedProducts.length === 0) return;
@@ -252,7 +241,7 @@ export default function ChatInputArea({
         <div className={`w-full bg-white flex flex-col transition-all duration-300 border relative rounded-[24px] ${
           selectedProducts.length > 0 
             ? "p-3.5" 
-            : "py-1.5 pl-2 pr-1.5"
+            : "py-1.5 pl-3.5 pr-1.5"
         } ${
           isFocused
             ? "border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.05)]"
@@ -348,48 +337,10 @@ export default function ChatInputArea({
             </div>
           </div>
 
-          {/* Attached files */}
-          {attachedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-50/50 border border-slate-100/50 rounded-xl self-start animate-fadeIn">
-              {attachedFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-150 rounded-full text-xs font-medium text-slate-600 animate-fadeIn">
-                  <span className="truncate max-w-[120px]">{file.name}</span>
-                  <button
-                    onClick={() => onRemoveFile(idx)}
-                    className="p-0.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* Input Row */}
           <div className={`w-full flex items-center gap-2 ${
             selectedProducts.length > 0 ? "px-1 py-0.5" : ""
           } ${isSharedReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              onMouseDown={(e) => e.preventDefault()}
-              disabled={isSharedReadOnly}
-              className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
-              title="Attach files"
-            >
-              <Paperclip size={16} />
-              {attachedFiles.length > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />
-              )}
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-              multiple
-              disabled={isSharedReadOnly}
-            />
-
             <textarea
               ref={textareaRef}
               value={inputText}
@@ -413,11 +364,11 @@ export default function ChatInputArea({
             <button
               onClick={isGenerating ? onStopGeneration : () => onSubmit()}
               onMouseDown={(e) => e.preventDefault()}
-              disabled={isSharedReadOnly || (!isGenerating && !inputText.trim() && attachedFiles.length === 0)}
+              disabled={isSharedReadOnly || (!isGenerating && !inputText.trim())}
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${
                 isGenerating
                   ? "bg-slate-200 hover:bg-slate-300 text-slate-800 cursor-pointer"
-                  : inputText.trim() || attachedFiles.length > 0
+                  : inputText.trim()
                     ? "bg-[#402970] hover:bg-[#33205a] text-white cursor-pointer shadow-sm"
                     : "bg-slate-100 text-slate-300 cursor-not-allowed"
               }`}

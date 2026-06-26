@@ -33,7 +33,7 @@ interface SourcingContextType {
   handleReset: () => void;
   handleSelectHistory: (id: string) => void;
   handleStopGeneration: () => void;
-  handleSendMessage: (text: string, files: File[], editMessageId?: string) => Promise<void>;
+  handleSendMessage: (text: string, editMessageId?: string) => Promise<void>;
   handleBuyProduct: (product: InlineProduct) => void;
   handleOrderCart: (products: InlineProduct[]) => void;
   handleSuggestionClick: (suggestion?: string) => void;
@@ -440,7 +440,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setIsGenerating(false);
   };
 
-  const handleSendMessage = async (text: string, files: File[], editMessageId?: string) => {
+  const handleSendMessage = async (text: string, editMessageId?: string) => {
     if (!user) {
       const userMessageCount = messages.filter(m => m.sender === "user").length;
       if (userMessageCount >= 9) {
@@ -483,7 +483,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       const newUserMessage: Message = {
         id: userMessageId,
         sender: "user",
-        text: text || `Attached ${files.length} document(s) for review`,
+        text: text,
         timestamp,
         status: "sending",
         inlineProducts: selectedProducts.length > 0 ? [...selectedProducts] : undefined
@@ -497,7 +497,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setSelectedProducts([]);
     setIsChatting(true);
     setIsGenerating(true);
-    setActiveQueryText(text || "Uploaded design request");
+    setActiveQueryText(text);
 
     try {
       let currentSessionId: string = activeHistoryId || "";
@@ -548,7 +548,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId: currentSessionId,
-          message: text || "Uploaded design request",
+          message: text,
           userId: activeUserId,
           country,
           currency,
@@ -887,13 +887,13 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setMessages([initialPrompt]);
 
     if (suggestion) {
-      setTimeout(() => handleSendMessage(suggestion, []), 100);
+      setTimeout(() => handleSendMessage(suggestion), 100);
     }
   };
 
   const handleDirectSend = useCallback((text: string) => {
     if (text.trim()) {
-      handleSendMessage(text, []);
+      handleSendMessage(text);
     }
   }, [handleSendMessage]);
 
@@ -968,7 +968,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     // --- Step 3: Pass product id so route.ts gets it as selectedProductIds, then trigger checkout ---
     setSelectedProducts([product]);
     setTimeout(() => {
-      handleSendMessage("checkout cart", []);
+      handleSendMessage("checkout cart");
     }, 50);
   }, [activeHistoryId, activeUserId, cartItems, handleSendMessage]);
 
@@ -1165,7 +1165,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     // --- Set selected products so route.ts gets their ids, then trigger checkout ---
     setSelectedProducts(products);
     setTimeout(() => {
-      handleSendMessage("checkout cart", []);
+      handleSendMessage("checkout cart");
     }, 50);
   }, [activeHistoryId, activeUserId, cartItems, handleSendMessage]);
 

@@ -2,11 +2,11 @@
 
 import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
-import { Menu, Paperclip, Search, Send, ShoppingCart, User, X, Sparkles, SquarePen, Compass, CreditCard, Package, RefreshCw } from "lucide-react";
+import { Menu, Search, Send, ShoppingCart, User, Sparkles, SquarePen, Compass, CreditCard, Package, RefreshCw } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 interface LandingWorkspaceProps {
-  onSend: (text: string, files: File[]) => void;
+  onSend: (text: string) => void;
   onSuggestionClick: (suggestion: string) => void;
 }
 
@@ -15,9 +15,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   const { setIsMobileSidebarOpen, setIsViewingCart, handleReset } = useSourcing();
   const { user, openAuthModal } = useAuth();
   const [inputText, setInputText] = useState("");
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isFocused, setIsFocused] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -132,10 +130,9 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   }, [inputText]);
 
   const handleSubmit = () => {
-    if (inputText.trim() || attachedFiles.length > 0) {
-      onSend(inputText, attachedFiles);
+    if (inputText.trim()) {
+      onSend(inputText);
       setInputText("");
-      setAttachedFiles([]);
     }
   };
 
@@ -157,9 +154,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         setInputText(selectedText);
         setShowDropdown(false);
         setSelectedIndex(-1);
-        onSend(selectedText, attachedFiles);
+        onSend(selectedText);
         setInputText("");
-        setAttachedFiles([]);
         return;
       }
       if (e.key === "Escape" || e.key === "Tab") {
@@ -173,10 +169,6 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       e.preventDefault();
       handleSubmit();
     }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setAttachedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
   };
 
   return (
@@ -256,7 +248,6 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           <button
             onClick={() => {
               setInputText("");
-              setAttachedFiles([]);
               handleReset();
             }}
             className="p-2 text-slate-500 hover:text-[#402970] hover:bg-[#402970]/5 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 outline-none"
@@ -446,44 +437,13 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         <div className="max-w-[760px] mx-auto w-full relative group">
 
 
-          {/* Attached files row above the input pill */}
-          {attachedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 p-2 bg-white/90 backdrop-blur-md rounded-xl border border-slate-100 shadow-sm self-start animate-fadeIn mb-2">
-              {attachedFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-medium text-slate-600">
-                  <span className="truncate max-w-[120px]">{file.name}</span>
-                  <button
-                    onClick={() => setAttachedFiles((p) => p.filter((_, i) => i !== idx))}
-                    className="p-0.5 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
           <div className="w-full relative">
             {/* Input card backing glow */}
             <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 blur-md transition-all duration-300 pointer-events-none ${isFocused ? "opacity-35" : "opacity-15 group-hover:opacity-20"} rounded-[26px]`} />
 
             {/* Input card container */}
             <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-200/80 shadow-sm"} rounded-[26px]`}>
-              <div className="w-full py-1.5 pl-2.5 pr-2 flex items-center gap-1.5">
-
-                {/* File Attachment Button */}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  onMouseDown={(e) => e.preventDefault()}
-                  className="w-10 h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-550 hover:text-[#402970] transition-all cursor-pointer shrink-0 relative"
-                  title="Attach files"
-                >
-                  <Paperclip size={19} />
-                  {attachedFiles.length > 0 && (
-                    <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />
-                  )}
-                </button>
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
+              <div className="w-full py-1.5 pl-3.5 pr-2 flex items-center gap-1.5">
 
                 {/* Textarea */}
                 <textarea
@@ -509,9 +469,9 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                 <button
                   onClick={handleSubmit}
                   onMouseDown={(e) => e.preventDefault()}
-                  disabled={!inputText.trim() && attachedFiles.length === 0}
+                  disabled={!inputText.trim()}
                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
-                    inputText.trim() || attachedFiles.length > 0
+                    inputText.trim()
                       ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 active:scale-95"
                       : "bg-slate-100 text-slate-400 cursor-not-allowed"
                   }`}
@@ -539,9 +499,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                       key={index}
                       onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
                       onClick={() => {
-                        onSend(suggestion, attachedFiles);
+                        onSend(suggestion);
                         setInputText("");
-                        setAttachedFiles([]);
                         setShowDropdown(false);
                         setSelectedIndex(-1);
                       }}

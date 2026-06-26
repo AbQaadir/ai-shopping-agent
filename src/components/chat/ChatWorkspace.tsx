@@ -21,7 +21,7 @@ interface ChatWorkspaceProps {
   activeHistoryId?: string;
   messages: Message[];
   isGenerating: boolean;
-  onSend: (text: string, files: File[]) => void;
+  onSend: (text: string) => void;
   onBackToLanding: () => void;
   activeQueryText: string;
   onStopGeneration?: () => void;
@@ -40,14 +40,11 @@ export default function ChatWorkspace({
 }: ChatWorkspaceProps) {
   const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast, isSharedReadOnly, handleSendMessage } = useSourcing();
   const [inputText, setInputText] = useState("");
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
-  // Reset internal states when activeHistoryId changes to avoid unmounting ChatWorkspace
   useEffect(() => {
     setInputText("");
-    setAttachedFiles([]);
     setSelectedProducts([]);
   }, [activeHistoryId, setSelectedProducts]);
 
@@ -73,16 +70,11 @@ export default function ChatWorkspace({
     handleSubmit(sampleText);
   };
 
-  const removeFile = (index: number) => {
-    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleSubmit = (overrideText?: string) => {
     const textToSend = overrideText !== undefined ? overrideText : inputText;
-    if ((!textToSend.trim() && attachedFiles.length === 0) || isGenerating || isSharedReadOnly) return;
-    onSend(textToSend, attachedFiles);
+    if (!textToSend.trim() || isGenerating || isSharedReadOnly) return;
+    onSend(textToSend);
     setInputText("");
-    setAttachedFiles([]);
   };
 
   const handleToggleSelectProduct = (product: InlineProduct) => {
@@ -191,7 +183,7 @@ export default function ChatWorkspace({
             selectedProductIds={selectedProducts.map(p => p.id)}
             onToggleSelectProduct={handleToggleSelectProduct}
             onBuyProduct={onBuyProduct}
-            onEditMessage={(msgId, newText) => handleSendMessage(newText, [], msgId)}
+            onEditMessage={(msgId, newText) => handleSendMessage(newText, msgId)}
           />
         </div>
 
@@ -205,9 +197,6 @@ export default function ChatWorkspace({
         <ChatInputArea
           inputText={inputText}
           setInputText={setInputText}
-          attachedFiles={attachedFiles}
-          onRemoveFile={removeFile}
-          onAttachFile={(files) => setAttachedFiles((prev) => [...prev, ...files])}
           onSubmit={handleSubmit}
           isGenerating={isGenerating}
           onStopGeneration={onStopGeneration}
