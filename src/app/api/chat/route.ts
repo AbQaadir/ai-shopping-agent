@@ -668,10 +668,13 @@ User query to classify: "${message}"`;
           // Merge selected products from UI buttons
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
-              const existingIdx = currentCart.findIndex((item) => item.id === p.id);
+              const existingIdx = currentCart.findIndex((item) => 
+                String(item.id).trim().toLowerCase() === String(p.id).trim().toLowerCase() ||
+                String(item.name).trim().toLowerCase() === String(p.name).trim().toLowerCase()
+              );
               if (existingIdx === -1) {
                 currentCart.push({
-                  id: p.id,
+                  id: String(p.id),
                   name: p.name || p.title || "Kapruka Product",
                   price: p.price || 0,
                   quantity: 1,
@@ -722,10 +725,14 @@ User query to classify: "${message}"`;
           }
 
           // Save checkout session state
+          const existingCheckoutState = await getCheckoutState(sessionId);
           const newCheckoutState: CheckoutState = {
             phase: "qty_ask",
             cartItems: currentCart,
             savedAddress: savedAddr ?? undefined,
+            confirmedAddress: existingCheckoutState?.confirmedAddress,
+            deliveryDate: existingCheckoutState?.deliveryDate,
+            personalMessage: existingCheckoutState?.personalMessage,
           };
           await saveCheckoutState(sessionId, newCheckoutState);
 
@@ -746,10 +753,13 @@ User query to classify: "${message}"`;
           // Merge selected products
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
-              const existingIdx = currentCart.findIndex((item) => item.id === p.id);
+              const existingIdx = currentCart.findIndex((item) => 
+                String(item.id).trim().toLowerCase() === String(p.id).trim().toLowerCase() ||
+                String(item.name).trim().toLowerCase() === String(p.name).trim().toLowerCase()
+              );
               if (existingIdx === -1) {
                 currentCart.push({
-                  id: p.id,
+                  id: String(p.id),
                   name: p.name || p.title || "Kapruka Product",
                   price: p.price || 0,
                   quantity: 1, // Skip qty_ask, use 1 by default
@@ -829,11 +839,14 @@ Respond ONLY with valid JSON matching this schema:
 
           if (isCityValid) {
             // Fast-track to delivery_date_ask (skips delivery_ask, user already confirmed address)
+            const existingCheckoutState = await getCheckoutState(sessionId);
             const newCheckoutState: CheckoutState = {
               phase: "delivery_date_ask",
               cartItems: currentCart,
               savedAddress: savedAddr ?? undefined,
               confirmedAddress: mapToSavedAddress(matchedAddress) as any,
+              deliveryDate: existingCheckoutState?.deliveryDate,
+              personalMessage: existingCheckoutState?.personalMessage,
               confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
             };
             await saveCheckoutState(sessionId, newCheckoutState);
@@ -976,31 +989,16 @@ Respond ONLY with valid JSON matching this schema:
           send({ type: "thought", step: "order_agent", status: "running", content: `Order Agent: processing phase "${checkoutState.phase}"...` });
 
           // ── Phase 3: Sync live cart into checkoutState before every agent call ──
-          // Silent Add-to-Cart actions (done from the UI without an LLM message) write to
+          // Silent Add-to-Cart actions (or deletions) done from the UI write to
           // User.cart[sessionId] directly. Re-read it here so the orderAgent always sees
-          // the latest cart, not a stale snapshot frozen when checkout_start was triggered.
+          // the latest cart, not a stale snapshot.
           const liveCart = await loadUserCart();
-          if (liveCart.length > 0) {
-            // If items were added silently, merge them in (deduplicated by id).
-            const mergedCart = [...checkoutState.cartItems];
-            for (const liveItem of liveCart) {
-              const idx = mergedCart.findIndex(ci => ci.id === liveItem.id);
-              if (idx === -1) {
-                mergedCart.push(liveItem);
-              } else {
-                // Prefer the higher quantity (user may have bumped qty in either system).
-                mergedCart[idx] = {
-                  ...mergedCart[idx],
-                  quantity: Math.max(mergedCart[idx].quantity, liveItem.quantity),
-                };
-              }
-            }
-            if (mergedCart.length !== checkoutState.cartItems.length ||
-              mergedCart.some((m, i) => m.quantity !== checkoutState!.cartItems[i]?.quantity)) {
-              // Cart changed — update the CheckoutSession snapshot and re-save.
-              checkoutState = { ...checkoutState, cartItems: mergedCart };
-              await saveCheckoutState(sessionId, checkoutState);
-            }
+          const liveCartStr = JSON.stringify(liveCart);
+          const checkoutCartStr = JSON.stringify(checkoutState.cartItems);
+          if (liveCartStr !== checkoutCartStr) {
+            // Cart changed — update the CheckoutSession snapshot and re-save.
+            checkoutState = { ...checkoutState, cartItems: liveCart };
+            await saveCheckoutState(sessionId, checkoutState);
           }
 
           let agentOutput = {
@@ -2239,7 +2237,7 @@ async function llmValidateRelevance(
   fastModel: string
 ): Promise<KaprukaProduct[]> {
   if (products.length === 0) return [];
-  const productsToCheck = products.slice(0, 50);
+  const productsToCheck = products;
   const productList = productsToCheck.map((p, i) => `${i + 1}. [${p.id}] ${p.name}`).join("\n");
 
   const prompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
@@ -2301,11 +2299,10 @@ Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"
     }
 
     const filtered = productsToCheck.filter((p) => scoreMap.has(p.id));
-    const remainder = products.slice(50);
-    const combined = [...filtered, ...remainder].map((p) => {
+    const combined = filtered.map((p) => {
       return {
         ...p,
-        _relevanceScore: scoreMap.get(p.id) ?? (remainder.includes(p) ? 5 : 1)
+        _relevanceScore: scoreMap.get(p.id) ?? 1
       };
     });
 
