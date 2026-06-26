@@ -583,7 +583,7 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
                 type="tel"
                 placeholder="71 234 5678"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 9))}
                 disabled={submitted || !isActive}
                 className="w-full px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none placeholder:text-slate-400 bg-transparent"
               />
