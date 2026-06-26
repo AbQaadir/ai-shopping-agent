@@ -352,7 +352,7 @@ Analyze the user query in the context of the recent conversation history, and pe
 
 3. Extract focused product search terms and price filters ("searchTerms") as a JSON array of objects matching this schema:
    {
-     "term": string (MAX 2 words — the core product noun only. Strip colors/descriptors like "gold", "silver", "black", occasion/verbs/filler words like "wedding", "cheap", "buy", "for me". CRITICAL: Translate generic shopping nouns to local Sri Lankan database listing nouns, especially: "phone case" or "phone cover" -> "backcover" or "cover" or "casing"),
+     "term": string (MAX 2 words — the core product noun only. Strip colors/descriptors like "gold", "silver", "black", occasion/verbs/filler words like "wedding", "cheap", "buy", "for me". CRITICAL: Translate generic shopping nouns to local Sri Lankan database listing nouns, especially: "phone case" or "phone cover" -> "backcover". CRITICAL APPLE RULE: If the user asks for an Apple product like "iphone", extract it as "apple iphone"),
      "minPrice": number | null (minimum price limit specified by user, e.g. "above 5000" -> 5000, "between 2000 and 5000" -> 2000. Set to null if there is no minimum price limit),
      "maxPrice": number | null (maximum price limit specified by user, e.g. "under 3000" -> 3000, "between 2000 and 5000" -> 5000. Set to null if there is no maximum price limit)
    }
