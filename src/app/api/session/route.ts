@@ -129,6 +129,16 @@ export const PATCH = withLogging(async function PATCH(req: NextRequest) {
 
     if (sessionId) {
       cartObj[sessionId] = cart;
+
+      // Also update the active checkout session if it exists
+      try {
+        await prisma.checkoutSession.update({
+          where: { chatSessionId: sessionId },
+          data: { cartItems: cart },
+        });
+      } catch (err) {
+        // Ignored: CheckoutSession might not exist yet
+      }
     }
 
     const updatedUser = await (prisma.user as any).update({

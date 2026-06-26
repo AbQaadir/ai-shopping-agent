@@ -668,10 +668,10 @@ User query to classify: "${message}"`;
           // Merge selected products from UI buttons
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
-              const existingIdx = currentCart.findIndex((item) => item.id === p.id);
+              const existingIdx = currentCart.findIndex((item) => String(item.id) === String(p.id));
               if (existingIdx === -1) {
                 currentCart.push({
-                  id: p.id,
+                  id: String(p.id),
                   name: p.name || p.title || "Kapruka Product",
                   price: p.price || 0,
                   quantity: 1,
@@ -746,10 +746,10 @@ User query to classify: "${message}"`;
           // Merge selected products
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
-              const existingIdx = currentCart.findIndex((item) => item.id === p.id);
+              const existingIdx = currentCart.findIndex((item) => String(item.id) === String(p.id));
               if (existingIdx === -1) {
                 currentCart.push({
-                  id: p.id,
+                  id: String(p.id),
                   name: p.name || p.title || "Kapruka Product",
                   price: p.price || 0,
                   quantity: 1, // Skip qty_ask, use 1 by default

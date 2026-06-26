@@ -1057,12 +1057,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     // --- Merge products into cart (deduplicated by id) ---
     const updatedCart = [...cartItems];
     for (const prod of products) {
-      const existingIdx = updatedCart.findIndex(item => item.id === prod.id);
+      const existingIdx = updatedCart.findIndex(item => String(item.id) === String(prod.id));
       if (existingIdx > -1) {
         updatedCart[existingIdx] = { ...updatedCart[existingIdx], quantity: updatedCart[existingIdx].quantity + 1 };
       } else {
         updatedCart.push({
-          id: prod.id,
+          id: String(prod.id),
           name: prod.title || prod.name || "Kapruka Product",
           price: prod.price || 0,
           quantity: 1,
@@ -1137,12 +1137,12 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     // --- Merge all products into cart silently ---
     const updatedCart = [...cartItems];
     for (const prod of products) {
-      const existingIdx = updatedCart.findIndex(item => item.id === prod.id);
+      const existingIdx = updatedCart.findIndex(item => String(item.id) === String(prod.id));
       if (existingIdx > -1) {
         updatedCart[existingIdx] = { ...updatedCart[existingIdx], quantity: updatedCart[existingIdx].quantity + 1 };
       } else {
         updatedCart.push({
-          id: prod.id,
+          id: String(prod.id),
           name: prod.title || prod.name || "Kapruka Product",
           price: prod.price || 0,
           quantity: 1,
@@ -1164,10 +1164,10 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
     // --- Set selected products so route.ts gets their ids, then trigger checkout ---
     setSelectedProducts(products);
-    setTimeout(() => {
-      handleSendMessage("checkout cart");
-    }, 50);
-  }, [activeHistoryId, activeUserId, cartItems, handleSendMessage]);
+    
+    // Await briefly to ensure state updates, then trigger the checkout cart
+    handleSendMessage("checkout cart");
+  }, [activeHistoryId, activeUserId, cartItems, handleSendMessage, user, openAuthModal]);
 
   return (
     <SourcingContext.Provider
