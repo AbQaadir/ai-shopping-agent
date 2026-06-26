@@ -725,10 +725,14 @@ User query to classify: "${message}"`;
           }
 
           // Save checkout session state
+          const existingCheckoutState = await getCheckoutState(sessionId);
           const newCheckoutState: CheckoutState = {
             phase: "qty_ask",
             cartItems: currentCart,
             savedAddress: savedAddr ?? undefined,
+            confirmedAddress: existingCheckoutState?.confirmedAddress,
+            deliveryDate: existingCheckoutState?.deliveryDate,
+            personalMessage: existingCheckoutState?.personalMessage,
           };
           await saveCheckoutState(sessionId, newCheckoutState);
 
@@ -835,11 +839,14 @@ Respond ONLY with valid JSON matching this schema:
 
           if (isCityValid) {
             // Fast-track to delivery_date_ask (skips delivery_ask, user already confirmed address)
+            const existingCheckoutState = await getCheckoutState(sessionId);
             const newCheckoutState: CheckoutState = {
               phase: "delivery_date_ask",
               cartItems: currentCart,
               savedAddress: savedAddr ?? undefined,
               confirmedAddress: mapToSavedAddress(matchedAddress) as any,
+              deliveryDate: existingCheckoutState?.deliveryDate,
+              personalMessage: existingCheckoutState?.personalMessage,
               confirmedQty: currentCart.reduce((sum, item) => sum + item.quantity, 0),
             };
             await saveCheckoutState(sessionId, newCheckoutState);
