@@ -2239,7 +2239,7 @@ async function llmValidateRelevance(
   fastModel: string
 ): Promise<KaprukaProduct[]> {
   if (products.length === 0) return [];
-  const productsToCheck = products.slice(0, 50);
+  const productsToCheck = products;
   const productList = productsToCheck.map((p, i) => `${i + 1}. [${p.id}] ${p.name}`).join("\n");
 
   const prompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
@@ -2301,11 +2301,10 @@ Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"
     }
 
     const filtered = productsToCheck.filter((p) => scoreMap.has(p.id));
-    const remainder = products.slice(50);
-    const combined = [...filtered, ...remainder].map((p) => {
+    const combined = filtered.map((p) => {
       return {
         ...p,
-        _relevanceScore: scoreMap.get(p.id) ?? (remainder.includes(p) ? 5 : 1)
+        _relevanceScore: scoreMap.get(p.id) ?? 1
       };
     });
 
