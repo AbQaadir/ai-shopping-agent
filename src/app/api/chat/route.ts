@@ -1,9 +1,8 @@
-import { config } from "@/lib/config";
-import { prisma } from "@/lib/db";
-import { Prisma } from "@prisma/client";
-import { withLogging } from "@/lib/logger";
 import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 import { findRelevantCategories } from "@/lib/categories";
+import { config } from "@/lib/config";
+import { prisma } from "@/lib/db";
+import { withLogging } from "@/lib/logger";
 import {
   extractCityFromMessage,
   extractDate,
@@ -11,6 +10,7 @@ import {
   Intent,
   ruleBasedIntent,
 } from "@/lib/nlp";
+import { placeOrderInternally } from "@/lib/orderService";
 import {
   parseRequirements,
   pillar1_getProductDetails,
@@ -24,25 +24,25 @@ import {
   type KaprukaProduct,
 } from "@/lib/tools";
 import { GoogleGenAI } from "@google/genai";
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
-import { placeOrderInternally } from "@/lib/orderService";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
 // ── New Agentic Architecture ──────────────────────────────────────────────
-import { getCachedCategories, scrapeMultipleCategoryUrls } from "@/lib/tools";
-import { categoryBrowseAgent } from "@/lib/agents/categoryBrowseAgent";
-import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";
-import { orderAgent } from "@/lib/agents/orderAgent";
 import { cartModifierAgent, type CartModification } from "@/lib/agents/cartModifierAgent";
+import { categoryBrowseAgent } from "@/lib/agents/categoryBrowseAgent";
+import { orderAgent } from "@/lib/agents/orderAgent";
+import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";
 import {
+  clearCheckoutState,
   getCheckoutState,
   saveCheckoutState,
-  clearCheckoutState,
   type CheckoutState,
 } from "@/lib/checkoutContext";
+import { getCachedCategories, scrapeMultipleCategoryUrls } from "@/lib/tools";
 
 // Normalize address data from DB to SavedAddress schema
 const mapToSavedAddress = (addr: any) => {
@@ -141,7 +141,7 @@ export const POST = withLogging(async function POST(req: NextRequest) {
 
     // 1. Ensure chat session exists
     let session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
-    
+
     // Strict Ownership Check
     if (session && session.userId && session.userId !== userId) {
       return new Response(JSON.stringify({ error: "Forbidden: You do not have permission to send messages to this shared chat." }), {
@@ -330,7 +330,7 @@ export const POST = withLogging(async function POST(req: NextRequest) {
       try {
         // Run local Category Matcher (RACR) to get matching store categories
         const matchedCats = findRelevantCategories(message, 3);
-        const matchedCategoriesText = matchedCats.length > 0 
+        const matchedCategoriesText = matchedCats.length > 0
           ? matchedCats.map(c => `- ${c.slug} (Path: ${c.path})`).join("\n")
           : "None found";
 
@@ -450,7 +450,7 @@ User query to classify: "${message}"`;
 
     // 7. Load checkout state and saved address
     let checkoutState = await getCheckoutState(sessionId);
-    
+
     let allUserAddresses: any[] = [];
     if (userId && userId !== "guest") {
       try {
@@ -515,7 +515,7 @@ User query to classify: "${message}"`;
       // Fallback checkout_continue if AI routing fails but checkout active
       routerDecision = { action: "checkout_continue", reason: "No AI — fallback checkout_continue" };
     }
-    
+
     if (ai) {
       routerDecision = await routerAgent(message, historySnippet, checkoutState, intent, ai, config.gemini.fastModel, savedAddressLabels, availableProducts);
     }
@@ -668,7 +668,7 @@ User query to classify: "${message}"`;
           // Merge selected products from UI buttons
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
-              const existingIdx = currentCart.findIndex((item) => 
+              const existingIdx = currentCart.findIndex((item) =>
                 String(item.id).trim().toLowerCase() === String(p.id).trim().toLowerCase() ||
                 String(item.name).trim().toLowerCase() === String(p.name).trim().toLowerCase()
               );
@@ -753,7 +753,7 @@ User query to classify: "${message}"`;
           // Merge selected products
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
-              const existingIdx = currentCart.findIndex((item) => 
+              const existingIdx = currentCart.findIndex((item) =>
                 String(item.id).trim().toLowerCase() === String(p.id).trim().toLowerCase() ||
                 String(item.name).trim().toLowerCase() === String(p.name).trim().toLowerCase()
               );
@@ -783,7 +783,7 @@ User query to classify: "${message}"`;
 
           // Extract label and quantities from the prompt via LLM
           send({ type: "thought", step: "intent_routing", status: "running", content: "Extracting delivery address and quantities..." });
-          
+
           let matchedAddress = savedAddr;
           if (ai) {
             const cartContext = currentCart.map((item: any) => `- ID: ${item.id}, Name: ${item.name}`).join("\n");
@@ -803,19 +803,19 @@ Respond ONLY with valid JSON matching this schema:
   "quantities": { "string_item_id": number }
 }`;
             try {
-              const res = await ai.models.generateContent({ 
-                model: config.gemini.fastModel, 
+              const res = await ai.models.generateContent({
+                model: config.gemini.fastModel,
                 contents: extractPrompt,
-                config: { responseMimeType: "application/json" } 
+                config: { responseMimeType: "application/json" }
               });
               const rawText = (res.text || "{}").trim();
               const parsed = JSON.parse(rawText);
-              
+
               if (parsed.label && parsed.label !== "NOT FOUND") {
                 const found = allUserAddresses.find((a: any) => (a.label || a.type).toLowerCase() === parsed.label.toLowerCase());
                 if (found) matchedAddress = found;
               }
-              
+
               // Apply extracted quantities to the cart
               if (parsed.quantities && typeof parsed.quantities === "object") {
                 currentCart = currentCart.map((item) => {
@@ -853,7 +853,7 @@ Respond ONLY with valid JSON matching this schema:
 
             const ofs = { phase: "delivery_date_ask", cartItems: currentCart, savedAddress: savedAddr, confirmedAddress: mapToSavedAddress(matchedAddress) };
             send({ type: "order_flow_step", ...ofs });
-            
+
             const t = `Got it! I've added the item(s) to your cart and set the delivery to your **${(matchedAddress as any)?.label || (matchedAddress as any)?.type || "saved address"}**. When would you like it delivered? Pick a date below, and feel free to add a personal message!`;
             await streamWords(t);
             await saveOrderMessage(t, ofs);
@@ -1016,7 +1016,7 @@ Respond ONLY with valid JSON matching this schema:
             const labelMatch = message.match(/^(.+) address selected$/i);
             if (labelMatch) {
                const label = labelMatch[1].trim();
-               const found = allUserAddresses.find((a: any) => 
+               const found = allUserAddresses.find((a: any) =>
                  (a.label?.toLowerCase() === label.toLowerCase()) ||
                  (a.type?.toLowerCase() === label.toLowerCase()) ||
                  (a.recipientName?.toLowerCase() === label.toLowerCase()) ||
@@ -1138,7 +1138,7 @@ Respond ONLY with valid JSON matching this schema:
               const phone = parts[1].trim();
               const address = parts[2].trim();
               const city = parts[3].trim();
-              
+
               updatedState.confirmedAddress = {
                 name,
                 phone,
@@ -1155,7 +1155,7 @@ Respond ONLY with valid JSON matching this schema:
                   existingAddrs = typeof userRec.addresses === "string" ? JSON.parse(userRec.addresses) : userRec.addresses;
                   if (!Array.isArray(existingAddrs)) existingAddrs = [];
                 }
-                
+
                 const newAddrId = crypto.randomUUID();
                 const newAddr = {
                   id: newAddrId,
@@ -1167,14 +1167,14 @@ Respond ONLY with valid JSON matching this schema:
                   city: city,
                   isDefault: existingAddrs.length === 0,
                 };
-                
+
                 existingAddrs.push(newAddr);
-                
+
                 await (prisma.user as any).update({
                   where: { id: currentUserId },
                   data: { addresses: existingAddrs },
                 });
-                
+
                 // Update local array so it gets passed down to the client in the SSE packet
                 allUserAddresses = existingAddrs;
               } catch (err) {
@@ -1193,19 +1193,19 @@ Respond ONLY with valid JSON matching this schema:
           if ((agentOutput as any).requiresDeliveryCheck && updatedState.confirmedAddress?.city && updatedState.deliveryDate) {
             const city = updatedState.confirmedAddress.city;
             const date = updatedState.deliveryDate;
-            
+
             let totalFee = 0;
             let deliveryCheck = null;
             let canDeliverAll = true;
             let nextAvail = null;
             let exactCityName = city;
 
-            const itemsToCheck = updatedState.cartItems && updatedState.cartItems.length > 0 
-                ? updatedState.cartItems.map(i => i.id) 
+            const itemsToCheck = updatedState.cartItems && updatedState.cartItems.length > 0
+                ? updatedState.cartItems.map(i => i.id)
                 : updatedState.product ? [updatedState.product.id] : [];
 
             send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery to ${city} on ${date} for ${itemsToCheck.length} item(s)...` });
-            
+
             for (const pid of itemsToCheck) {
                 send({ type: "tool_call", name: "kapruka_check_delivery", args: { city: city, date: date, product_id: pid } });
                 const check = await pillar2_checkDelivery(city, date, pid);
@@ -1448,7 +1448,7 @@ Respond ONLY with valid JSON matching this schema:
           send({ type: "thought", step: "category_browse", status: "running", content: "Fetching product categories..." });
           const tCat = Date.now();
           const categoryTree = await getCachedCategories();
-          
+
           if (categoryTree.length > 0) {
             const agentDecision = await categoryBrowseAgent(
               message,
@@ -1469,7 +1469,7 @@ Respond ONLY with valid JSON matching this schema:
                 }));
 
                 const scrapedResults = await scrapeMultipleCategoryUrls(urlsToScrape, 3, 150, { country: country });
-                
+
                 // Merge and deduplicate products within this semantic group
                 const mergedProducts: KaprukaProduct[] = [];
                 const seenIds = new Set<string>();
@@ -1503,7 +1503,7 @@ Respond ONLY with valid JSON matching this schema:
               if (groups.length > 0) {
                 productGroups = groups;
                 products = groups.flatMap((g) => g.products);
-                
+
                 const stepCat = { step: "category_browse", status: "completed", content: `Found ${totalScraped} products across ${groups.length} categories in ${Date.now() - tCat}ms.`, durationMs: Date.now() - tCat };
                 steps.push(stepCat);
                 send({ type: "thought", ...stepCat });
@@ -1544,10 +1544,10 @@ Respond ONLY with valid JSON matching this schema:
                  const stepClarify = { step: "intent_routing", status: "completed", content: "Missing reorder details, asking clarification.", durationMs: 0 };
                  steps.push(stepClarify);
                  send({ type: "thought", ...stepClarify });
-                 
+
                  const msg = "Could you please tell me which item you'd like to reorder, or roughly when you bought it? (e.g., 'the cake' or 'last week').";
                  send({ type: "text", content: msg });
-                 
+
                  await prisma.chatMessage.create({
                     data: { sessionId: session.id, role: "assistant", content: msg },
                  });
@@ -1561,10 +1561,10 @@ Respond ONLY with valid JSON matching this schema:
               send({ type: "thought", step: "searching_kapruka", status: "running", content: "Retrieving user's order history..." });
 
               if (userId && userId !== "guest") {
-                const orderWhereClause = reorderTimeline && !isNaN(new Date(reorderTimeline).getTime()) 
-                  ? { createdAt: { gte: new Date(reorderTimeline) } } 
+                const orderWhereClause = reorderTimeline && !isNaN(new Date(reorderTimeline).getTime())
+                  ? { createdAt: { gte: new Date(reorderTimeline) } }
                   : {};
-                  
+
                 const userWithOrders = await prisma.user.findUnique({
                   where: { id: userId },
                   include: { orders: { where: orderWhereClause, include: { items: true }, orderBy: { createdAt: "desc" } } },
@@ -1660,10 +1660,10 @@ Respond ONLY with valid JSON matching this schema:
                 for (const settled of variantSettled) {
                   if (settled.status === "fulfilled") {
                     for (const p of settled.value) {
-                      if (!seenIds.has(p.id)) { 
-                        seenIds.add(p.id); 
+                      if (!seenIds.has(p.id)) {
+                        seenIds.add(p.id);
                         p.currency = currency || p.currency || "LKR";
-                        rawProducts.push(p); 
+                        rawProducts.push(p);
                       }
                     }
                   }
@@ -2240,12 +2240,12 @@ async function llmValidateRelevance(
   const productsToCheck = products;
   const productList = productsToCheck.map((p, i) => `${i + 1}. [${p.id}] ${p.name}`).join("\n");
 
-  const prompt = `You are a product relevance validator for a Sri Lankan e-commerce search agent.
+  const prompt = `You are a product relevance validator for a e-commerce search agent.
 
 User's query: "${userQuery}"
 
 For each product below, decide if it should be kept and assign a relevance score (1-100).
-- KEEP (Score > 0): The product IS what the user wants or strongly related.
+- KEEP (Score > 0): The product IS what the user might want or related.
 - DISCARD: The product only shares a keyword but is categorically different, or is completely irrelevant.
 
 Score criteria:
@@ -2271,16 +2271,16 @@ Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"
         responseSchema: {
           type: "OBJECT",
           properties: {
-            kept_items: { 
-              type: "ARRAY", 
-              items: { 
+            kept_items: {
+              type: "ARRAY",
+              items: {
                 type: "OBJECT",
                 properties: {
                   id: { type: "STRING" },
                   score: { type: "INTEGER" }
                 },
                 required: ["id", "score"]
-              } 
+              }
             },
             reason: { type: "STRING" },
           },
@@ -2324,11 +2324,11 @@ Respond ONLY with valid JSON: {"kept_items":[{"id":"id1","score":95}],"reason":"
 function extractFirstJsonArray(text: string): string {
   const start = text.indexOf("[");
   if (start === -1) return text;
-  
+
   let depth = 0;
   let inString = false;
   let escape = false;
-  
+
   for (let i = start; i < text.length; i++) {
     const char = text[i];
     if (escape) {
