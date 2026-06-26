@@ -16,6 +16,7 @@ import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductCatalogModal from "./ProductCatalogModal";
 import CartModal from "./CartModal";
 import ShareChatModal from "./ShareChatModal";
+import AgeVerificationModal from "./AgeVerificationModal";
 
 interface ChatWorkspaceProps {
   activeHistoryId?: string;
@@ -38,7 +39,7 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
-  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast, isSharedReadOnly, handleSendMessage } = useSourcing();
+  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast, isSharedReadOnly, handleSendMessage, isAgeVerificationRequired, setIsAgeVerificationRequired } = useSourcing();
   const [inputText, setInputText] = useState("");
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -257,6 +258,16 @@ export default function ChatWorkspace({
           </button>
         </div>
       )}
+
+      {/* ── Age Verification Modal ── */}
+      <AgeVerificationModal
+        isOpen={isAgeVerificationRequired}
+        onConfirm={() => setIsAgeVerificationRequired(false)}
+        onReject={() => {
+          setIsAgeVerificationRequired(false);
+          onBackToLanding();
+        }}
+      />
 
     </div>
   );
