@@ -16,7 +16,7 @@ export default function SidebarHistoryList({
   onDeleteHistory,
 }: SidebarHistoryListProps) {
   return (
-    <div className="px-0 py-1 space-y-1 w-full flex flex-col items-start animate-fadeIn">
+    <div className="px-0 py-0 space-y-0.5 w-full flex flex-col items-start animate-fadeIn">
       {history.map((item, idx) => (
         <SidebarHistoryItem
           key={item.id}

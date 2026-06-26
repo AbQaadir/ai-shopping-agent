@@ -98,7 +98,7 @@ export default function GlobalSidebar({
         `}
       >
         {/* Top Section - Brand/Logo & Collapse Toggle */}
-        <div className={`h-16 flex items-center justify-between px-4 ${
+        <div className={`h-14 flex items-center justify-between px-4 ${
           isCollapsed ? "md:justify-center md:px-0" : ""
         }`}>
           {/* Mobile close button */}
@@ -148,7 +148,7 @@ export default function GlobalSidebar({
                 : activeHistoryId === undefined
                   ? "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/50 text-[#402970] font-bold"
                   : "text-slate-700 hover:bg-[#402970]/5 hover:text-[#402970] font-semibold"
-            } ${isEffectiveCollapsed ? "justify-center gap-0 px-3 py-3" : "gap-3 px-3 py-3"}`}
+            } ${isEffectiveCollapsed ? "justify-center gap-0 px-3 py-2" : "gap-3 px-3 py-2"}`}
             title="New chat"
           >
             <SquarePen size={19} className={activeHistoryId === undefined ? "text-[#402970] shrink-0" : "text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"} />
@@ -164,10 +164,10 @@ export default function GlobalSidebar({
 
 
           {/* History Section Header */}
-          <div className="space-y-1 pt-2">
+          <div className="space-y-1 pt-1">
             <button
               onClick={() => { if (isEffectiveCollapsed) setIsCollapsed(false); }}
-              className={`w-full flex items-center px-3 py-3 text-slate-800 font-bold text-sm select-none outline-none cursor-pointer hover:bg-slate-50/50 rounded-xl transition-colors ${
+              className={`w-full flex items-center px-3 py-1.5 text-slate-800 font-bold text-sm select-none outline-none cursor-pointer hover:bg-slate-50/50 rounded-xl transition-colors ${
                 isEffectiveCollapsed ? "justify-center gap-0" : "justify-between gap-3"
               }`}
               title="History"
