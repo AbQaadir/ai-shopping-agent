@@ -123,7 +123,7 @@ async function callMCPTool(
   }
 
   const client = new Client(
-    { name: "kapuruka-agent", version: "1.0.0" },
+    { name: "kapruka-agent", version: "1.0.0" },
     { capabilities: {} }
   );
 
@@ -485,7 +485,7 @@ export async function createOrder(
       date: resolvedDate,
     },
     sender: {
-      name: "Kapuruka Guest Client",
+      name: "Kapruka Guest Client",
       anonymous: true,
     },
     // Include gift_message only when provided

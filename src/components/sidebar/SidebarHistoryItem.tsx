@@ -29,7 +29,7 @@ export default function SidebarHistoryItem({
     <>
       <button
         onClick={onClick}
-        className={`group w-full text-left px-3 py-2.5 rounded-xl text-xs transition-all duration-150 flex items-center justify-between gap-2 cursor-pointer border-none outline-none focus:outline-none focus:ring-0 ${
+        className={`group w-full text-left px-3 py-1.5 rounded-xl text-xs transition-all duration-150 flex items-center justify-between gap-2 cursor-pointer border-none outline-none focus:outline-none focus:ring-0 ${
           isActive 
             ? "bg-slate-100 text-slate-900 font-semibold" 
             : "text-slate-600 hover:bg-slate-100/50 hover:text-slate-900 font-medium"
@@ -59,7 +59,7 @@ export default function SidebarHistoryItem({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-red-50 text-red-500 rounded-xl">
+              <div className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl">
                 <AlertTriangle size={20} />
               </div>
               <h3 className="text-lg font-semibold text-slate-900">Delete chat?</h3>
@@ -83,7 +83,7 @@ export default function SidebarHistoryItem({
                   setShowConfirm(false);
                   onDelete();
                 }}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors shadow-sm"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#402970] hover:bg-[#301e56] transition-colors shadow-sm"
               >
                 Delete
               </button>

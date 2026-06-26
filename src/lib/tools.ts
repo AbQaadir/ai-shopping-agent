@@ -1,7 +1,7 @@
 /**
  * tools.ts
  * ---------------------------------------------------------------------------
- * 5-Pillar Tool Layer for the Kapuruka AI Agent.
+ * 5-Pillar Tool Layer for the Kapruka AI Agent.
  *
  * Each Pillar maps to a group of tools. Tools call the Kapruka MCP server
  * via mcpClient.ts (Pillars 1–2) or implement custom logic (Pillars 3–5).

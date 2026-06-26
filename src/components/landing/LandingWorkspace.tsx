@@ -22,10 +22,20 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   const autocompleteCache = useRef<Record<string, string[]>>({});
   const hasFetchedForCurrentInput = useRef(false);
   const fetchedSuggestionsForInput = useRef<string[]>([]);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileDevice(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
@@ -60,11 +70,17 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
     };
   }, []);
 
-  // Autocomplete fetch logic
+  // Autocomplete fetch logic with debouncing
   useEffect(() => {
+    if (isMobileDevice) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
     const words = inputText.trim().split(/\s+/).filter(Boolean);
 
-    if (!inputText || words.length < 4) {
+    if (!inputText || words.length < 4 || words.length >= 7) {
       setSuggestions([]);
       setShowDropdown(false);
       setSelectedIndex(-1);
@@ -74,58 +90,54 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
     }
 
     if (hasFetchedForCurrentInput.current) {
-      const currentLower = inputText.toLowerCase();
-      const filtered = fetchedSuggestionsForInput.current.filter((s) =>
-        s.toLowerCase().startsWith(currentLower)
-      );
-      if (filtered.length > 0) {
-        setSuggestions(filtered);
+      if (fetchedSuggestionsForInput.current.length > 0) {
+        setSuggestions(fetchedSuggestionsForInput.current);
         setShowDropdown(true);
-      } else {
-        setSuggestions([]);
-        setShowDropdown(false);
       }
       return;
     }
 
-    hasFetchedForCurrentInput.current = true;
+    // Debounce autocompletion request by 250ms
+    const timer = setTimeout(() => {
+      hasFetchedForCurrentInput.current = true;
+      const controller = new AbortController();
 
-    const controller = new AbortController();
-    const fetchSuggestions = async () => {
-      try {
-        const res = await fetch("/api/chat/autocomplete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            inputText,
-            chatHistory: [],
-          }),
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const suggestionsList = data.suggestions || [];
-          fetchedSuggestionsForInput.current = suggestionsList;
+      const fetchSuggestions = async () => {
+        try {
+          const res = await fetch("/api/chat/autocomplete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              inputText,
+              chatHistory: [],
+            }),
+            signal: controller.signal,
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const suggestionsList = data.suggestions || [];
+            fetchedSuggestionsForInput.current = suggestionsList;
 
-          if (suggestionsList.length > 0) {
-            setSuggestions(suggestionsList);
-            setShowDropdown(true);
-          } else {
-            setSuggestions([]);
-            setShowDropdown(false);
+            if (suggestionsList.length > 0) {
+              setSuggestions(suggestionsList);
+              setShowDropdown(true);
+            } else {
+              setSuggestions([]);
+              setShowDropdown(false);
+            }
+          }
+        } catch (err: any) {
+          if (err.name !== "AbortError") {
+            console.error("Autocomplete fetch error:", err);
           }
         }
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error("Autocomplete fetch error:", err);
-        }
-      }
-    };
+      };
 
-    fetchSuggestions();
+      fetchSuggestions();
+    }, 250);
 
     return () => {
-      controller.abort();
+      clearTimeout(timer);
     };
   }, [inputText]);
 
@@ -182,13 +194,16 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           opacity: 0.1
         }}
       />
+      {/* Ambient background glow blobs */}
+      <div className="absolute top-1/4 left-1/4 w-[350px] h-[350px] rounded-full bg-[#402970]/5 blur-[120px] pointer-events-none z-0" />
+      <div className="absolute bottom-1/3 right-1/4 w-[300px] h-[300px] rounded-full bg-indigo-500/5 blur-[120px] pointer-events-none z-0" />
 
       {/* Desktop Floating Logo (Top-Left) */}
       <div className="hidden md:flex absolute top-6 left-6 items-center z-20">
         <div className="border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden flex items-center justify-center transition-all duration-300 hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 select-none bg-white">
           <img
-            src="/kapuruka-logo.jpg"
-            alt="Kapuruka.com Logo"
+            src="/kapruka-logo.jpg"
+            alt="Kapruka.com Logo"
             className="h-12 w-auto object-contain"
           />
         </div>
@@ -200,8 +215,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         {!user && (
           <button
             onClick={() => openAuthModal("login")}
-            className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-[#402970]/20 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
-            title="Sign in to Kapuruka"
+            className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-[#402970]/20 hover:scale-[1.02] hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
+            title="Sign in to Kapruka"
           >
             <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -215,12 +230,12 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         )}
         <button
           onClick={() => setIsViewingCart(true)}
-          className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-[#402970] shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3.5 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-slate-200/80 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
+          className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-[#402970] shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3.5 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-slate-200/80 hover:-translate-y-0.5 hover:scale-[1.02] cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
           title="Global Shopping Cart"
         >
           <div className="relative">
-            <ShoppingCart size={19} className="text-slate-600 group-hover:text-[#402970] transition-colors" />
-            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#402970]" />
+             <ShoppingCart size={19} className="text-slate-600 group-hover:text-[#402970] transition-colors" />
+             <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#402970]" />
           </div>
           <span className="text-slate-700 group-hover:text-[#402970] transition-colors">Global Cart</span>
         </button>
@@ -237,8 +252,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             <Menu size={20} />
           </button>
           <img
-            src="/kapuruka-logo.jpg"
-            alt="Kapuruka Logo"
+            src="/kapruka-logo.jpg"
+            alt="Kapruka Logo"
             className="h-8 w-auto object-contain rounded-md select-none"
           />
         </div>
@@ -294,15 +309,14 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       <div className="flex-1 w-full max-w-[850px] mx-auto px-4 py-6 flex flex-col justify-start items-center gap-6 relative z-10 overflow-y-auto scrollbar-none select-none">
 
         {/* Welcome Section */}
-        <div className="flex flex-col items-center justify-center text-center w-full gap-2 pt-20 pb-0 select-none animate-fadeIn">
+        <div className="flex flex-col items-center justify-center text-center w-full gap-2 pt-6 pb-0 select-none animate-fadeIn">
           <h1 className="text-2xl sm:text-4xl lg:text-[40px] font-extrabold tracking-tight leading-tight bg-gradient-to-r from-purple-700 via-[#402970] to-indigo-700 bg-clip-text text-transparent max-w-4xl px-2">
-            Skip the Scrolling.
-            <span className="block mt-1">Just Chat to Shop Kapruka</span>
+            Just Chat to Shop Kapruka
           </h1>
         </div>
 
         {/* Mock Chat History container */}
-        <div className="w-full space-y-5 pb-24 animate-fadeIn mt-0" style={{ animationDelay: "150ms" }}>
+        <div className="w-full space-y-5 pb-48 animate-fadeIn mt-0" style={{ animationDelay: "150ms" }}>
 
           {/* User Mock Bubble */}
           <div className="flex items-start justify-end gap-3 w-full">
@@ -327,7 +341,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden shadow-xs select-none mt-1 flex items-center justify-center">
               <img
                 src="/image.png"
-                alt="Kapuruka AI Avatar"
+                alt="Kapruka AI Avatar"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -343,8 +357,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                 <div ref={scrollContainerRef} className="flex overflow-x-auto gap-4 pb-2 scrollbar-none snap-x snap-mandatory scroll-smooth w-full">
 
                   {/* Card 1: Smart Product Discovery */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <Compass size={18} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -358,8 +372,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   </div>
 
                   {/* Card 2: Dynamic Cart Management */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <ShoppingCart size={17} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -373,8 +387,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   </div>
 
                   {/* Card 3: End-to-End Guest Checkout */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <CreditCard size={18} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -388,8 +402,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   </div>
 
                   {/* Card 4: Live Order Tracking */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <Package size={18} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -403,8 +417,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   </div>
 
                   {/* Card 5: Quick Reordering */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <RefreshCw size={17} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -433,23 +447,23 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       </div>
 
       {/* Sticky Bottom Prompt Console (Gemini inspired) */}
-      <div className="w-full bg-gradient-to-t from-[#fbfbfe] via-[#fbfbfe]/95 to-transparent pt-6 pb-6 px-4 md:px-6 shrink-0 relative z-30">
+      <div className={`w-full pt-6 pb-12 px-4 md:px-6 shrink-0 relative z-35 transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${
+        !isMobileDevice && showDropdown && suggestions.length > 0 ? "md:-translate-y-[18vh]" : "translate-y-0"
+      }`}>
         <div className="max-w-[760px] mx-auto w-full relative group">
-
-
           <div className="w-full relative">
             {/* Input card backing glow */}
-            <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 blur-md transition-all duration-300 pointer-events-none ${isFocused ? "opacity-35" : "opacity-15 group-hover:opacity-20"} rounded-[26px]`} />
+            <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 blur-md transition-all duration-300 pointer-events-none ${isFocused ? "opacity-30 scale-100" : "opacity-15 group-hover:opacity-20 scale-[0.99]"} rounded-[26px]`} />
 
             {/* Input card container */}
-            <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-200/80 shadow-sm"} rounded-[26px]`}>
+            <div className={`w-full bg-white border transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-200/80 shadow-sm"} rounded-[26px]`}>
               <div className="w-full py-1.5 pl-2.5 pr-2 flex items-center gap-1.5">
 
                 {/* File Attachment Button */}
                 <button
                   disabled={true}
                   type="button"
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-slate-350 transition-all cursor-not-allowed shrink-0 relative"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 transition-all cursor-not-allowed shrink-0 relative"
                   title="File attachment disabled"
                 >
                   <Paperclip size={19} />
@@ -480,9 +494,9 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   onClick={handleSubmit}
                   onMouseDown={(e) => e.preventDefault()}
                   disabled={!inputText.trim()}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] cursor-pointer shrink-0 ${
                     inputText.trim()
-                      ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 active:scale-95"
+                      ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 hover:scale-105 active:scale-95"
                       : "bg-slate-100 text-slate-400 cursor-not-allowed"
                   }`}
                 >
@@ -491,10 +505,10 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
               </div>
             </div>
 
-            {/* Autocomplete Dropdown - Floats ABOVE the input bar */}
+            {/* Autocomplete Dropdown - Floats BELOW the input bar */}
             {showDropdown && suggestions.length > 0 && (
               <div
-                className="absolute bottom-full left-0 right-0 mb-3 bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-[0_-10px_35px_rgba(64,41,112,0.1)] rounded-2xl p-1.5 flex flex-col z-35 origin-bottom animate-fadeInScale"
+                className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-md border border-slate-200/40 shadow-[0_12px_40px_rgba(64,41,112,0.08)] rounded-2xl p-1.5 flex flex-col z-35 origin-top animate-fadeInScale"
               >
                 {suggestions.map((suggestion, index) => {
                   const queryTrim = inputText.trim();
@@ -556,11 +570,12 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           </div>
         </div>
 
-        {/* Small disclaimer footer */}
-        <p className="text-[10px] text-center text-slate-400 mt-2.5 select-none font-medium">
-          Kapuruka Sourcing AI may display inaccurate info, so double-check responses.
-        </p>
       </div>
+
+      {/* Small disclaimer footer - always at the very bottom */}
+      <p className="absolute bottom-0 left-0 right-0 text-[10px] text-center text-slate-400 py-2 bg-transparent select-none font-medium z-40 w-full">
+        Kapruka Sourcing AI may display inaccurate info, so double-check responses.
+      </p>
     </div>
   );
 }

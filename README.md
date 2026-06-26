@@ -1,7 +1,7 @@
-# Kapuruka AI Sourcing Agent — System Architecture
+# Kapruka AI Sourcing Agent — System Architecture
 
 This document details the system architecture and agent workflows for the
-**Kapuruka AI Sourcing Agent** (Kapuruka.com AI Mode). The platform utilizes an
+**Kapruka AI Sourcing Agent** (Kapruka.com AI Mode). The platform utilizes an
 agentic multi-agent architecture to orchestrate product discovery, cart
 management, checkout state machine progress, logistics tracking, and home
 service providers.

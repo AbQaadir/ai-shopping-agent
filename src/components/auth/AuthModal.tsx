@@ -30,7 +30,7 @@ const CONTENT = {
   login: {
     icon: "✨",
     iconBg: "from-[#402970]/20 to-purple-500/20",
-    title: "Welcome to Kapuruka",
+    title: "Welcome to Kapruka",
     subtitle: "Sign in with Google to unlock your personal shopping assistant, order history, and saved delivery profiles.",
   },
 };
@@ -61,7 +61,7 @@ export default function AuthModal() {
           <div className="w-full aspect-square max-w-[260px] rounded-lg overflow-hidden border border-slate-200/60 bg-white shadow-md flex items-center justify-center p-5 relative z-10">
             <img
               src="/image.png"
-              alt="Kapuruka AI"
+              alt="Kapruka AI"
               className="w-full h-full object-contain rounded"
             />
           </div>
@@ -100,7 +100,7 @@ export default function AuthModal() {
             </button>
 
             <p className="text-xs text-slate-400 leading-normal text-left font-medium">
-              By continuing, you agree to Kapuruka's{" "}
+              By continuing, you agree to Kapruka's{" "}
               <a href="#" className="underline hover:text-slate-600 transition-colors">Terms of Service</a>{" "}
               and{" "}
               <a href="#" className="underline hover:text-slate-600 transition-colors">Privacy Policy</a>.

@@ -10,8 +10,8 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Kapuruka.com AI Mode",
-  description: "All tasks in one ask, smart sourcing with AI. Go beyond search — let Kapuruka Work handle your entire sourcing workflow.",
+  title: "Kapruka.com AI Mode",
+  description: "All tasks in one ask, smart sourcing with AI. Go beyond search — let Kapruka Work handle your entire sourcing workflow.",
 };
 
 import { AuthProvider } from "@/context/AuthContext";
