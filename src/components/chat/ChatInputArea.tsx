@@ -53,7 +53,7 @@ export default function ChatInputArea({
     const hasUserHistory = chatHistory.some((h) => h.role === "user");
     const words = inputText.trim().split(/\s+/).filter(Boolean);
 
-    if (!inputText || words.length < 4 || isGenerating || hasUserHistory) {
+    if (!inputText || words.length < 4 || words.length >= 7 || isGenerating || hasUserHistory) {
       setSuggestions([]);
       setShowDropdown(false);
       setSelectedIndex(-1);
@@ -63,16 +63,9 @@ export default function ChatInputArea({
     }
 
     if (hasFetchedForCurrentInput.current) {
-      const currentLower = inputText.toLowerCase();
-      const filtered = fetchedSuggestionsForInput.current.filter((s) =>
-        s.toLowerCase().startsWith(currentLower)
-      );
-      if (filtered.length > 0) {
-        setSuggestions(filtered);
+      if (fetchedSuggestionsForInput.current.length > 0) {
+        setSuggestions(fetchedSuggestionsForInput.current);
         setShowDropdown(true);
-      } else {
-        setSuggestions([]);
-        setShowDropdown(false);
       }
       return;
     }
