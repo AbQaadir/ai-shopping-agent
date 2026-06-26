@@ -668,7 +668,10 @@ User query to classify: "${message}"`;
           // Merge selected products from UI buttons
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
-              const existingIdx = currentCart.findIndex((item) => String(item.id) === String(p.id));
+              const existingIdx = currentCart.findIndex((item) => 
+                String(item.id).trim().toLowerCase() === String(p.id).trim().toLowerCase() ||
+                String(item.name).trim().toLowerCase() === String(p.name).trim().toLowerCase()
+              );
               if (existingIdx === -1) {
                 currentCart.push({
                   id: String(p.id),
@@ -746,7 +749,10 @@ User query to classify: "${message}"`;
           // Merge selected products
           if (fetchedSelectedProducts.length > 0) {
             for (const p of fetchedSelectedProducts as any[]) {
-              const existingIdx = currentCart.findIndex((item) => String(item.id) === String(p.id));
+              const existingIdx = currentCart.findIndex((item) => 
+                String(item.id).trim().toLowerCase() === String(p.id).trim().toLowerCase() ||
+                String(item.name).trim().toLowerCase() === String(p.name).trim().toLowerCase()
+              );
               if (existingIdx === -1) {
                 currentCart.push({
                   id: String(p.id),
@@ -976,31 +982,16 @@ Respond ONLY with valid JSON matching this schema:
           send({ type: "thought", step: "order_agent", status: "running", content: `Order Agent: processing phase "${checkoutState.phase}"...` });
 
           // ── Phase 3: Sync live cart into checkoutState before every agent call ──
-          // Silent Add-to-Cart actions (done from the UI without an LLM message) write to
+          // Silent Add-to-Cart actions (or deletions) done from the UI write to
           // User.cart[sessionId] directly. Re-read it here so the orderAgent always sees
-          // the latest cart, not a stale snapshot frozen when checkout_start was triggered.
+          // the latest cart, not a stale snapshot.
           const liveCart = await loadUserCart();
-          if (liveCart.length > 0) {
-            // If items were added silently, merge them in (deduplicated by id).
-            const mergedCart = [...checkoutState.cartItems];
-            for (const liveItem of liveCart) {
-              const idx = mergedCart.findIndex(ci => ci.id === liveItem.id);
-              if (idx === -1) {
-                mergedCart.push(liveItem);
-              } else {
-                // Prefer the higher quantity (user may have bumped qty in either system).
-                mergedCart[idx] = {
-                  ...mergedCart[idx],
-                  quantity: Math.max(mergedCart[idx].quantity, liveItem.quantity),
-                };
-              }
-            }
-            if (mergedCart.length !== checkoutState.cartItems.length ||
-              mergedCart.some((m, i) => m.quantity !== checkoutState!.cartItems[i]?.quantity)) {
-              // Cart changed — update the CheckoutSession snapshot and re-save.
-              checkoutState = { ...checkoutState, cartItems: mergedCart };
-              await saveCheckoutState(sessionId, checkoutState);
-            }
+          const liveCartStr = JSON.stringify(liveCart);
+          const checkoutCartStr = JSON.stringify(checkoutState.cartItems);
+          if (liveCartStr !== checkoutCartStr) {
+            // Cart changed — update the CheckoutSession snapshot and re-save.
+            checkoutState = { ...checkoutState, cartItems: liveCart };
+            await saveCheckoutState(sessionId, checkoutState);
           }
 
           let agentOutput = {
