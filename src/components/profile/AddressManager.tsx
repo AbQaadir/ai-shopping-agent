@@ -323,7 +323,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
             <input
               type="tel"
               value={recipientPhone}
-              onChange={e => setRecipientPhone(e.target.value)}
+              onChange={e => setRecipientPhone(e.target.value.replace(/\D/g, '').slice(0, 9))}
               placeholder="e.g. 71 234 5678"
               className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
             />
@@ -337,7 +337,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
         </button>
         <button
           onClick={handleSubmit}
-          disabled={isSaving || !addressText.trim() || !city.trim() || !KAPRUKA_CITIES_SET.has(city) || (addressType === "custom" && (customLabel.trim() === "" || customLabel.trim().toLowerCase() === "home" || customLabel.trim().toLowerCase() === "work"))}
+          disabled={isSaving || !addressText.trim() || !city.trim() || recipientPhone.length !== 9 || !KAPRUKA_CITIES_SET.has(city) || (addressType === "custom" && (customLabel.trim() === "" || customLabel.trim().toLowerCase() === "home" || customLabel.trim().toLowerCase() === "work"))}
           className="flex-1 bg-[#402970] hover:bg-[#33205a] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs py-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
         >
           {isSaving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
