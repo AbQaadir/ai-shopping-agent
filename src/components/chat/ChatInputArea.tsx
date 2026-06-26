@@ -3,7 +3,7 @@
 import { useSourcing } from "@/context/SourcingContext";
 import type { InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
-import { ArrowRight, Square, X, Search, Plus, Send } from "lucide-react";
+import { ArrowRight, Paperclip, Square, X, Search, Plus, Send } from "lucide-react";
 import React, { useRef, useState, useEffect } from "react";
 
 interface ChatInputAreaProps {
@@ -241,7 +241,7 @@ export default function ChatInputArea({
         <div className={`w-full bg-white flex flex-col transition-all duration-300 border relative rounded-[24px] ${
           selectedProducts.length > 0 
             ? "p-3.5" 
-            : "py-1.5 pl-3.5 pr-1.5"
+            : "py-1.5 pl-2 pr-1.5"
         } ${
           isFocused
             ? "border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.05)]"
@@ -341,6 +341,14 @@ export default function ChatInputArea({
           <div className={`w-full flex items-center gap-2 ${
             selectedProducts.length > 0 ? "px-1 py-0.5" : ""
           } ${isSharedReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
+            <button
+              disabled={true}
+              type="button"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 transition-all cursor-not-allowed shrink-0 relative"
+              title="File attachment disabled"
+            >
+              <Paperclip size={16} />
+            </button>
             <textarea
               ref={textareaRef}
               value={inputText}

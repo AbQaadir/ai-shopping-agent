@@ -2,7 +2,7 @@
 
 import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
-import { Menu, Search, Send, ShoppingCart, User, Sparkles, SquarePen, Compass, CreditCard, Package, RefreshCw } from "lucide-react";
+import { Menu, Paperclip, Search, Send, ShoppingCart, User, Sparkles, SquarePen, Compass, CreditCard, Package, RefreshCw } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 interface LandingWorkspaceProps {
@@ -443,7 +443,17 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
 
             {/* Input card container */}
             <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-200/80 shadow-sm"} rounded-[26px]`}>
-              <div className="w-full py-1.5 pl-3.5 pr-2 flex items-center gap-1.5">
+              <div className="w-full py-1.5 pl-2.5 pr-2 flex items-center gap-1.5">
+
+                {/* File Attachment Button */}
+                <button
+                  disabled={true}
+                  type="button"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-slate-350 transition-all cursor-not-allowed shrink-0 relative"
+                  title="File attachment disabled"
+                >
+                  <Paperclip size={19} />
+                </button>
 
                 {/* Textarea */}
                 <textarea
