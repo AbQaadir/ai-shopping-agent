@@ -27,7 +27,7 @@ export default function AgeVerificationModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 mb-3">
-          <div className="p-2 bg-amber-50 text-amber-500 rounded-xl">
+          <div className="p-2 bg-[#402970]/10 text-[#402970] rounded-xl">
             <AlertTriangle size={20} />
           </div>
           <h3 className="text-lg font-semibold text-slate-900">Age Verification Required</h3>
@@ -52,7 +52,7 @@ export default function AgeVerificationModal({
               e.stopPropagation();
               onConfirm();
             }}
-            className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 transition-colors shadow-sm"
+            className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#402970] hover:bg-[#301e56] transition-colors shadow-sm"
           >
             I am above 21
           </button>
