@@ -109,7 +109,7 @@ export async function routerAgent(
         .join("\n")
     : "  (none)";
 
-  const prompt = `You are the orchestrator for Kapuruka, a Sri Lankan e-commerce shopping agent.
+  const prompt = `You are the orchestrator for Kapruka, a Sri Lankan e-commerce shopping agent.
 
 Your ONLY job is to decide what action to take for the user's message given the full context below.
 

@@ -48,7 +48,7 @@ export default function ShareChatModal({ isOpen, onClose, url, chatTitle }: Shar
             <div className="h-32 w-full bg-slate-200 overflow-hidden relative flex items-center justify-center">
               {/* Optional nice gradient instead of image if no image available */}
               <div className="absolute inset-0 bg-gradient-to-br from-[#402970]/80 to-[#6a42c0] flex items-center justify-center">
-                <img src="/kapuruka-logo.jpg" alt="Logo" className="h-10 opacity-90 rounded bg-white p-1" />
+                <img src="/kapruka-logo.jpg" alt="Logo" className="h-10 opacity-90 rounded bg-white p-1" />
               </div>
             </div>
             <div className="p-3.5 bg-white border-t border-slate-200">

@@ -202,8 +202,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       <div className="hidden md:flex absolute top-6 left-6 items-center z-20">
         <div className="border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden flex items-center justify-center transition-all duration-300 hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 select-none bg-white">
           <img
-            src="/kapuruka-logo.jpg"
-            alt="Kapuruka.com Logo"
+            src="/kapruka-logo.jpg"
+            alt="Kapruka.com Logo"
             className="h-12 w-auto object-contain"
           />
         </div>
@@ -216,7 +216,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           <button
             onClick={() => openAuthModal("login")}
             className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-[#402970]/20 hover:scale-[1.02] hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
-            title="Sign in to Kapuruka"
+            title="Sign in to Kapruka"
           >
             <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -252,8 +252,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             <Menu size={20} />
           </button>
           <img
-            src="/kapuruka-logo.jpg"
-            alt="Kapuruka Logo"
+            src="/kapruka-logo.jpg"
+            alt="Kapruka Logo"
             className="h-8 w-auto object-contain rounded-md select-none"
           />
         </div>
@@ -341,7 +341,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden shadow-xs select-none mt-1 flex items-center justify-center">
               <img
                 src="/image.png"
-                alt="Kapuruka AI Avatar"
+                alt="Kapruka AI Avatar"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -574,7 +574,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
 
       {/* Small disclaimer footer - always at the very bottom */}
       <p className="absolute bottom-0 left-0 right-0 text-[10px] text-center text-slate-400 py-2 bg-transparent select-none font-medium z-40 w-full">
-        Kapuruka Sourcing AI may display inaccurate info, so double-check responses.
+        Kapruka Sourcing AI may display inaccurate info, so double-check responses.
       </p>
     </div>
   );
