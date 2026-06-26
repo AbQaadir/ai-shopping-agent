@@ -105,7 +105,7 @@ export default function GlobalSidebar({
           {isMobileOpen && (
             <button
               onClick={() => setIsMobileOpen?.(false)}
-              className="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer outline-none focus:outline-none"
+              className="md:hidden p-2 hover:bg-slate-100 rounded-lg text-[#402970] hover:text-[#402970] transition-colors cursor-pointer outline-none focus:outline-none"
               title="Close sidebar"
             >
               <X size={20} />
@@ -126,7 +126,7 @@ export default function GlobalSidebar({
           {/* Desktop collapse button */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`hidden md:block p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer outline-none ${
+            className={`hidden md:block p-2 hover:bg-slate-100 rounded-lg text-[#402970] hover:text-[#402970] transition-colors cursor-pointer outline-none ${
               isCollapsed ? "" : "ml-auto"
             }`}
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -151,7 +151,7 @@ export default function GlobalSidebar({
             } ${isEffectiveCollapsed ? "justify-center gap-0 px-3 py-2" : "gap-3 px-3 py-2"}`}
             title="New chat"
           >
-            <SquarePen size={19} className={activeHistoryId === undefined ? "text-[#402970] shrink-0" : "text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"} />
+            <SquarePen size={19} className={activeHistoryId === undefined ? "text-[#402970] shrink-0" : "text-[#402970] group-hover:text-[#402970] transition-colors shrink-0"} />
             <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap ${
               isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
             }`}>
@@ -173,7 +173,7 @@ export default function GlobalSidebar({
               title="History"
             >
               <div className={`flex items-center ${isEffectiveCollapsed ? "gap-0" : "gap-3"}`}>
-                <History size={19} className="text-[#402970]/80 shrink-0" />
+                <History size={19} className="text-[#402970] shrink-0" />
                 <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap font-extrabold text-[13px] text-slate-800 tracking-wide ${
                   isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
                 }`}>
@@ -208,7 +208,7 @@ export default function GlobalSidebar({
               }`}
               title={`Language & Currency: English-${currency}`}
             >
-              <Globe size={19} className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0" />
+              <Globe size={19} className="text-[#402970] group-hover:text-[#402970] transition-colors shrink-0" />
               <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap group-hover:text-[#402970] transition-colors ${
                 isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
               }`}>
@@ -238,7 +238,7 @@ export default function GlobalSidebar({
           >
             <Package
               size={19}
-              className="text-slate-500 group-hover:text-[#402970] transition-colors shrink-0"
+              className="text-[#402970] group-hover:text-[#402970] transition-colors shrink-0"
             />
             <span className={`transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap group-hover:text-[#402970] transition-colors ${
               isEffectiveCollapsed ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
