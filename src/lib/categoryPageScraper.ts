@@ -396,6 +396,7 @@ export async function scrapeProductsFromCategoryUrl(
  */
 export async function scrapeMultipleCategoryUrls(
   urls: Array<{ url: string; label: string }>,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   maxConcurrent: number = 3,
   staggerMs: number = 150,
   options?: { country?: string }

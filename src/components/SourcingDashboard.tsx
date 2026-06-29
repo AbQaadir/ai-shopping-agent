@@ -40,6 +40,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     handleBuyProduct,
     handleSuggestionClick,
   } = useSourcing();
+  const { isSyncing } = useAuth();
 
 
 
@@ -47,11 +48,13 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
 
   // Initial load: Fetch the history list from PostgreSQL
   useEffect(() => {
+    if (isSyncing) return;
     fetchHistory();
-  }, [fetchHistory]);
+  }, [fetchHistory, isSyncing]);
 
   // Sync state if session route changes:
   useEffect(() => {
+    if (isSyncing) return;
     // Prevent double invocation
     if (lastSessionIdRef.current === initialSessionId) {
       return;
@@ -76,7 +79,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         });
       }
     }
-  }, [initialSessionId, activeHistoryId, messages.length, isChatting, fetchSessionAndHydrate, handleResetLocal, setIsChatting, setActiveHistoryId]);
+  }, [initialSessionId, activeHistoryId, messages.length, isChatting, fetchSessionAndHydrate, handleResetLocal, setIsChatting, setActiveHistoryId, isSyncing]);
 
   return (
     <>

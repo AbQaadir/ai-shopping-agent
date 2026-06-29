@@ -73,17 +73,19 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   
-  const { user, openAuthModal } = useAuth();
+  const { user, openAuthModal, isSyncing } = useAuth();
   const [guestId, setGuestId] = useState<string>("");
 
   useEffect(() => {
-    let id = localStorage.getItem("kapruka_guest_uuid");
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem("kapruka_guest_uuid", id);
+    if (!user) {
+      let id = localStorage.getItem("kapruka_guest_uuid");
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem("kapruka_guest_uuid", id);
+      }
+      setGuestId(id);
     }
-    setGuestId(id);
-  }, []);
+  }, [user]);
 
   const activeUserId = user?.id || guestId || "guest-pending";
   const isSharedReadOnly = activeSessionOwnerId !== null && activeSessionOwnerId !== activeUserId && activeUserId !== "guest-pending";
@@ -180,6 +182,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   // Hydrate user cart when user switches or session changes
   useEffect(() => {
+    if (isSyncing) return;
     const loadCart = async () => {
       if (!activeUserId) return;
       // If there is no active session yet, the cart starts empty for this new chat.
@@ -198,7 +201,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
       }
     };
     loadCart();
-  }, [activeUserId, activeHistoryId]);
+  }, [activeUserId, activeHistoryId, isSyncing]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const router = useRouter();
@@ -360,7 +363,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to load session details:", err);
     }
-  }, [history, router]);
+  }, [history, router, activeUserId]);
 
   const handleResetLocal = useCallback(() => {
     setIsChatting(false);
@@ -976,7 +979,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => {
       handleSendMessage("checkout cart");
     }, 50);
-  }, [activeHistoryId, activeUserId, cartItems, handleSendMessage]);
+  }, [activeHistoryId, activeUserId, cartItems, handleSendMessage, user, openAuthModal]);
 
   const handleUpdateCart = useCallback(async (newCart: CartItem[]) => {
     setCartItems(newCart);
@@ -1178,7 +1181,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
 
   // Resume pending order if user successfully authenticated
   useEffect(() => {
-    if (user) {
+    if (user && !isSyncing) {
       try {
         const pending = localStorage.getItem("pending_order_products");
         if (pending) {
@@ -1196,7 +1199,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("pending_order_products");
       }
     }
-  }, [user, handleOrderCart]);
+  }, [user, isSyncing, handleOrderCart]);
 
   return (
     <SourcingContext.Provider
