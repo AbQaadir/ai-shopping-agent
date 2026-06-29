@@ -14,6 +14,7 @@ interface AuthContextType {
   authModalReason: "message_limit" | "checkout" | "login" | null;
   openAuthModal: (reason: "message_limit" | "checkout" | "login") => void;
   closeAuthModal: () => void;
+  isSyncing: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalReason, setAuthModalReason] = useState<"message_limit" | "checkout" | "login" | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
 
   const supabase = createClient();
@@ -45,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (session?.user && _event === 'SIGNED_IN') {
         const guestId = localStorage.getItem("kapruka_guest_uuid");
+        setIsSyncing(true);
         fetch("/api/auth/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -56,7 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem("kapruka_guest_uuid");
             // User profile sync complete
           })
-          .catch((err) => console.error("Database user sync failed:", err));
+          .catch((err) => console.error("Database user sync failed:", err))
+          .finally(() => {
+            setIsSyncing(false);
+          });
 
         closeAuthModal();
       }
@@ -115,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authModalReason,
         openAuthModal,
         closeAuthModal,
+        isSyncing,
       }}
     >
       {children}
