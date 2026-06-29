@@ -91,7 +91,7 @@ export async function orderAgent(
   const firstName = savedAddress?.name?.split(" ")[0] ?? "";
   const isCartFlow = cartItems && cartItems.length > 0;
 
-  const prompt = `You are Kapuruka's Order Processing Agent — professional, warm, and concise.
+  const prompt = `You are Kapruka's Order Processing Agent — professional, warm, and concise.
 
 ═══ CURRENT CHECKOUT STATE ═══
 Phase: "${phase}"

@@ -22,10 +22,20 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   const autocompleteCache = useRef<Record<string, string[]>>({});
   const hasFetchedForCurrentInput = useRef(false);
   const fetchedSuggestionsForInput = useRef<string[]>([]);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileDevice(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
@@ -60,8 +70,14 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
     };
   }, []);
 
-  // Autocomplete fetch logic
+  // Autocomplete fetch logic with debouncing
   useEffect(() => {
+    if (isMobileDevice) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
     const words = inputText.trim().split(/\s+/).filter(Boolean);
 
     if (!inputText || words.length < 4 || words.length > 7) {
@@ -77,51 +93,51 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       if (fetchedSuggestionsForInput.current.length > 0) {
         setSuggestions(fetchedSuggestionsForInput.current);
         setShowDropdown(true);
-      } else {
-        setSuggestions([]);
-        setShowDropdown(false);
       }
       return;
     }
 
-    hasFetchedForCurrentInput.current = true;
+    // Debounce autocompletion request by 250ms
+    const timer = setTimeout(() => {
+      hasFetchedForCurrentInput.current = true;
+      const controller = new AbortController();
 
-    const controller = new AbortController();
-    const fetchSuggestions = async () => {
-      try {
-        const res = await fetch("/api/chat/autocomplete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            inputText,
-            chatHistory: [],
-          }),
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const suggestionsList = data.suggestions || [];
-          fetchedSuggestionsForInput.current = suggestionsList;
+      const fetchSuggestions = async () => {
+        try {
+          const res = await fetch("/api/chat/autocomplete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              inputText,
+              chatHistory: [],
+            }),
+            signal: controller.signal,
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const suggestionsList = data.suggestions || [];
+            fetchedSuggestionsForInput.current = suggestionsList;
 
-          if (suggestionsList.length > 0) {
-            setSuggestions(suggestionsList);
-            setShowDropdown(true);
-          } else {
-            setSuggestions([]);
-            setShowDropdown(false);
+            if (suggestionsList.length > 0) {
+              setSuggestions(suggestionsList);
+              setShowDropdown(true);
+            } else {
+              setSuggestions([]);
+              setShowDropdown(false);
+            }
+          }
+        } catch (err: any) {
+          if (err.name !== "AbortError") {
+            console.error("Autocomplete fetch error:", err);
           }
         }
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error("Autocomplete fetch error:", err);
-        }
-      }
-    };
+      };
 
-    fetchSuggestions();
+      fetchSuggestions();
+    }, 250);
 
     return () => {
-      controller.abort();
+      clearTimeout(timer);
     };
   }, [inputText]);
 
@@ -178,13 +194,16 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           opacity: 0.1
         }}
       />
+      {/* Ambient background glow blobs */}
+      <div className="absolute top-1/4 left-1/4 w-[350px] h-[350px] rounded-full bg-[#402970]/5 blur-[120px] pointer-events-none z-0" />
+      <div className="absolute bottom-1/3 right-1/4 w-[300px] h-[300px] rounded-full bg-indigo-500/5 blur-[120px] pointer-events-none z-0" />
 
       {/* Desktop Floating Logo (Top-Left) */}
       <div className="hidden md:flex absolute top-6 left-6 items-center z-20">
         <div className="border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden flex items-center justify-center transition-all duration-300 hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 select-none bg-white">
           <img
-            src="/kapuruka-logo.jpg"
-            alt="Kapuruka.com Logo"
+            src="/kapruka-logo.jpg"
+            alt="Kapruka.com Logo"
             className="h-12 w-auto object-contain"
           />
         </div>
@@ -196,8 +215,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         {!user && (
           <button
             onClick={() => openAuthModal("login")}
-            className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-[#402970]/20 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
-            title="Sign in to Kapuruka"
+            className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-[#402970]/20 hover:scale-[1.02] hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
+            title="Sign in to Kapruka"
           >
             <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -211,12 +230,12 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
         )}
         <button
           onClick={() => setIsViewingCart(true)}
-          className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-[#402970] shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3.5 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)] hover:border-slate-200/80 hover:-translate-y-0.5 cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
+          className="bg-white/85 backdrop-blur-md border border-slate-200/80 text-[#402970] shadow-[0_4px_20px_rgba(0,0,0,0.03)] rounded-2xl px-5 py-3 flex items-center gap-3.5 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-slate-200/80 hover:-translate-y-0.5 hover:scale-[1.02] cursor-pointer outline-none select-none active:scale-95 group font-bold text-sm"
           title="Global Shopping Cart"
         >
           <div className="relative">
-            <ShoppingCart size={19} className="text-slate-600 group-hover:text-[#402970] transition-colors" />
-            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#402970]" />
+             <ShoppingCart size={19} className="text-slate-600 group-hover:text-[#402970] transition-colors" />
+             <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#402970]" />
           </div>
           <span className="text-slate-700 group-hover:text-[#402970] transition-colors">Global Cart</span>
         </button>
@@ -233,8 +252,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             <Menu size={20} />
           </button>
           <img
-            src="/kapuruka-logo.jpg"
-            alt="Kapuruka Logo"
+            src="/kapruka-logo.jpg"
+            alt="Kapruka Logo"
             className="h-8 w-auto object-contain rounded-md select-none"
           />
         </div>
@@ -322,7 +341,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden shadow-xs select-none mt-1 flex items-center justify-center">
               <img
                 src="/image.png"
-                alt="Kapuruka AI Avatar"
+                alt="Kapruka AI Avatar"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -338,8 +357,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                 <div ref={scrollContainerRef} className="flex overflow-x-auto gap-4 pb-2 scrollbar-none snap-x snap-mandatory scroll-smooth w-full">
 
                   {/* Card 1: Smart Product Discovery */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <Compass size={18} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -353,8 +372,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   </div>
 
                   {/* Card 2: Dynamic Cart Management */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <ShoppingCart size={17} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -368,8 +387,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   </div>
 
                   {/* Card 3: End-to-End Guest Checkout */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <CreditCard size={18} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -383,8 +402,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   </div>
 
                   {/* Card 4: Live Order Tracking */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <Package size={18} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -398,8 +417,8 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                   </div>
 
                   {/* Card 5: Quick Reordering */}
-                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200/60 transition-all duration-300">
-                    <div className="w-9 h-9 rounded-xl bg-violet-50 text-[#402970] flex items-center justify-center shrink-0">
+                  <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                    <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <RefreshCw size={17} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
@@ -559,6 +578,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
           Kapuruka Sourcing AI may display inaccurate info, so double-check responses.
         </p>
       </div>
+
     </div>
   );
 }

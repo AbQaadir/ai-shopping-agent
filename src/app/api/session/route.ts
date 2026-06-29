@@ -22,7 +22,7 @@ export const GET = withLogging(async function GET(req: NextRequest) {
       });
       if (!user && userId === "guest") {
         user = await (prisma.user as any).create({
-          data: { id: "guest", email: "guest@kapuruka.com", name: "Guest User" },
+          data: { id: "guest", email: "guest@kapruka.com", name: "Guest User" },
           select: { cart: true },
         });
       }

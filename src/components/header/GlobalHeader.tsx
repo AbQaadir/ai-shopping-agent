@@ -59,11 +59,11 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
             onClick={onNewSourcing}
             className="flex items-center gap-1.5 sm:gap-2 cursor-pointer group"
           >
-            {/* Styled Logo matching the style of Kapuruka */}
+            {/* Styled Logo matching the style of Kapruka */}
             <div className="flex items-center">
               <img
-                src="/kapuruka-logo.jpg"
-                alt="Kapuruka.com Logo"
+                src="/kapruka-logo.jpg"
+                alt="Kapruka.com Logo"
                 className="h-8 sm:h-10 w-auto object-contain rounded-md"
               />
             </div>

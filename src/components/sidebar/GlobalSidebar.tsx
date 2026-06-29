@@ -150,7 +150,7 @@ export default function GlobalSidebar({
           }`}>
             <img
               src="/image.png"
-              alt="Kapuruka Logo"
+              alt="Kapruka Logo"
               className="h-8 w-auto object-contain rounded-md"
             />
           </div>

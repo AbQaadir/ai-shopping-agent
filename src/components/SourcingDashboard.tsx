@@ -133,7 +133,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
         {/* Floating Contact Support Bubble (bottom right on landing) */}
         {!isChatting && !isViewingCart && (
           <button 
-            onClick={() => alert("Contact support at support@kapuruka.com")}
+            onClick={() => alert("Contact support at support@kapruka.com")}
             className="fixed bottom-6 right-6 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-full px-5 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-20 font-semibold text-xs active:scale-95"
           >
             <Headset size={16} className="text-[#402970]" />

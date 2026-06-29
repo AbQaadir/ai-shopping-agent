@@ -1,4 +1,4 @@
-﻿# Kapuruka — .dockerignore for Railway Docker builds
+# Kapruka — .dockerignore for Railway Docker builds
 # Keeps the build context small and prevents secrets from leaking into the image.
 
 # Local dev only

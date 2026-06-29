@@ -66,9 +66,6 @@ export default function ChatInputArea({
       if (fetchedSuggestionsForInput.current.length > 0) {
         setSuggestions(fetchedSuggestionsForInput.current);
         setShowDropdown(true);
-      } else {
-        setSuggestions([]);
-        setShowDropdown(false);
       }
       return;
     }
