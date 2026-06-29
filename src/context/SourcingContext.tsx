@@ -976,7 +976,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => {
       handleSendMessage("checkout cart");
     }, 50);
-  }, [activeHistoryId, activeUserId, cartItems, handleSendMessage]);
+  }, [activeHistoryId, activeUserId, cartItems, handleSendMessage, user, openAuthModal]);
 
   const handleUpdateCart = useCallback(async (newCart: CartItem[]) => {
     setCartItems(newCart);
