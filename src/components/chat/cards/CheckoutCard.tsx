@@ -231,15 +231,29 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
     setCity(d.city);
 
     if (useGoogleMaps && typeof window !== "undefined" && (window as any).google && mapInstanceRef.current && markerInstanceRef.current) {
-      let newLatLng = { lat: 6.9271, lng: 79.8612 };
       if (defaultAddr && defaultAddr.lat && defaultAddr.lng) {
-        newLatLng = { lat: defaultAddr.lat, lng: defaultAddr.lng };
-      }
-      mapInstanceRef.current.panTo(newLatLng);
-      if (isAdvancedMarkerRef.current) {
-        markerInstanceRef.current.position = newLatLng;
-      } else {
-        markerInstanceRef.current.setPosition(newLatLng);
+        const newLatLng = { lat: defaultAddr.lat, lng: defaultAddr.lng };
+        mapInstanceRef.current.panTo(newLatLng);
+        if (isAdvancedMarkerRef.current) {
+          markerInstanceRef.current.position = newLatLng;
+        } else {
+          markerInstanceRef.current.setPosition(newLatLng);
+        }
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const currentLatLng = { lat: position.coords.latitude, lng: position.coords.longitude };
+            if (mapInstanceRef.current && markerInstanceRef.current) {
+              mapInstanceRef.current.panTo(currentLatLng);
+              if (isAdvancedMarkerRef.current) {
+                markerInstanceRef.current.position = currentLatLng;
+              } else {
+                markerInstanceRef.current.setPosition(currentLatLng);
+              }
+            }
+          },
+          () => {} // Silently fail and keep default Colombo center
+        );
       }
     }
   }, [activeUserId, useGoogleMaps, userAddresses]);
