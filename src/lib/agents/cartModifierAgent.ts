@@ -46,7 +46,7 @@ export async function cartModifierAgent(
     .join("\n") || "  (empty)";
 
   const availableListStr = (availableProducts || [])
-    .map((item, i) => `  ${i + 1}. ID: "${item.id}", Name: "${item.name}", Price: Rs. ${item.price?.toLocaleString()}`)
+    .map((item, i) => `  ${i + 1}. ID: "${item.id}", Name: "${item.name}", Price: Rs. ${item.price?.toLocaleString()}${item.isExplicitlySelected ? " (SELECTED/CHECKED BY USER)" : ""}`)
     .join("\n") || "  (none)";
 
   const prompt = `You are a cart manager for a Sri Lankan e-commerce shopping assistant.
@@ -77,6 +77,7 @@ For "add" action:
 - Match the product(s) the user wants to add from the AVAILABLE/REFERENCED PRODUCTS list using name similarity or position reference (e.g., "all of those", "first one").
 - Set "itemsToAdd" to the list of matched items. Each item must contain its "id" and the requested "quantity" (default to 1 if not specified).
 - Set "itemId", "itemName", and "newQty" to null.
+- CRITICAL RULE: If the user's message is "add these", "add selected", "add to cart", etc., and there are products marked as "(SELECTED/CHECKED BY USER)", you should match and add ONLY those explicitly selected products. Do not add all available products.
 
 For "remove" and "update_qty" actions:
 - Match the item from the CURRENT CART. If you cannot match an item, set itemId to null.
@@ -162,9 +163,9 @@ Respond ONLY as valid JSON:
 
   if (type === "add" && Array.isArray(itemsToAdd) && itemsToAdd.length > 0) {
     for (const addReq of itemsToAdd) {
-      const productDetail = (availableProducts || []).find((p) => p.id === addReq.id);
+      const productDetail = (availableProducts || []).find((p) => String(p.id).trim().toLowerCase() === String(addReq.id).trim().toLowerCase());
       if (productDetail) {
-        const existingIdx = updatedCart.findIndex((item) => item.id === addReq.id);
+        const existingIdx = updatedCart.findIndex((item) => String(item.id).trim().toLowerCase() === String(addReq.id).trim().toLowerCase());
         if (existingIdx > -1) {
           updatedCart[existingIdx].quantity += addReq.quantity;
         } else {
@@ -181,11 +182,12 @@ Respond ONLY as valid JSON:
       }
     }
   } else if (itemId) {
+    const lowerItemId = String(itemId).trim().toLowerCase();
     if (type === "remove") {
-      updatedCart = updatedCart.filter((item) => item.id !== itemId);
+      updatedCart = updatedCart.filter((item) => String(item.id).trim().toLowerCase() !== lowerItemId);
     } else if (type === "update_qty" && typeof newQty === "number" && newQty > 0) {
       updatedCart = updatedCart.map((item) =>
-        item.id === itemId ? { ...item, quantity: newQty } : item
+        String(item.id).trim().toLowerCase() === lowerItemId ? { ...item, quantity: newQty } : item
       );
     }
   }
@@ -193,7 +195,7 @@ Respond ONLY as valid JSON:
   // Construct itemsToAdd response metadata if type is add
   const mappedItemsToAdd = type === "add" && Array.isArray(itemsToAdd)
     ? itemsToAdd.map((addReq) => {
-        const prod = (availableProducts || []).find((p) => p.id === addReq.id);
+        const prod = (availableProducts || []).find((p) => String(p.id).trim().toLowerCase() === String(addReq.id).trim().toLowerCase());
         return {
           id: addReq.id,
           name: prod?.name || prod?.title || "Product",

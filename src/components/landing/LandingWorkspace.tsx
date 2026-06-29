@@ -80,7 +80,7 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
 
     const words = inputText.trim().split(/\s+/).filter(Boolean);
 
-    if (!inputText || words.length < 4 || words.length >= 7) {
+    if (!inputText || words.length < 4 || words.length > 7) {
       setSuggestions([]);
       setShowDropdown(false);
       setSelectedIndex(-1);
@@ -309,14 +309,14 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
       <div className="flex-1 w-full max-w-[850px] mx-auto px-4 py-6 flex flex-col justify-start items-center gap-6 relative z-10 overflow-y-auto scrollbar-none select-none">
 
         {/* Welcome Section */}
-        <div className="flex flex-col items-center justify-center text-center w-full gap-2 pt-6 pb-0 select-none animate-fadeIn">
+        <div className="flex flex-col items-center justify-center text-center w-full gap-2 pt-10 pb-0 select-none animate-fadeIn">
           <h1 className="text-2xl sm:text-4xl lg:text-[40px] font-extrabold tracking-tight leading-tight bg-gradient-to-r from-purple-700 via-[#402970] to-indigo-700 bg-clip-text text-transparent max-w-4xl px-2">
             Just Chat to Shop Kapruka
           </h1>
         </div>
 
         {/* Mock Chat History container */}
-        <div className="w-full space-y-5 pb-48 animate-fadeIn mt-0" style={{ animationDelay: "150ms" }}>
+        <div className="w-full space-y-5 animate-fadeIn mt-0" style={{ animationDelay: "150ms" }}>
 
           {/* User Mock Bubble */}
           <div className="flex items-start justify-end gap-3 w-full">
@@ -442,140 +442,143 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
             </div>
           </div>
 
-        </div>
+          {/* Autocomplete Input Console placed directly under the question bubble inside the mock chat container */}
+          <div 
+            className="max-w-[760px] mx-auto w-full relative group transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] pb-12 pt-4 animate-fadeIn"
+            style={{
+              transform: showDropdown && suggestions.length > 0 ? "translateY(-16px)" : "translateY(0)"
+            }}
+          >
+            <div className="w-full relative">
+              {/* Input card backing glow */}
+              <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 blur-md transition-all duration-300 pointer-events-none ${isFocused ? "opacity-35" : "opacity-15 group-hover:opacity-20"} rounded-[26px]`} />
 
-      </div>
+              {/* Input card container */}
+              <div className={`w-full bg-white border transition-all duration-300 flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-200/80 shadow-sm"} rounded-[26px]`}>
+                <div className="w-full py-1.5 pl-2.5 pr-2 flex items-center gap-1.5">
 
-      {/* Sticky Bottom Prompt Console (Gemini inspired) */}
-      <div className={`w-full pt-6 pb-12 px-4 md:px-6 shrink-0 relative z-35 transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${
-        !isMobileDevice && showDropdown && suggestions.length > 0 ? "md:-translate-y-[18vh]" : "translate-y-0"
-      }`}>
-        <div className="max-w-[760px] mx-auto w-full relative group">
-          <div className="w-full relative">
-            {/* Input card backing glow */}
-            <div className={`absolute -inset-0.5 bg-gradient-to-r from-[#402970] to-purple-500 blur-md transition-all duration-300 pointer-events-none ${isFocused ? "opacity-30 scale-100" : "opacity-15 group-hover:opacity-20 scale-[0.99]"} rounded-[26px]`} />
+                  {/* File Attachment Button */}
+                  <button
+                    disabled={true}
+                    type="button"
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-slate-350 transition-all cursor-not-allowed shrink-0 relative"
+                    title="File attachment disabled"
+                  >
+                    <Paperclip size={19} />
+                  </button>
 
-            {/* Input card container */}
-            <div className={`w-full bg-white border transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col relative z-20 ${isFocused ? "border-[#402970]/30 shadow-lg shadow-[#402970]/5" : "border-slate-200/80 shadow-sm"} rounded-[26px]`}>
-              <div className="w-full py-1.5 pl-2.5 pr-2 flex items-center gap-1.5">
-
-                {/* File Attachment Button */}
-                <button
-                  disabled={true}
-                  type="button"
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 transition-all cursor-not-allowed shrink-0 relative"
-                  title="File attachment disabled"
-                >
-                  <Paperclip size={19} />
-                </button>
-
-                {/* Textarea */}
-                <textarea
-                  ref={textareaRef}
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => setIsFocused(true)}
-                  onBlur={() => {
-                    setIsFocused(false);
-                    setTimeout(() => {
-                      setShowDropdown(false);
-                      setSelectedIndex(-1);
-                    }, 180);
-                  }}
-                  placeholder="i want to buy ...."
-                  rows={1}
-                  className="flex-1 resize-none border-none outline-none text-slate-800 placeholder-slate-400 bg-transparent text-[14px] sm:text-[15px] py-2 leading-normal max-h-[160px] overflow-y-auto scrollbar-none"
-                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                />
-
-                {/* Send Button */}
-                <button
-                  onClick={handleSubmit}
-                  onMouseDown={(e) => e.preventDefault()}
-                  disabled={!inputText.trim()}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] cursor-pointer shrink-0 ${
-                    inputText.trim()
-                      ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 hover:scale-105 active:scale-95"
-                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  }`}
-                >
-                  <Send size={16} className="ml-[1px]" />
-                </button>
-              </div>
-            </div>
-
-            {/* Autocomplete Dropdown - Floats BELOW the input bar */}
-            {showDropdown && suggestions.length > 0 && (
-              <div
-                className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-md border border-slate-200/40 shadow-[0_12px_40px_rgba(64,41,112,0.08)] rounded-2xl p-1.5 flex flex-col z-35 origin-top animate-fadeInScale"
-              >
-                {suggestions.map((suggestion, index) => {
-                  const queryTrim = inputText.trim();
-                  const queryLower = queryTrim.toLowerCase();
-                  const suggLower = suggestion.toLowerCase();
-                  const hasPrefix = suggLower.startsWith(queryLower);
-                  const prefix = hasPrefix ? suggestion.substring(0, queryTrim.length) : "";
-                  const suffix = hasPrefix ? suggestion.substring(queryTrim.length) : suggestion;
-
-                  return (
-                    <button
-                      key={index}
-                      onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
-                      onClick={() => {
-                        onSend(suggestion);
-                        setInputText("");
+                  {/* Textarea */}
+                  <textarea
+                    ref={textareaRef}
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => {
+                      setIsFocused(false);
+                      setTimeout(() => {
                         setShowDropdown(false);
                         setSelectedIndex(-1);
-                      }}
-                      onMouseEnter={() => setSelectedIndex(index)}
-                      className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-xl transition-all duration-150 flex items-center justify-between group cursor-pointer ${
-                        selectedIndex === index
-                          ? "bg-[#402970]/5 text-[#402970] font-semibold"
-                          : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Search
-                          size={14}
-                          className={`shrink-0 transition-colors ${
-                            selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
-                          }`}
-                        />
-                        <span className="truncate">
-                          {hasPrefix ? (
-                            <>
-                              <span className="text-slate-400 font-normal">{prefix}</span>
-                              <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-800"}`}>
-                                {suffix}
-                              </span>
-                            </>
-                          ) : (
-                            <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-700"}`}>
-                              {suggestion}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      {selectedIndex === index && (
-                        <span className="text-[10px] sm:text-xs text-[#402970] font-bold bg-[#402970]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 animate-fadeIn select-none">
-                          Select
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                      }, 180);
+                    }}
+                    placeholder="i want to buy ...."
+                    rows={1}
+                    className="flex-1 resize-none border-none outline-none text-slate-800 placeholder-slate-400 bg-transparent text-[14px] sm:text-[15px] py-2 leading-normal max-h-[160px] overflow-y-auto scrollbar-none"
+                    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                  />
+
+                  {/* Send Button */}
+                  <button
+                    onClick={handleSubmit}
+                    onMouseDown={(e) => e.preventDefault()}
+                    disabled={!inputText.trim()}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
+                      inputText.trim()
+                        ? "bg-[#402970] hover:bg-[#33205a] text-white shadow-md shadow-purple-500/20 active:scale-95"
+                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    }`}
+                  >
+                    <Send size={16} className="ml-[1px]" />
+                  </button>
+                </div>
               </div>
-            )}
+
+              {/* Autocomplete Dropdown - Floats BELOW the input bar */}
+              {showDropdown && suggestions.length > 0 && (
+                <div
+                  className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-[0_10px_35px_rgba(64,41,112,0.1)] rounded-2xl p-1.5 flex flex-col z-35 origin-top animate-fadeInScale"
+                >
+                  {suggestions.map((suggestion, index) => {
+                    const queryTrim = inputText.trim();
+                    const queryLower = queryTrim.toLowerCase();
+                    const suggLower = suggestion.toLowerCase();
+                    const hasPrefix = suggLower.startsWith(queryLower);
+                    const prefix = hasPrefix ? suggestion.substring(0, queryTrim.length) : "";
+                    const suffix = hasPrefix ? suggestion.substring(queryTrim.length) : suggestion;
+
+                    return (
+                      <button
+                        key={index}
+                        onMouseDown={(e) => e.preventDefault()} // Prevents textarea blur
+                        onClick={() => {
+                          onSend(suggestion);
+                          setInputText("");
+                          setShowDropdown(false);
+                          setSelectedIndex(-1);
+                        }}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        className={`w-full text-left px-3.5 py-2.5 text-sm sm:text-[15px] rounded-xl transition-all duration-150 flex items-center justify-between group cursor-pointer ${
+                          selectedIndex === index
+                            ? "bg-[#402970]/5 text-[#402970] font-semibold"
+                            : "text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Search
+                            size={14}
+                            className={`shrink-0 transition-colors ${
+                              selectedIndex === index ? "text-[#402970]" : "text-slate-400 group-hover:text-[#402970]/60"
+                            }`}
+                          />
+                          <span className="truncate">
+                            {hasPrefix ? (
+                              <>
+                                <span className="text-slate-400 font-normal">{prefix}</span>
+                                <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-800"}`}>
+                                  {suffix}
+                                </span>
+                              </>
+                            ) : (
+                              <span className={`font-semibold ${selectedIndex === index ? "text-[#402970]" : "text-slate-700"}`}>
+                                {suggestion}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {selectedIndex === index && (
+                          <span className="text-[10px] sm:text-xs text-[#402970] font-bold bg-[#402970]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 animate-fadeIn select-none">
+                            Select
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
+
         </div>
 
       </div>
 
-      {/* Small disclaimer footer - always at the very bottom */}
-      <p className="absolute bottom-0 left-0 right-0 text-[10px] text-center text-slate-400 py-2 bg-transparent select-none font-medium z-40 w-full">
-        Kapruka Sourcing AI may display inaccurate info, so double-check responses.
-      </p>
+      {/* Small disclaimer footer at the absolute bottom */}
+      <div className="w-full pb-2 pt-3 px-4 shrink-0 select-none border-t border-slate-100/50 bg-[#fbfbfe] z-20">
+        <p className="text-[10px] text-center text-slate-400 font-medium leading-none">
+          Kapuruka Sourcing AI may display inaccurate info, so double-check responses.
+        </p>
+      </div>
+
     </div>
   );
 }
