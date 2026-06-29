@@ -86,9 +86,14 @@ export const GET = withLogging(async function GET(req: NextRequest) {
       return NextResponse.json(session);
     } else {
       // Fetch sessions filtered by userId if provided, sorted by creation time descending
+      const limit = Number(searchParams.get("limit")) || 100;
+      const offset = Number(searchParams.get("offset")) || 0;
+
       const sessions = await prisma.chatSession.findMany({
         where: userId ? { userId: userId === "guest" ? null : userId } : undefined,
         orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
       });
 
       return NextResponse.json(sessions);
