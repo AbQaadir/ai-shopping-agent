@@ -106,9 +106,11 @@ flowchart TD
     OrderAgent -->|Extract qty/address/payment/nextPhase| CheckoutContinueHandler
 
     Geocoding["Google Geocoding API"]:::ext
+    CheckDelivery["checkDelivery MCP / kapruka_check_delivery"]:::ext
     OrderAPI["POST /api/order"]:::core
 
-    CheckoutContinueHandler -->|address_ask → map_open| Geocoding
+    CheckoutContinueHandler -->|new_address_form → delivery_date_ask| Geocoding
+    CheckoutContinueHandler -->|delivery_date_ask → payment_ask| CheckDelivery
     CheckoutContinueHandler -->|payment_ask → confirmed| OrderAPI
 
     OrderAPI -->|Place Order via MCP| MCPEcommerce
@@ -172,24 +174,25 @@ stateDiagram-v2
     qty_ask --> qty_ask : User changes quantity or is unclear (stay=true)
     qty_ask --> delivery_ask : User confirms quantity
 
-    delivery_ask --> payment_ask : User chooses Saved Address
-    delivery_ask --> address_ask : User chooses New Address
+    delivery_ask --> delivery_date_ask : User chooses Saved Address
+    delivery_ask --> new_address_form : User chooses to enter New Address
     delivery_ask --> delivery_ask : Unclear (stay=true)
 
-    address_ask --> map_open : User inputs address (Geocoding executes)
+    new_address_form --> delivery_date_ask : User submits new address form (Geocoding executes)
 
-    map_open --> payment_ask : User confirms map pin location (UI event)
+    delivery_date_ask --> payment_ask : User selects delivery date & message (Checks delivery fee)
+    delivery_date_ask --> delivery_date_ask : Unclear (stay=true)
 
     payment_ask --> confirmed : User selects payment method (COD or Card) / Order Placed
     payment_ask --> payment_ask : Unclear (stay=true)
 
     confirmed --> [*]
 
-    %% External triggers
+    %% External triggers / cancellation
     qty_ask --> [*] : Cancel Checkout (checkout_cancel)
     delivery_ask --> [*] : Cancel Checkout
-    address_ask --> [*] : Cancel Checkout
-    map_open --> [*] : Cancel Checkout
+    new_address_form --> [*] : Cancel Checkout
+    delivery_date_ask --> [*] : Cancel Checkout
     payment_ask --> [*] : Cancel Checkout
 ```
 
@@ -225,12 +228,14 @@ addition.
 
 ### D. Order Agent (`orderAgent.ts`)
 
-Maintains conversation rules and extracts fields:
+Maintains conversation rules, manages the checkout state machine, and extracts fields:
 
-- `addressText`: Cleaned of conversational elements.
+- `quantity`: User-confirmed quantities for cart items.
+- `updatedCartItems`: Updated quantities/items in case of changes.
+- `usesSavedAddress` / `selectedAddressId`: Selected saved address ID when applicable.
+- `deliveryDate` / `personalMessage`: User-selected date and optional gift message.
 - `paymentMethod`: Classified into `"cod"` or `"card"`.
-- It prompts the geocoder when transitioning from `address_ask` to `map_open`,
-  positioning the user's interactive map interface accurately.
+- Bypasses LLM processing when user triggers a simple `"continue checkout"` (Resume Checkout) to deterministically restore focus to the active phase.
 
 ### E. Category Browse Agent (`categoryBrowseAgent.ts`)
 
