@@ -507,7 +507,13 @@ User query to classify: "${message}"`;
     // Combine with any fetched selected products from request body
     if (fetchedSelectedProducts.length > 0) {
       for (const fp of fetchedSelectedProducts) {
-        if (!availableProducts.some((ap) => ap.id === fp.id)) {
+        (fp as any).isExplicitlySelected = true;
+        const existing = availableProducts.find(
+          (ap) => String(ap.id).trim().toLowerCase() === String(fp.id).trim().toLowerCase()
+        );
+        if (existing) {
+          existing.isExplicitlySelected = true;
+        } else {
           availableProducts.push(fp);
         }
       }
