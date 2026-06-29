@@ -124,7 +124,7 @@ export default function ChatWorkspace({
         {/* Mobile menu trigger */}
         <button
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="md:hidden flex items-center justify-center p-1.5 rounded-lg border bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350 transition-all duration-200 cursor-pointer shadow-xs outline-none"
+          className="md:hidden flex items-center justify-center p-1.5 rounded-lg border bg-white/85 backdrop-blur-md border-slate-300 text-slate-700 hover:text-slate-950 hover:border-slate-400 transition-all duration-200 cursor-pointer shadow-xs outline-none"
           title="Open menu"
         >
           <Menu size={15} />
@@ -132,7 +132,7 @@ export default function ChatWorkspace({
         
         <button
           onClick={onBackToLanding}
-          className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350"
+          className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none bg-white/85 backdrop-blur-md border-slate-300 text-slate-700 hover:text-slate-950 hover:border-slate-400"
         >
           <ChevronLeft size={13} />
           Back  
@@ -144,7 +144,7 @@ export default function ChatWorkspace({
         {/* Floating cart button */}
         <button
           onClick={() => setIsCartModalOpen(true)}
-          className="relative flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350 transition-all duration-200 cursor-pointer shadow-xs outline-none"
+          className="relative flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border bg-white/85 backdrop-blur-md border-slate-300 text-slate-700 hover:text-slate-950 hover:border-slate-400 transition-all duration-200 cursor-pointer shadow-xs outline-none"
         >
           <ShoppingCart size={13} />
           <span>Cart</span>
@@ -159,7 +159,7 @@ export default function ChatWorkspace({
         {!isSharedReadOnly && (
           <button
             onClick={handleShareClick}
-            className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none bg-white/85 backdrop-blur-md border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-350"
+            className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer shadow-xs outline-none bg-white/85 backdrop-blur-md border-slate-300 text-slate-700 hover:text-slate-950 hover:border-slate-400"
           >
             <Share2 size={13} />
             Share
