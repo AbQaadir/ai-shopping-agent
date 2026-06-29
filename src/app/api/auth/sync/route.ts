@@ -33,6 +33,78 @@ export const POST = withLogging(async function POST(req: Request) {
 
     // 2. If a guestId was provided, migrate their data
     if (guestId && typeof guestId === "string" && guestId !== user.id) {
+      // Fetch guest data to merge cart and addresses
+      const guestUser = await prisma.user.findUnique({
+        where: { id: guestId },
+        select: { cart: true, addresses: true }
+      });
+
+      if (guestUser) {
+        let guestCartObj: Record<string, any[]> = {};
+        try {
+          guestCartObj = typeof guestUser.cart === "string" ? JSON.parse(guestUser.cart as string) : (guestUser.cart as Record<string, any[]>);
+          if (Array.isArray(guestCartObj)) guestCartObj = {};
+          if (!guestCartObj) guestCartObj = {};
+        } catch {
+          guestCartObj = {};
+        }
+
+        let guestAddressesArr: any[] = [];
+        try {
+          guestAddressesArr = typeof guestUser.addresses === "string" ? JSON.parse(guestUser.addresses as string) : (guestUser.addresses as any[]);
+          if (!Array.isArray(guestAddressesArr)) guestAddressesArr = [];
+        } catch {
+          guestAddressesArr = [];
+        }
+
+        let authCartObj: Record<string, any[]> = {};
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const dbUserCart = (dbUser as any).cart;
+          authCartObj = typeof dbUserCart === "string" ? JSON.parse(dbUserCart as string) : (dbUserCart as Record<string, any[]>);
+          if (Array.isArray(authCartObj)) authCartObj = {};
+          if (!authCartObj) authCartObj = {};
+        } catch {
+          authCartObj = {};
+        }
+
+        let authAddressesArr: any[] = [];
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const dbUserAddresses = (dbUser as any).addresses;
+          authAddressesArr = typeof dbUserAddresses === "string" ? JSON.parse(dbUserAddresses as string) : (dbUserAddresses as any[]);
+          if (!Array.isArray(authAddressesArr)) authAddressesArr = [];
+        } catch {
+          authAddressesArr = [];
+        }
+
+        // Merge carts (guest wins on conflict for same session ID)
+        const mergedCart = { ...authCartObj, ...guestCartObj };
+
+        // Merge addresses (deduplicate by addressLine and city)
+        const mergedAddresses = [...authAddressesArr];
+        for (const gAddr of guestAddressesArr) {
+          if (!gAddr) continue;
+          const exists = mergedAddresses.some(
+            (a) => a?.addressLine?.trim().toLowerCase() === gAddr?.addressLine?.trim().toLowerCase() && 
+                   a?.city?.trim().toLowerCase() === gAddr?.city?.trim().toLowerCase()
+          );
+          if (!exists) {
+            mergedAddresses.push(gAddr);
+          }
+        }
+
+        // Update the authenticated user's cart and addresses
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (prisma.user as any).update({
+          where: { id: user.id },
+          data: {
+            cart: mergedCart,
+            addresses: mergedAddresses,
+          },
+        });
+      }
+
       // Migrate ChatSessions
       await prisma.chatSession.updateMany({
         where: { userId: guestId },
