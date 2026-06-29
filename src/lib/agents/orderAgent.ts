@@ -75,6 +75,19 @@ export async function orderAgent(
   reasoningModel: string
 ): Promise<OrderAgentOutput> {
   const { phase, cartItems, product, confirmedQty, confirmedAddress, savedAddress, paymentMethod, deliveryDate, personalMessage } = checkoutState;
+
+  if (message.trim().toLowerCase() === "continue checkout") {
+    return {
+      nextPhase: "stay",
+      stay: true,
+      extractedData: {},
+      responseText: getPhaseRepeatText(phase, savedAddress, cartItems),
+      requiresGeocode: false,
+      requiresOrderPlace: false,
+      requiresDeliveryCheck: false,
+    };
+  }
+
   const firstName = savedAddress?.name?.split(" ")[0] ?? "";
   const isCartFlow = cartItems && cartItems.length > 0;
 
