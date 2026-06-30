@@ -11,9 +11,8 @@ interface LanguagePopoverProps {
 
 const languages = [
   { value: "en", label: "English" },
-  { value: "es", label: "Español" },
-  { value: "fr", label: "Français" },
-  { value: "zh", label: "中文" },
+  { value: "si", label: "සිංහල (Sinhala)" },
+  { value: "ta", label: "தமிழ் (Tamil)" },
 ];
 
 const currencies = [

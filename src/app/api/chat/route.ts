@@ -36,6 +36,7 @@ import { cartModifierAgent, type CartModification } from "@/lib/agents/cartModif
 import { categoryBrowseAgent } from "@/lib/agents/categoryBrowseAgent";
 import { orderAgent } from "@/lib/agents/orderAgent";
 import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";
+import { BUDDY_PROMPTS, BUDDY_SELECTED_PRODUCT_PROMPT, BUDDY_OFFTOPIC_REFUSAL } from "@/lib/prompts/personality";
 import {
   clearCheckoutState,
   getCheckoutState,
@@ -63,66 +64,9 @@ interface SearchTermConfig {
 
 // ── No hardcoded registry anymore — loaded dynamically per-user ───────────
 
-// ── System Prompts per Pillar ───────────────────────────────────────────────
-const SYSTEM_PROMPTS: Record<Intent, string> = {
-  product: `You are Kapruka's AI shopping assistant for Sri Lanka.
-The user wants to find or buy products. Live product results from Kapruka.com have been fetched and shown to the user.
-Do NOT fabricate product details — only reference what was returned by the search tool.
-If the user wants to buy or order a specific product, guide them to select the product in the chat interface (by checking its selection box) and write "order this" (or simply ask you to order that product by name) to initiate the secure order checkout process directly in the chat.
-
-For EACH search result category, you MUST format your response using EXACTLY these tags to frame your description:
-[INTRO: <Category Name>]
-A simple, brief 1-sentence introduction about the products found in this category (e.g. "[INTRO: Shoes] I found some beautiful shoes from the Kapruka catalog...").
-[DETAILS: <Category Name>]
-A detailed description (2-3 sentences) summarizing and comparing the products, their prices in LKR, stock status, and guiding the user on how they can select/order them.
-
-If multiple categories were searched, output the [INTRO] and [DETAILS] tags for each category sequentially. Only use these tags if product search results are returned. If no products are found, write a standard response apologizing politely.`,
-
-  category_browse: `You are Kapruka's AI shopping assistant for Sri Lanka.
-The user asked a broad or generic shopping query. We matched their query to specific Kapruka catalog categories and pulled the live products from those pages.
-For EACH matched category, you MUST format your response using EXACTLY these tags to frame your description:
-[INTRO: <Category Name>]
-A simple, brief 1-sentence introduction about the products found in this category (e.g. "[INTRO: Shoes] I found some beautiful shoes from the Kapruka catalog...").
-[DETAILS: <Category Name>]
-A detailed description (2-3 sentences) summarizing and comparing the products, their prices in LKR, stock status, and guiding the user on how they can select/order them.
-
-If multiple categories were searched, output the [INTRO] and [DETAILS] tags for each category sequentially. Only use these tags if product search results are returned.`,
-
-  delivery: `You are Kapruka's Grasshoppers logistics assistant for Sri Lanka.
-You help users check delivery availability, rates, and track orders.
-All delivery quotes are in LKR. Flat rates are provided by the Grasshoppers courier network.
-Be precise with dates and delivery windows. Always clarify if perishables have restrictions.
-Keep responses concise — 2–3 sentences.`,
-
-  service: `You are Kapruka's home services booking assistant for Sri Lanka.
-You connect users with verified local technicians — electricians, plumbers, AC repair, cleaning, pest control, painting, and carpentry.
-If the user's city is known, verified providers in their area are shown.
-Be warm and helpful. Explain what each service provider specialises in. Suggest the top option based on rating.`,
-
-  qa: `You are Kapruka's customer support and informational assistant for Sri Lanka.
-You have access to Google Search to retrieve live, real-time information about Kapruka, Sri Lankan e-commerce, and general queries.
-Answer the user's question accurately using search results. Provide clear, concise, and helpful responses in 2–3 sentences.
-Highlight key information and always reference your sources if appropriate.`,
-
-  reorder: `You are Kapruka's AI shopping assistant for Sri Lanka.
-The user wants to reorder a previously purchased item. Their relevant order history has been fetched and shown to them.
-Do NOT fabricate product details — only reference the past order details provided.
-Guide them to select the product in the chat interface or click 'Buy Now' to reorder.
-
-For EACH category of past orders, you MUST format your response using EXACTLY these tags to frame your description:
-[INTRO: Past Orders]
-A simple, brief 1-sentence introduction confirming you found their past orders (e.g. "[INTRO: Past Orders] Here are the items you've ordered previously...").
-[DETAILS: Past Orders]
-A detailed description (1-2 sentences) summarizing the past orders found, their prices in LKR, and guiding the user on how to reorder them.
-
-Only use these tags if past orders are returned. If no past orders are found, write a standard response apologizing politely and stating no matching orders were found.`,
-};
-
-const SELECTED_PRODUCT_QA_PROMPT = `You are Kapruka's AI product advisor for Sri Lanka.
-The user has selected specific products from the catalog and is asking questions about them.
-Answer their questions conversationally, helpfully, and specifically using only the provided product details.
-Do NOT use [INTRO] or [DETAILS] tags. Be warm, direct, and detailed in your analysis.
-If asked to compare, create a markdown table comparing their features, price, stock, and highlight the best option.`;
+// ── System Prompts — imported from centralized Best Buddy personality module ─
+const SYSTEM_PROMPTS: Record<Intent, string> = BUDDY_PROMPTS;
+const SELECTED_PRODUCT_QA_PROMPT = BUDDY_SELECTED_PRODUCT_PROMPT;
 
 // ── Main Chat POST Handler ─────────────────────────────────────────────────
 export const POST = withLogging(async function POST(req: NextRequest) {
@@ -1424,7 +1368,7 @@ Respond ONLY with valid JSON matching this schema:
         if (!isRelated) {
           send({ type: "thought", step: "intent_routing", status: "completed", content: "Checking query appropriateness...", durationMs: 0 });
 
-          const refusalText = "That's an interesting question! My expertise is shopping and product assistance. If you're looking for a product, need recommendations, or have questions about an order, I'd be happy to help.";
+          const refusalText = BUDDY_OFFTOPIC_REFUSAL;
           const words = refusalText.split(" ");
           for (let i = 0; i < words.length; i++) {
             send({ type: "text", content: words[i] + (i === words.length - 1 ? "" : " ") });
@@ -1939,9 +1883,9 @@ Respond ONLY with valid JSON matching this schema:
                   }
                   contextNote += `\n\n[Response Instructions]
 You MUST structure your response for EACH category returned in the search results above using exactly these tags:
-- Use \`[INTRO: <CategoryName>]\` followed by a 1-sentence simple introduction.
-- Use \`[DETAILS: <CategoryName>]\` followed by a 2-3 sentence detailed comparison, mentioning prices in LKR and stock status.
-Make sure the category name in the tags matches the search result headers above exactly. Speak naturally and confidently. Do not write any general text outside these tags.`;
+- Use \`[INTRO: <CategoryName>]\` followed by a 1-sentence friendly opener — like you're pointing something out to a friend.
+- Use \`[DETAILS: <CategoryName>]\` followed by a 2-3 sentence buddy-style rundown — mention standout picks, price highlights in LKR, and stock status. Talk naturally and confidently, like you're shopping together.
+Make sure the category name in the tags matches the search result headers above exactly. Do not write any general text outside these tags.`;
                 } else if (products.length > 0) {
                   contextNote = `\n\n[Validated Product Results] ${products.length} item${products.length !== 1 ? "s" : ""} found on Kapruka:\n` +
                     products.slice(0, 6).map((p, i) => `${i + 1}. ${p.name} — Rs. ${p.price?.toLocaleString() || "N/A"} (${p.inStock ? "✅ In Stock" : "❌ Out of Stock"})${p.isSME ? " 🇱🇰 Local" : ""}`).join("\n");
@@ -2054,7 +1998,7 @@ The user has temporarily paused checkout to ask: "${message}".
         let followUpQuestions: string[] = [];
         if (ai) {
           try {
-            const suggestPrompt = `Given this user query and AI response for a Sri Lankan e-commerce platform, generate exactly 3 short follow-up queries that the user is most likely to ask next (written from the user's perspective as action/search prompts, NOT questions from the system to the user. Max 8 words each).
+            const suggestPrompt = `You are helping a friendly Sri Lankan shopping assistant suggest next steps. Given this user query and AI response, generate exactly 3 short, casual follow-up prompts the user would naturally say next (written from the user's perspective — action-oriented, not formal. Max 8 words each. Think: what would a friend say next?).
 Context pillar: ${intent}
 User: "${message.substring(0, 100)}"
 AI: "${fullResponseText.substring(0, 200)}"

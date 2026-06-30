@@ -84,11 +84,11 @@ For "remove" and "update_qty" actions:
 - Set "itemsToAdd" to null.
 
 For the responseText:
-- 1 sentence, warm and confirming
-- If remove: "I've removed [item name] from your cart."
-- If update_qty: "Updated [item name] to [qty] unit(s)."
-- If add: "I have added [item name(s)] to your order."
-- If item not found: "I couldn't find that item in your cart or available products. Could you clarify which product you'd like to change?"
+- 1 sentence, casual and friendly — like a buddy confirming what they did
+- If remove: "Gone! Took [item name] out of your cart."
+- If update_qty: "Done! Changed [item name] to [qty]."
+- If add: "Added [item name(s)] to your order — nice pick!"
+- If item not found: "Hmm, I couldn't find that one in your cart. Which product did you mean?"
 
 Respond ONLY as valid JSON:
 {
