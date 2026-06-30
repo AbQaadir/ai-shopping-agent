@@ -204,6 +204,7 @@ export default function ChatWorkspace({
           selectedProducts={selectedProducts}
           onToggleSelectProduct={handleToggleSelectProduct}
           isCheckoutActive={isCheckoutActive}
+          hasActiveCheckout={hasActiveCheckout}
           chatHistory={messages.map((m) => ({
             role: m.sender === "ai" ? "assistant" as const : "user" as const,
             content: m.text,
