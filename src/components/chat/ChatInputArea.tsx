@@ -16,6 +16,7 @@ interface ChatInputAreaProps {
   onToggleSelectProduct: (product: InlineProduct) => void;
   chatHistory?: { role: "user" | "assistant"; content: string }[];
   isCheckoutActive?: boolean;
+  hasActiveCheckout?: boolean;
 }
 
 export default function ChatInputArea({
@@ -28,6 +29,7 @@ export default function ChatInputArea({
   onToggleSelectProduct,
   chatHistory = [],
   isCheckoutActive = false,
+  hasActiveCheckout = false,
 }: ChatInputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -226,7 +228,7 @@ export default function ChatInputArea({
           </button>
         )}
 
-        {!isCheckoutActive && !isGenerating && !isSharedReadOnly && cartItems.length > 0 && selectedProducts.length === 0 && (
+        {!hasActiveCheckout && !isGenerating && !isSharedReadOnly && cartItems.length > 0 && selectedProducts.length === 0 && (
           <button
             onClick={() => onSubmit("checkout cart")}
             onMouseDown={(e) => e.preventDefault()}
