@@ -283,6 +283,14 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
           type="text"
           value={city}
           onChange={e => handleCityChange(e.target.value)}
+          onBlur={() => {
+            setTimeout(() => {
+              setCity(prev => {
+                if (prev && !KAPRUKA_CITIES_SET.has(prev)) return "";
+                return prev;
+              });
+            }, 150);
+          }}
           placeholder="Select or search delivery city"
           className="border border-slate-200 rounded-lg px-3 py-2.5 text-xs outline-none focus:border-[#402970]/40 focus:ring-2 focus:ring-[#402970]/10 bg-white font-medium"
         />

@@ -598,6 +598,14 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
             type="text"
             value={confirmedCity}
             onChange={e => handleCityChange(e.target.value)}
+            onBlur={() => {
+              setTimeout(() => {
+                setConfirmedCity(prev => {
+                  if (prev && !KAPRUKA_CITIES_SET.has(prev)) return "";
+                  return prev;
+                });
+              }, 150);
+            }}
             disabled={submitted || !isActive}
             placeholder="Select or search delivery city"
             className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50"
@@ -1002,6 +1010,14 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
                   placeholder="Select or search delivery city"
                   value={manualCity}
                   onChange={(e) => handleCityChange(e.target.value)}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setManualCity(prev => {
+                        if (prev && !KAPRUKA_CITIES_SET.has(prev)) return "";
+                        return prev;
+                      });
+                    }, 150);
+                  }}
                   disabled={submitted || !isActive}
                   className="w-full px-3.5 py-2.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-[#402970] focus:ring-1 focus:ring-[#402970] transition-colors placeholder:text-slate-400 bg-slate-50/50"
                 />
