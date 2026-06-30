@@ -208,7 +208,7 @@ export default function DeliveryDateBubble({ step, onAction, isActive = true }: 
             value={personalMessage}
             onChange={(e) => setPersonalMessage(e.target.value)}
             placeholder='e.g. "Happy Birthday! 🎂 With love, from us all"'
-            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-[#402970]/20 focus:border-[#402970]/50 transition-all bg-slate-50 leading-relaxed"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-sans text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-[#402970]/20 focus:border-[#402970]/50 transition-all bg-slate-50 leading-relaxed"
           />
           <div className="text-right text-[10px] text-slate-400 mt-1">
             {personalMessage.length} / {MAX_MSG}

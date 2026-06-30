@@ -472,6 +472,14 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
                 type="text"
                 value={city}
                 onChange={(e) => handleCityChange(e.target.value)}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setCity(prev => {
+                      if (prev && !KAPRUKA_CITIES_SET.has(prev)) return "";
+                      return prev;
+                    });
+                  }, 150);
+                }}
                 placeholder="Colombo 3"
                 className="w-full text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg p-2 focus:border-[#402970] focus:ring-1 focus:ring-[#402970] outline-none bg-slate-50/50 transition-all"
               />
