@@ -141,16 +141,16 @@ AI classified intent: "${intent}"
 
 "checkout_start"
 → Use when: User explicitly wants to BEGIN a new checkout process from scratch, with NO address mention.
-→ Examples: "order this", "I want to buy this", "place the order", "proceed to checkout"
+→ Examples: "order this", "I want to buy this", "place the order", "proceed to checkout", "place this"
 → Do NOT use if checkout is already active.
-→ CRITICAL RULE: If there are MULTIPLE available/referenced products and the user says "order this" or similar, ASSUME they want to order ALL of them. Do NOT use "shop" to ask them to pick one. Route to "checkout_start".
+→ CRITICAL RULE: If there are MULTIPLE available/referenced products and the user says "order this", "place this", or similar (even using singular "this"), ASSUME they want to order ALL of them. Do NOT use "shop" to ask them to pick one. Route to "checkout_start".
 
 "checkout_start_with_address"
-→ Use when: User explicitly wants to order AND mentions a delivery destination by name IN THE SAME MESSAGE.
+→ Use when: User explicitly wants to order AND mentions a delivery destination by name IN THE SAME MESSAGE. Verbs like "place", "send", "ship", or "deliver" to a destination ARE strong order intents.
 → The destination must match or closely resemble one of the Saved Address Labels shown above.
-→ Examples: "order this and deliver to my home", "buy this and send to work", "order to my parents place"
+→ Examples: "order this and deliver to my home", "buy this and send to work", "order to my parents place", "place this to my home", "send this to work"
 → Do NOT use if no saved addresses exist. Do NOT use if the destination is unclear or generic ("my house", "my place" without a matching label).
-→ CRITICAL RULE: If there are MULTIPLE available/referenced products and the user says "deliver this to my home" or similar, ASSUME they want to order ALL of them. Do NOT use "shop" to ask them to pick one. Route to "checkout_start_with_address".
+→ CRITICAL RULE: If there are MULTIPLE available/referenced products and the user says "deliver this to my home", "place this to my home", or similar (even using singular "this"), ASSUME they want to order ALL of them. Do NOT use "shop" to ask them to pick one. Even if the hint says "product", override it. Route to "checkout_start_with_address".
 
 "checkout_continue"
 → Use ONLY when: An ACTIVE CHECKOUT exists AND the user's message is a DIRECT, sensible answer to the CURRENT PHASE QUESTION.
