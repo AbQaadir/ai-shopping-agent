@@ -88,6 +88,10 @@ export async function routerAgent(
   if (/^checkout cart$/i.test(message.trim())) {
     return { action: "checkout_start", reason: "Explicit checkout trigger from Order button" };
   }
+  // "continue checkout" is sent by the Resume Checkout UI button.
+  if (/^continue checkout$/i.test(message.trim())) {
+    return { action: "checkout_continue", reason: "UI-generated resume checkout confirmation" };
+  }
   // "Confirm quantities" is sent by the cart checkout UI.
   if (/^confirm quantities$/i.test(message.trim())) {
     return { action: "checkout_continue", reason: "UI-generated cart quantity confirmation" };
