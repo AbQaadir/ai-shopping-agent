@@ -31,7 +31,7 @@ export default function ChatInputArea({
 }: ChatInputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { handleAddToCart, handleBuyProduct, handleOrderCart, isSharedReadOnly, setSelectedProducts } = useSourcing();
+  const { handleAddToCart, handleBuyProduct, handleOrderCart, isSharedReadOnly, setSelectedProducts, cartItems } = useSourcing();
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -222,6 +222,17 @@ export default function ChatInputArea({
             className="absolute -top-11 right-1.5 bg-[#402970] text-white hover:bg-[#33205a] active:scale-95 transition-all duration-300 px-4 py-2 rounded-full text-xs font-bold shadow-[0_4px_12px_rgba(64,41,112,0.25)] hover:shadow-[0_6px_20px_rgba(64,41,112,0.35)] flex items-center gap-1.5 cursor-pointer z-30 animate-fadeInScale group/resume"
           >
             <span>Resume Checkout</span>
+            <ArrowRight size={13} className="transition-transform group-hover/resume:translate-x-0.5" />
+          </button>
+        )}
+
+        {!isCheckoutActive && !isGenerating && !isSharedReadOnly && cartItems.length > 0 && selectedProducts.length === 0 && (
+          <button
+            onClick={() => onSubmit("checkout cart")}
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute -top-11 right-1.5 bg-[#402970] text-white hover:bg-[#33205a] active:scale-95 transition-all duration-300 px-4 py-2 rounded-full text-xs font-bold shadow-[0_4px_12px_rgba(64,41,112,0.25)] hover:shadow-[0_6px_20px_rgba(64,41,112,0.35)] flex items-center gap-1.5 cursor-pointer z-30 animate-fadeInScale group/resume"
+          >
+            <span>Checkout Cart ({cartItems.length})</span>
             <ArrowRight size={13} className="transition-transform group-hover/resume:translate-x-0.5" />
           </button>
         )}
