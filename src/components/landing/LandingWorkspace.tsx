@@ -416,17 +416,17 @@ export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingW
                     </div>
                   </div>
 
-                  {/* Card 5: Quick Reordering */}
+                  {/* Card 5: Order History */}
                   <div className="bg-white rounded-2xl border border-slate-100/90 shadow-[0_2px_12px_rgba(0,0,0,0.015)] flex flex-col w-[170px] h-[170px] shrink-0 p-4 select-none justify-between hover:shadow-[0_8px_24px_rgba(64,41,112,0.06)] hover:border-[#402970]/15 hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
                     <div className="w-9 h-9 rounded-xl bg-[#402970]/5 text-[#402970] flex items-center justify-center shrink-0">
                       <RefreshCw size={17} className="text-[#402970]" />
                     </div>
                     <div className="flex-1 flex flex-col justify-end mt-2 min-h-0">
                       <h6 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2">
-                        Quick Reordering
+                        Order History
                       </h6>
                       <p className="text-[10px] text-slate-500 leading-normal line-clamp-3 mt-1.5">
-                        Instantly reorder past purchases and gifts with a single message.
+                        View your past purchases and add them to your cart again.
                       </p>
                     </div>
                   </div>

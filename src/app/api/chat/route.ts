@@ -265,8 +265,8 @@ export const POST = withLogging(async function POST(req: NextRequest) {
     let intent: Intent = ruleBasedIntent(message);
     let isRelated = true;
     let llmSearchTerms: SearchTermConfig[] = [];
-    let reorderTarget: string | null = null;
-    let reorderTimeline: string | null = null;
+    let historyTarget: string | null = null;
+    let historyTimeline: string | null = null;
     let isAgeRestricted = false;
 
     if (hasSelectedProducts) {
@@ -294,7 +294,7 @@ Analyze the user query in the context of the recent conversation history, and pe
    - "delivery": Checking delivery availability to a city, delivery rates, tracking an existing order.
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
    - "qa": General platform questions (returns, policies, general account help) or general knowledge/informational queries that require web search grounding. Note: Do NOT classify any checkout responses, payment method selections for an active order, or checkout confirmations (e.g. cash on delivery) as "qa".
-   - "reorder": The user wants to reorder a previously purchased item or check their order history (e.g., "reorder my last cake", "what did I buy last week?").
+   - "order_history": The user wants to check their order history (e.g., "what did I buy last week?", "what are the products that I ordered previously?").
 
 3. Extract focused product search terms and price filters ("searchTerms") as a JSON array of objects matching this schema:
    {
@@ -308,10 +308,10 @@ Analyze the user query in the context of the recent conversation history, and pe
    - Extract ONE object per distinct product the user wants (max 3 objects total).
    - If not a product/service intent, set "searchTerms" to [].
 
-4. Extract reorder context if intent is "reorder", matching this schema:
+4. Extract order history context if intent is "order_history", matching this schema:
    {
-     "reorderTarget": string | null (e.g., "cake", "flowers" - the product they want to reorder),
-     "reorderTimeline": string | null (an ISO 8601 date string representing the start of the timeframe requested. e.g., "last week" = 7 days ago. Today's date is ${new Date().toISOString()}. Set to null if NO timeline is provided)
+     "historyTarget": string | null (e.g., "cake", "flowers" - the product they want to see from their history),
+     "historyTimeline": string | null (an ISO 8601 date string representing the start of the timeframe requested. e.g., "last week" = 7 days ago. Today's date is ${new Date().toISOString()}. Set to null if NO timeline is provided)
    }
 
 5. Determine if the query is for an age-restricted product (e.g., alcohol, tobacco, adult items, cigars).
@@ -324,7 +324,7 @@ ${matchedCategoriesText}
 Use the candidate categories above to understand the listing taxonomy and prepare/translate the search query keyword ("term") to match the category's typical product noun (e.g., translate "phone cases" to "backcover" or "cover" or "casing" if the matched category is mobile_phone_accessories, and "cake" or "bento cake" to "cake" or "ribbon cake").
 
 Respond ONLY with JSON matching this structure:
-{"intent": "product"|"category_browse"|"delivery"|"service"|"qa"|"reorder", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "reorderTarget": "...", "reorderTimeline": "...", "isAgeRestricted": boolean, "reason": "brief explanation"}
+{"intent": "product"|"category_browse"|"delivery"|"service"|"qa"|"order_history", "isRelated": boolean, "searchTerms": [{"term": string, "minPrice": number|null, "maxPrice": number|null}], "historyTarget": "...", "historyTimeline": "...", "isAgeRestricted": boolean, "reason": "brief explanation"}
 
 [Recent Conversation History]
 ${historySnippet || "No previous history."}
@@ -349,7 +349,7 @@ User query to classify: "${message}"`;
         }
 
         const parsed = JSON.parse(responseText);
-        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa", "reorder"].includes(parsed.intent)) {
+        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa", "order_history"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
         }
         if (typeof parsed?.isRelated === "boolean") {
@@ -358,11 +358,11 @@ User query to classify: "${message}"`;
         if (typeof parsed?.isAgeRestricted === "boolean") {
           isAgeRestricted = parsed.isAgeRestricted;
         }
-        if (typeof parsed?.reorderTarget === "string") {
-          reorderTarget = parsed.reorderTarget;
+        if (typeof parsed?.historyTarget === "string") {
+          historyTarget = parsed.historyTarget;
         }
-        if (typeof parsed?.reorderTimeline === "string") {
-          reorderTimeline = parsed.reorderTimeline;
+        if (typeof parsed?.historyTimeline === "string") {
+          historyTimeline = parsed.historyTimeline;
         }
         if (parsed?.searchTerms && Array.isArray(parsed.searchTerms)) {
           llmSearchTerms = (parsed.searchTerms as unknown[])
@@ -1511,8 +1511,8 @@ Respond ONLY with valid JSON matching this schema:
           }
         }
 
-        // ── Pillar 1: Product Search & Reorder ─────────────────────────────────────
-        if (intent === "product" || intent === "reorder") {
+        // ── Pillar 1: Product Search & Order History ─────────────────────────────────────
+        if (intent === "product" || intent === "order_history") {
           if (hasSelectedProducts && fetchedSelectedProducts.length > 0) {
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Processing ${selectedProductIds.length} selected product(s)...`, durationMs: 0 });
             send({ type: "thought", step: "fetching_product_details", status: "running", content: "Fetching selected product details..." });
@@ -1526,13 +1526,13 @@ Respond ONLY with valid JSON matching this schema:
             send({ type: "thought", step: "intent_routing", status: "running", content: "Routing to Kapruka product catalog..." });
             criteria = parseRequirements(message);
 
-            if (intent === "reorder") {
-              if (!reorderTimeline && !reorderTarget) {
-                 const stepClarify = { step: "intent_routing", status: "completed", content: "Missing reorder details, asking clarification.", durationMs: 0 };
+            if (intent === "order_history") {
+              if (!historyTimeline && !historyTarget) {
+                 const stepClarify = { step: "intent_routing", status: "completed", content: "Missing order history details, asking clarification.", durationMs: 0 };
                  steps.push(stepClarify);
                  send({ type: "thought", ...stepClarify });
 
-                 const msg = "Could you please tell me which item you'd like to reorder, or roughly when you bought it? (e.g., 'the cake' or 'last week').";
+                 const msg = "Could you please tell me which item you'd like to check from your past orders, or roughly when you bought it? (e.g., 'the cake' or 'last week').";
                  send({ type: "text", content: msg });
 
                  await prisma.chatMessage.create({
@@ -1548,8 +1548,8 @@ Respond ONLY with valid JSON matching this schema:
               send({ type: "thought", step: "searching_kapruka", status: "running", content: "Retrieving user's order history..." });
 
               if (userId && userId !== "guest") {
-                const orderWhereClause = reorderTimeline && !isNaN(new Date(reorderTimeline).getTime())
-                  ? { createdAt: { gte: new Date(reorderTimeline) } }
+                const orderWhereClause = historyTimeline && !isNaN(new Date(historyTimeline).getTime())
+                  ? { createdAt: { gte: new Date(historyTimeline) } }
                   : {};
 
                 const userWithOrders = await prisma.user.findUnique({
@@ -1563,7 +1563,7 @@ Respond ONLY with valid JSON matching this schema:
                   for (const order of userWithOrders.orders) {
                     pastOrdersContext += `- Order Ref: ${order.id}, Date: ${order.createdAt.toISOString().split("T")[0]}, Status: ${order.status}, Total: LKR ${order.totalLKR}\n`;
                     for (const item of order.items) {
-                      if (reorderTarget && !item.productName.toLowerCase().includes(reorderTarget.toLowerCase())) {
+                      if (historyTarget && !item.productName.toLowerCase().includes(historyTarget.toLowerCase())) {
                         continue;
                       }
                       pastOrdersContext += `  * Item: ${item.productName} (ID: ${item.productId}), Qty: ${item.quantity}, Price: LKR ${item.priceLKR}\n`;
@@ -1580,7 +1580,7 @@ Respond ONLY with valid JSON matching this schema:
                   }
                   const seenIds = new Set<string>();
                   products = orderProducts.filter((p) => { if (seenIds.has(p.id)) return false; seenIds.add(p.id); return true; });
-                  pastOrdersContext += `\nInstruction to AI: The user wants to reorder a previous purchase. Confirm the details of the item they are referring to (item name, price, order date) and recommend they click the 'Buy Now' button to reorder.`;
+                  pastOrdersContext += `\nInstruction to AI: The user wants to view their order history. Confirm the details of the items found (item name, price, order date) and mention they can view them below.`;
                 } else {
                   pastOrdersContext = `\n\n[User's Past Orders] The user (${userWithOrders?.name || "Unknown"}) has no past order history. Explain this politely.`;
                 }
@@ -2150,8 +2150,8 @@ const STATIC_FOLLOW_UPS: Record<Intent, string[]> = {
     "How long does standard delivery take?",
     "Can I return a product if it's damaged?",
   ],
-  reorder: [
-    "Reorder the exact same items",
+  order_history: [
+    "What are the products that I ordered previously?",
     "What did I buy last month?",
     "Track my past orders",
   ],
@@ -2174,9 +2174,9 @@ function generateFallback(intent: Intent, message: string, products: KaprukaProd
       return "I can connect you with verified home service technicians in your area.";
     case "qa":
       return "Kapruka accepts Credit/Debit cards, bank transfers, and cash on delivery for select areas.";
-    case "reorder":
+    case "order_history":
       return products.length > 0
-        ? `I found ${products.length} past purchases. Click "Buy Now" on any product to reorder it.`
+        ? `I found ${products.length} past purchases. Click on any product to view details or add it to your cart.`
         : "I couldn't find any past orders matching that description.";
   }
 }
