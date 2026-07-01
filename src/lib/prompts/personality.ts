@@ -23,7 +23,7 @@ type Intent =
   | "delivery"
   | "service"
   | "qa"
-  | "reorder";
+  | "order_history";
 
 // ── Core personality block ────────────────────────────────────────────────
 // Prepended to EVERY intent prompt so the voice never drifts.
