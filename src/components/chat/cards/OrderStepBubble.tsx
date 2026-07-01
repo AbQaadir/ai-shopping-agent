@@ -1095,6 +1095,7 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
   const totalLKR = cartSubtotal + deliveryFee;
 
   const addr = step.confirmedAddress || step.savedAddress;
+  const isCodDisabled = !!step.checkoutUrl;
 
   const [selectedMethod, setSelectedMethod] = useState<'cod' | 'card' | null>(() => {
     if (!isActive) {
@@ -1235,13 +1236,15 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
           <h5 className="text-xs font-bold text-slate-700">Choose Payment Method</h5>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div
-              onClick={() => !(submitted || !isActive) && handle("cod")}
+              onClick={() => !(isCodDisabled || submitted || !isActive) && handle("cod")}
               className={`flex flex-col justify-between p-5 border-2 rounded-2xl text-left transition-all duration-200 select-none h-36 ${
                 submitted || !isActive
                   ? selectedMethod === "cod"
                     ? "border-[#402970]/20 bg-[#402970]/10 opacity-100"
                     : "border-slate-100 bg-white opacity-40"
-                  : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
+                  : isCodDisabled 
+                    ? "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
+                    : "border-slate-100 hover:border-[#402970] bg-white hover:bg-[#402970]/5 cursor-pointer active:scale-[0.98]"
               }`}
             >
               <div className={`w-10 h-10 border rounded-xl flex items-center justify-center shrink-0 transition-colors ${
@@ -1263,6 +1266,11 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
                 <p className="text-[11px] text-slate-500 font-medium mt-1 leading-normal">
                   Pay in cash when our courier delivers the package
                 </p>
+                {isCodDisabled && (
+                  <p className="text-[10px] text-rose-500 font-bold mt-1.5">
+                    Not available for this order
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1297,6 +1305,24 @@ function PaymentAskBubble({ step, onAction, isActive = true }: OrderStepBubblePr
             </div>
           </div>
         </div>
+
+        {/* Pre-generated Checkout URL Section */}
+        {step.checkoutUrl && (
+          <div className="bg-[#402970]/5 border border-[#402970]/10 rounded-2xl p-4 flex flex-col gap-3 mt-1">
+            <h5 className="text-xs font-bold text-[#402970]">Kapruka Secure Checkout</h5>
+            <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+              Your secure checkout link is ready. You can proceed to payment immediately or select 'Credit / Debit Card' above to confirm in this chat.
+            </p>
+            <a 
+              href={step.checkoutUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="w-full py-2.5 bg-[#402970] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-[#301e54] transition-colors shadow-sm"
+            >
+              <ExternalLink size={13} /> Proceed to Payment
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );

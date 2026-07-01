@@ -27,6 +27,8 @@ export interface OrderRequestParams {
   deliveryDate?: string;
   personalMessage?: string;
   deliveryFeeLKR?: number;
+  checkoutUrl?: string;
+  orderId?: string;
 }
 
 export async function placeOrderInternally(params: OrderRequestParams) {
@@ -59,19 +61,28 @@ export async function placeOrderInternally(params: OrderRequestParams) {
     throw new Error(`Invalid delivery city: ${city}. Must be a valid Kapruka city.`);
   }
 
-  // Call MCP tool to create order link
-  const orderResult = await pillar1_createOrderLink(
-    items && items.length > 0
-      ? items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }))
-      : productId!,
-    items && items.length > 0 ? recipient : quantity!,
-    items && items.length > 0 ? undefined : recipient,
-    deliveryDate || undefined,
-    personalMessage || undefined
-  );
+  // Call MCP tool to create order link (or use pre-generated)
+  let orderResult: any;
+  if (params.checkoutUrl && params.orderId) {
+    orderResult = {
+      checkoutUrl: params.checkoutUrl,
+      orderId: params.orderId,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    };
+  } else {
+    orderResult = await pillar1_createOrderLink(
+      items && items.length > 0
+        ? items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }))
+        : productId!,
+      items && items.length > 0 ? recipient : quantity!,
+      items && items.length > 0 ? undefined : recipient,
+      deliveryDate || undefined,
+      personalMessage || undefined
+    );
 
-  if (!orderResult) {
-    throw new Error("Failed to create order link via Kapruka MCP");
+    if (!orderResult) {
+      throw new Error("Failed to create order link via Kapruka MCP");
+    }
   }
 
   // Prepare checkout link structure

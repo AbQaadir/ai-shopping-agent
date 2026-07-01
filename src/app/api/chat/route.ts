@@ -13,6 +13,7 @@ import {
 import { placeOrderInternally } from "@/lib/orderService";
 import {
   parseRequirements,
+  pillar1_createOrderLink,
   pillar1_getProductDetails,
   pillar1_searchProducts,
   pillar2_checkDelivery,
@@ -1214,6 +1215,28 @@ Respond ONLY with valid JSON matching this schema:
               return;
             }
 
+            // Pre-generate the checkout link
+            send({ type: "thought", step: "placing_order", status: "running", content: "Pre-generating checkout link..." });
+            try {
+              const orderResult = await pillar1_createOrderLink(
+                updatedState.cartItems.map((i: any) => ({ productId: i.id, quantity: i.quantity })),
+                updatedState.confirmedAddress as any,
+                undefined,
+                updatedState.deliveryDate,
+                updatedState.personalMessage
+              );
+              if (orderResult && orderResult.checkoutUrl && orderResult.orderId) {
+                updatedState.checkoutUrl = orderResult.checkoutUrl;
+                updatedState.orderId = orderResult.orderId;
+                send({ type: "thought", step: "placing_order", status: "completed", content: "Generated secure checkout link", durationMs: 0 });
+              } else {
+                send({ type: "thought", step: "placing_order", status: "completed", content: "Failed to generate checkout link", durationMs: 0 });
+              }
+            } catch (err) {
+              console.error("Pre-generation failed:", err);
+              send({ type: "thought", step: "placing_order", status: "completed", content: "Pre-generation failed", durationMs: 0 });
+            }
+
             // Delivery IS available — build OFS with delivery check result and advance to payment_ask
             updatedState.phase = "payment_ask";
             deliveryCheck.flatRateLKR = totalFee; // override with summed total fee
@@ -1224,6 +1247,8 @@ Respond ONLY with valid JSON matching this schema:
               confirmedAddress: updatedState.confirmedAddress,
               deliveryDate: updatedState.deliveryDate,
               personalMessage: updatedState.personalMessage,
+              checkoutUrl: updatedState.checkoutUrl,
+              orderId: updatedState.orderId,
               deliveryCheckResult: {
                 city: deliveryCheck.city,
                 canDeliver: true,
@@ -1275,6 +1300,8 @@ Respond ONLY with valid JSON matching this schema:
                 deliveryDate: updatedState.deliveryDate || undefined,
                 personalMessage: updatedState.personalMessage || undefined,
                 deliveryFeeLKR: updatedState.deliveryFeeLKR || undefined,
+                checkoutUrl: updatedState.checkoutUrl || undefined,
+                orderId: updatedState.orderId || undefined,
               });
 
               checkoutUrl = od.checkoutLink?.checkoutUrl;
