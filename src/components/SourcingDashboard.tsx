@@ -5,7 +5,7 @@ import GlobalSidebar from "@/components/sidebar/GlobalSidebar";
 import LandingWorkspace from "@/components/landing/LandingWorkspace";
 import ChatWorkspace from "@/components/chat/ChatWorkspace";
 import CartModal from "@/components/chat/CartModal";
-import { Headset } from "lucide-react";
+import { Play } from "lucide-react";
 import { useSourcing } from "@/context/SourcingContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -130,14 +130,14 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
           </div>
         </div>
 
-        {/* Floating Contact Support Bubble (bottom right on landing) */}
+        {/* Floating Watch Demo Bubble (bottom right on landing) */}
         {!isChatting && !isViewingCart && (
           <button 
-            onClick={() => alert("Contact support at support@kapruka.com")}
-            className="fixed bottom-6 right-6 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-full px-5 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-20 font-semibold text-xs active:scale-95"
+            onClick={() => window.open("https://youtu.be/_CUZO_lkVxU", "_blank")}
+            className="fixed bottom-6 right-6 bg-gradient-to-r from-[#5a369e] to-[#402970] text-white rounded-full px-5 py-3 shadow-[0_0_20px_rgba(64,41,112,0.4)] hover:shadow-[0_0_30px_rgba(64,41,112,0.6)] hover:-translate-y-1 transition-all duration-300 flex items-center gap-2 z-20 font-bold text-[13px] active:scale-95 border border-purple-400/20"
           >
-            <Headset size={16} className="text-[#402970]" />
-            Contact us
+            <Play size={16} className="text-white fill-white" />
+            Watch Demo
           </button>
         )}
       </div>
