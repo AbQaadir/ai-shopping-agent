@@ -1397,6 +1397,9 @@ Respond ONLY with valid JSON matching this schema:
         let fullResponseText = "";
         let groundingSourcesList: Array<{ title: string; uri: string }> = [];
         let pastOrdersContext = "";
+        let deliveryContext = "";
+        let trackingContext = "";
+        let serviceContext = "";
         let criteria: any = null;
 
         // ── Pillar 6: Category Browse ──────────────────────────────
@@ -1735,6 +1738,7 @@ Respond ONLY with valid JSON matching this schema:
             const tracking = await pillar2_trackOrder(orderId);
             const dur = Date.now() - t;
             if (tracking) {
+              trackingContext = `\n\n[Tracking Result] Order ID: ${tracking.orderId}. Current Status: ${tracking.currentStatus}. Estimated Delivery: ${tracking.estimatedDelivery || "N/A"}. Use this in your response.`;
               steps.push({ step: "tracking_order", status: "completed", content: `Order ${orderId} status: ${tracking.currentStatus}`, durationMs: dur });
               send({ type: "thought", step: "tracking_order", status: "completed", content: "Order status retrieved successfully.", durationMs: dur });
               send({ type: "tracking_result", result: tracking });
@@ -1788,6 +1792,7 @@ Respond ONLY with valid JSON matching this schema:
                 const tracking = await pillar2_trackOrder(matchedOrder.kaprukaRef);
                 const dur = Date.now() - tTrack;
                 if (tracking) {
+                  trackingContext = `\n\n[Tracking Result] Order ID: ${tracking.orderId}. Current Status: ${tracking.currentStatus}. Estimated Delivery: ${tracking.estimatedDelivery || "N/A"}. Use this in your response.`;
                   steps.push({ step: "tracking_order", status: "completed", content: `Status: ${tracking.currentStatus}`, durationMs: dur });
                   send({ type: "thought", step: "tracking_order", status: "completed", content: `Order status: ${tracking.currentStatus}`, durationMs: dur });
                   send({ type: "tracking_result", result: tracking });
@@ -1811,6 +1816,7 @@ Respond ONLY with valid JSON matching this schema:
             const delivery = await pillar2_checkDelivery(city, date, "GENERAL");
             const dur = Date.now() - t;
             if (delivery) {
+              deliveryContext = `\n\n[Delivery Check Result] City: ${delivery.city}. Available: ${delivery.canDeliver ? 'Yes' : 'No'}. Flat Rate: LKR ${delivery.flatRateLKR || "N/A"}. Date: ${delivery.deliveryDate || "N/A"}. Warning: ${delivery.warning || "None"}. Use this exact rate and availability in your response.`;
               steps.push({ step: "checking_delivery", status: "completed", content: `Delivery to ${city}: ${delivery.canDeliver ? "Available" : "Not available"}. Rate: Rs. ${delivery.flatRateLKR?.toLocaleString() || "N/A"}`, durationMs: dur });
               send({ type: "thought", step: "checking_delivery", status: "completed", content: `Delivery check complete for ${city}.`, durationMs: dur });
               send({ type: "delivery_result", result: delivery });
@@ -1837,6 +1843,9 @@ Respond ONLY with valid JSON matching this schema:
           const t = Date.now();
           const serviceResult = await pillar5_searchServiceProviders(category, city || undefined);
           const dur = Date.now() - t;
+          if (serviceResult) {
+            serviceContext = `\n\n[Service Providers Found] Category: ${serviceResult.categoryLabel}. Needs City Input: ${serviceResult.needsCityInput ? 'Yes' : 'No'}. Providers: ${JSON.stringify(serviceResult.providers.map(p => ({name: p.name, rating: p.rating, pricing: p.pricingLKR})))}.`;
+          }
           steps.push({ step: "finding_providers", status: "completed", content: serviceResult.needsCityInput ? "Awaiting city input from user." : `Found ${serviceResult.providers.length} verified ${serviceResult.categoryLabel} providers.`, durationMs: dur });
           send({ type: "thought", step: "finding_providers", status: "completed", content: steps[steps.length - 1].content, durationMs: dur });
           send({ type: "service_listing", result: serviceResult });
@@ -1919,6 +1928,18 @@ The user has temporarily paused checkout to ask: "${message}".
 
             if (pastOrdersContext) {
               contextNote += pastOrdersContext;
+            }
+
+            if (deliveryContext) {
+              contextNote += deliveryContext;
+            }
+
+            if (trackingContext) {
+              contextNote += trackingContext;
+            }
+
+            if (serviceContext) {
+              contextNote += serviceContext;
             }
 
             if (geminiHistory.length > 0 && contextNote) {
