@@ -1473,7 +1473,7 @@ Respond ONLY with valid JSON matching this schema:
                 if (mergedProducts.length > 0) {
                    let validatedProducts = mergedProducts;
                    if (ai) {
-                     send({ type: "thought", step: "validating_relevance", term: group.groupName, status: "running", content: `Validating ${mergedProducts.length} scraped products from ${group.groupName}...` });
+                     send({ type: "thought", step: "validating_relevance", term: group.groupName, status: "running", content: `Validating ${mergedProducts.length} picked products from ${group.groupName}...` });
                      const tVal = Date.now();
                      validatedProducts = await llmValidateRelevance(mergedProducts, message, ai, config.gemini.fastModel);
                      const discarded = mergedProducts.length - validatedProducts.length;
@@ -1499,7 +1499,7 @@ Respond ONLY with valid JSON matching this schema:
               } else {
                  // Fallback to text search if scraping failed entirely
                  intent = "product";
-                 send({ type: "thought", step: "category_browse", status: "completed", content: "Could not scrape products, falling back to standard search.", durationMs: Date.now() - tCat });
+                 send({ type: "thought", step: "category_browse", status: "completed", content: "Could not pick products, falling back to standard search.", durationMs: Date.now() - tCat });
               }
             } else {
               intent = "product"; // fallback to text search if LLM failed
