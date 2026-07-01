@@ -40,6 +40,8 @@ export interface CheckoutState {
   deliveryDate?: string;           // YYYY-MM-DD chosen by user in delivery_date_ask phase
   personalMessage?: string;        // optional gift/personal message passed to kapruka_create_order
   deliveryFeeLKR?: number;         // flat rate delivery fee returned by kapruka_check_delivery
+  checkoutUrl?: string;            // pre-generated kapruka checkout URL
+  orderId?: string;                // kapruka order ref
 }
 
 /** Load the active checkout state for a chat session. Returns null if none. */
@@ -50,6 +52,8 @@ export async function getCheckoutState(chatSessionId: string): Promise<CheckoutS
     });
 
     if (!row) return null;
+
+    const confirmedAddressData = row.confirmedAddress as any;
 
     return {
       phase: row.phase as CheckoutPhase,
@@ -63,6 +67,8 @@ export async function getCheckoutState(chatSessionId: string): Promise<CheckoutS
       deliveryDate: row.deliveryDate ?? undefined,
       personalMessage: row.personalMessage ?? undefined,
       deliveryFeeLKR: row.deliveryFeeLKR ?? undefined,
+      checkoutUrl: confirmedAddressData?.checkoutUrl,
+      orderId: confirmedAddressData?.orderId,
     };
   } catch (err) {
     console.error("[CheckoutContext] getCheckoutState failed:", err);
@@ -76,6 +82,12 @@ export async function saveCheckoutState(
   state: CheckoutState
 ): Promise<void> {
   try {
+    const combinedConfirmedAddress = state.confirmedAddress
+      ? { ...(state.confirmedAddress as any), checkoutUrl: state.checkoutUrl, orderId: state.orderId }
+      : state.checkoutUrl || state.orderId
+      ? { checkoutUrl: state.checkoutUrl, orderId: state.orderId }
+      : null;
+
     await (prisma as any).checkoutSession.upsert({
       where: { chatSessionId },
       update: {
@@ -83,7 +95,7 @@ export async function saveCheckoutState(
         cartItems: state.cartItems,
         product: state.product ?? null,
         confirmedQty: state.confirmedQty ?? null,
-        confirmedAddress: state.confirmedAddress ?? null,
+        confirmedAddress: combinedConfirmedAddress,
         savedAddress: state.savedAddress ?? null,
         geocodedLocation: state.geocodedLocation ?? null,
         paymentMethod: state.paymentMethod ?? null,
@@ -97,7 +109,7 @@ export async function saveCheckoutState(
         cartItems: state.cartItems,
         product: state.product ?? null,
         confirmedQty: state.confirmedQty ?? null,
-        confirmedAddress: state.confirmedAddress ?? null,
+        confirmedAddress: combinedConfirmedAddress,
         savedAddress: state.savedAddress ?? null,
         geocodedLocation: state.geocodedLocation ?? null,
         paymentMethod: state.paymentMethod ?? null,

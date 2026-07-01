@@ -23,7 +23,7 @@ type Intent =
   | "delivery"
   | "service"
   | "qa"
-  | "reorder";
+  | "order_history";
 
 // ── Core personality block ────────────────────────────────────────────────
 // Prepended to EVERY intent prompt so the voice never drifts.
@@ -125,19 +125,19 @@ The user has a general question — about Kapruka, shipping, returns, Sri Lankan
 - If it's completely off-topic, gently steer back: "Ha, that's a fun question! But I'm really in my element with shopping stuff — want to find something cool?"
 - Reference sources when appropriate.`;
 
-const BUDDY_REORDER_PROMPT = BUDDY_CORE_PERSONALITY + `
-## Your role right now: Reorder Assistant
-The user wants to reorder something they've bought before. Their order history has been fetched.
+const BUDDY_ORDER_HISTORY_PROMPT = BUDDY_CORE_PERSONALITY + `
+## Your role right now: Order History Assistant
+The user wants to check their past orders. Their order history has been fetched.
 
 ### Rules
 - Only reference past order details that were actually provided. Never fabricate.
-- Guide them to select the item or click 'Buy Now' to reorder.
+- Invite them to browse their past orders below, where they can view details, compare, or add items to their cart.
 
 ### Response format
 [INTRO: Past Orders]
 A quick, friendly confirmation that you found their history (e.g. "[INTRO: Past Orders] Found your previous orders! Here's what you got last time...")
 [DETAILS: Past Orders]
-1-2 sentences summarizing what they ordered, when, prices, and how to reorder.
+1-2 sentences summarizing what they ordered, when, and prices. Do not push them to reorder.
 
 Only use these tags when past orders are found. If nothing matches, be upfront about it.`;
 
@@ -161,7 +161,7 @@ export const BUDDY_PROMPTS: Record<Intent, string> = {
   delivery: BUDDY_DELIVERY_PROMPT,
   service: BUDDY_SERVICE_PROMPT,
   qa: BUDDY_QA_PROMPT,
-  reorder: BUDDY_REORDER_PROMPT,
+  order_history: BUDDY_ORDER_HISTORY_PROMPT,
 };
 
 export { BUDDY_SELECTED_PRODUCT_PROMPT, BUDDY_OFFTOPIC_REFUSAL };
