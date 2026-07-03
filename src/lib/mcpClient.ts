@@ -78,6 +78,22 @@ export interface KaprukaTrackingResult {
   currentStatus: string;
   estimatedDelivery?: string;
   steps: KaprukaTrackingStep[];
+
+  // ── Enrichment fields injected from our DB (not from MCP) ──────────────
+  // These overwrite / supplement the raw MCP response with user-specific data
+  // from the logged-in user's Order record.
+  displayOrderRef?: string;           // Our internal order ID to show the user
+  displayTotalLKR?: number;           // Order total from our DB
+  displayItems?: Array<{              // Product names / quantities from our DB
+    name: string;
+    quantity: number;
+    priceLKR: number;
+  }>;
+  displayPersonalMessage?: string;    // Gift / personal message from checkout
+  displayRecipient?: {                // Confirmed delivery address from checkout
+    name: string;
+    city: string;
+  };
 }
 
 /** Delivery city from kapruka_list_delivery_cities */

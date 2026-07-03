@@ -124,6 +124,20 @@ export interface TrackingResult {
   currentStatus: string;
   estimatedDelivery?: string;
   steps: TrackingStep[];
+
+  // ── Enrichment fields injected from our DB (not from MCP) ──────────────
+  displayOrderRef?: string;           // Our internal order ID shown to user
+  displayTotalLKR?: number;           // Order total from our DB
+  displayItems?: Array<{              // Product names / quantities from our DB
+    name: string;
+    quantity: number;
+    priceLKR: number;
+  }>;
+  displayPersonalMessage?: string;    // Gift / personal message from checkout
+  displayRecipient?: {                // Confirmed delivery address
+    name: string;
+    city: string;
+  };
 }
 
 

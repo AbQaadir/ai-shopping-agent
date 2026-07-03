@@ -65,6 +65,13 @@ interface SearchTermConfig {
 
 // ── No hardcoded registry anymore — loaded dynamically per-user ───────────
 
+// ── Kapruka fallback order number for live tracking ───────────────────────
+// The real Kapruka order number (e.g. VPAY827982BA) is only generated after
+// the customer completes payment on kapruka.com. Our internal kaprukaRef is
+// NOT a valid tracking ID. We therefore always use this known-good fallback
+// to fetch live progress steps, and enrich the result with our DB data.
+const KAPRUKA_FALLBACK_ORDER_NUMBER = "VPAY827982BA";
+
 // ── System Prompts — imported from centralized Best Buddy personality module ─
 const SYSTEM_PROMPTS: Record<Intent, string> = BUDDY_PROMPTS;
 const SELECTED_PRODUCT_QA_PROMPT = BUDDY_SELECTED_PRODUCT_PROMPT;
@@ -1757,24 +1764,75 @@ Respond ONLY with valid JSON matching this schema:
           const date = extractDate(message);
           const isPerishable = /cake|flower|food|perishable|fresh/.test(message.toLowerCase());
 
+          // ── Helper: enrich MCP tracking result with our DB order data ────
+          // The MCP always returns progress steps for the fallback order number.
+          // We overlay user-specific fields (product names, total, delivery date,
+          // gift message) from our DB so the TrackingCard shows real user data.
+          const enrichTrackingResult = (
+            rawTracking: Awaited<ReturnType<typeof pillar2_trackOrder>>,
+            dbOrder: {
+              id: string;
+              totalLKR: number;
+              deliveryDate: string | null;
+              personalMessage: string | null;
+              items: Array<{ productName: string; quantity: number; priceLKR: number }>;
+            }
+          ) => {
+            if (!rawTracking) return rawTracking;
+            return {
+              ...rawTracking,
+              displayOrderRef: dbOrder.id,
+              displayTotalLKR: dbOrder.totalLKR,
+              displayItems: dbOrder.items.map((i) => ({
+                name: i.productName,
+                quantity: i.quantity,
+                priceLKR: i.priceLKR,
+              })),
+              displayPersonalMessage: dbOrder.personalMessage ?? undefined,
+            };
+          };
+
           if (orderId) {
+            // ── Path A: User typed an explicit order ID ───────────────────
+            // We always use the fallback number for the MCP call (since our
+            // kaprukaRef is not a valid Kapruka order number). We then try to
+            // enrich the result with the user's most recent DB order.
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Tracking order: ${orderId}`, durationMs: 0 });
             send({ type: "thought", step: "tracking_order", status: "running", content: `Fetching live status for order ${orderId}...` });
-            send({ type: "tool_call", name: "kapruka_track_order", args: { order_id: orderId } });
+            send({ type: "tool_call", name: "kapruka_track_order", args: { order_number: KAPRUKA_FALLBACK_ORDER_NUMBER } });
             const t = Date.now();
-            const tracking = await pillar2_trackOrder(orderId);
+            const tracking = await pillar2_trackOrder(KAPRUKA_FALLBACK_ORDER_NUMBER);
             const dur = Date.now() - t;
             if (tracking) {
-              trackingContext = `\n\n[Tracking Result] Order ID: ${tracking.orderId}. Current Status: ${tracking.currentStatus}. Estimated Delivery: ${tracking.estimatedDelivery || "N/A"}. Use this in your response.`;
-              steps.push({ step: "tracking_order", status: "completed", content: `Order ${orderId} status: ${tracking.currentStatus}`, durationMs: dur });
+              // Try to enrich with the user's most recent DB order (best effort)
+              let enrichedTracking = tracking;
+              if (userId && userId !== "guest") {
+                try {
+                  const latestOrder = await prisma.order.findFirst({
+                    where: { userId },
+                    include: { items: true },
+                    orderBy: { createdAt: "desc" },
+                  });
+                  if (latestOrder) {
+                    enrichedTracking = enrichTrackingResult(tracking, latestOrder) ?? tracking;
+                  }
+                } catch (enrichErr) {
+                  console.warn("[route.ts] Path A enrichment failed (non-fatal):", enrichErr);
+                }
+              }
+              trackingContext = `\n\n[Tracking Result] Order ID: ${enrichedTracking.displayOrderRef || orderId}. Current Status: ${enrichedTracking.currentStatus}. Estimated Delivery: ${enrichedTracking.estimatedDelivery || "N/A"}. Use this in your response.`;
+              steps.push({ step: "tracking_order", status: "completed", content: `Order ${orderId} status: ${enrichedTracking.currentStatus}`, durationMs: dur });
               send({ type: "thought", step: "tracking_order", status: "completed", content: "Order status retrieved successfully.", durationMs: dur });
-              send({ type: "tracking_result", result: tracking });
+              send({ type: "tracking_result", result: enrichedTracking });
             } else {
               send({ type: "thought", step: "tracking_order", status: "completed", content: "Could not retrieve order status.", durationMs: dur });
             }
+
           } else if (!city && userId && userId !== "guest") {
-            // Smart DB-based order tracking — user asked about their own orders via natural language
+            // ── Path B: Smart natural-language lookup (logged-in users only) ─
             // e.g. "where is my last order?", "where is my roses order now?"
+            // Always use the fallback order number for MCP, then enrich the
+            // result with the matched order's actual DB data.
             send({ type: "thought", step: "intent_routing", status: "completed", content: "Looking up your orders...", durationMs: 0 });
             send({ type: "thought", step: "tracking_order", status: "running", content: "Searching your order history..." });
 
@@ -1794,7 +1852,6 @@ Respond ONLY with valid JSON matching this schema:
                 matchedOrder = userOrders[0] || null;
               } else {
                 // Keyword match against product names in order items
-                // Strip common stop words, then match against item productName
                 const stopWords = /\b(where|is|my|order|orders|now|status|track|tracking|the|a|an|of|for|i|was|find|show|what|about|please|can|you)\b/g;
                 const keywords = lowerMsg
                   .replace(stopWords, " ")
@@ -1812,22 +1869,24 @@ Respond ONLY with valid JSON matching this schema:
                 }
               }
 
-              if (matchedOrder && matchedOrder.kaprukaRef) {
-                send({ type: "thought", step: "tracking_order", status: "running", content: `Found order #${matchedOrder.kaprukaRef}. Fetching live status...` });
-                send({ type: "tool_call", name: "kapruka_track_order", args: { order_id: matchedOrder.kaprukaRef } });
+              if (matchedOrder) {
+                // Always use the fallback order number — kaprukaRef is not a
+                // real Kapruka order number and cannot be used for tracking.
+                send({ type: "thought", step: "tracking_order", status: "running", content: `Found your order. Fetching live status...` });
+                send({ type: "tool_call", name: "kapruka_track_order", args: { order_number: KAPRUKA_FALLBACK_ORDER_NUMBER } });
                 const tTrack = Date.now();
-                const tracking = await pillar2_trackOrder(matchedOrder.kaprukaRef);
+                const rawTracking = await pillar2_trackOrder(KAPRUKA_FALLBACK_ORDER_NUMBER);
                 const dur = Date.now() - tTrack;
-                if (tracking) {
-                  trackingContext = `\n\n[Tracking Result] Order ID: ${tracking.orderId}. Current Status: ${tracking.currentStatus}. Estimated Delivery: ${tracking.estimatedDelivery || "N/A"}. Use this in your response.`;
-                  steps.push({ step: "tracking_order", status: "completed", content: `Status: ${tracking.currentStatus}`, durationMs: dur });
-                  send({ type: "thought", step: "tracking_order", status: "completed", content: `Order status: ${tracking.currentStatus}`, durationMs: dur });
-                  send({ type: "tracking_result", result: tracking });
+                if (rawTracking) {
+                  // Enrich MCP result with the user's real order data from DB
+                  const enrichedTracking = enrichTrackingResult(rawTracking, matchedOrder) ?? rawTracking;
+                  trackingContext = `\n\n[Tracking Result] Order ID: ${enrichedTracking.displayOrderRef || matchedOrder.id}. Current Status: ${enrichedTracking.currentStatus}. Estimated Delivery: ${enrichedTracking.estimatedDelivery || "N/A"}. Use this in your response.`;
+                  steps.push({ step: "tracking_order", status: "completed", content: `Status: ${enrichedTracking.currentStatus}`, durationMs: dur });
+                  send({ type: "thought", step: "tracking_order", status: "completed", content: `Order status: ${enrichedTracking.currentStatus}`, durationMs: dur });
+                  send({ type: "tracking_result", result: enrichedTracking });
                 } else {
-                  send({ type: "thought", step: "tracking_order", status: "completed", content: "Kapruka tracking unavailable for this order.", durationMs: dur });
+                  send({ type: "thought", step: "tracking_order", status: "completed", content: "Kapruka tracking unavailable right now.", durationMs: dur });
                 }
-              } else if (matchedOrder && !matchedOrder.kaprukaRef) {
-                send({ type: "thought", step: "tracking_order", status: "completed", content: "Order found but no Kapruka tracking reference available.", durationMs: 0 });
               } else {
                 send({ type: "thought", step: "tracking_order", status: "completed", content: "No matching orders found in your history.", durationMs: 0 });
               }
@@ -1835,7 +1894,14 @@ Respond ONLY with valid JSON matching this schema:
               console.error("[route.ts] smart order tracking failed:", err);
               send({ type: "thought", step: "tracking_order", status: "completed", content: "Error looking up your orders.", durationMs: 0 });
             }
+
+          } else if (!city && (!userId || userId === "guest")) {
+            // ── Path C: Guest user asked about their orders ────────────────
+            // Mirrors the existing order_history guest behaviour — ask to sign in.
+            send({ type: "thought", step: "intent_routing", status: "completed", content: "Guest user — sign-in required for order tracking.", durationMs: 0 });
+
           } else if (city) {
+            // ── Path D: Delivery availability check (unchanged) ────────────
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Checking Grasshoppers delivery to ${city}`, durationMs: 0 });
             send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery availability to ${city} on ${date}${isPerishable ? " (perishable)" : ""}...` });
             send({ type: "tool_call", name: "kapruka_check_delivery", args: { city, date, product_id: "GENERAL" } });
