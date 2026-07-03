@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink, LayoutGrid, List, ChevronDown, Copy, Pencil } from "lucide-react";
+import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink, LayoutGrid, List, ChevronDown, Copy, Pencil, Package2 } from "lucide-react";
 import type { Message, InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
 
@@ -1078,7 +1078,7 @@ export default function ChatTimeline({
                           renderClosableToolCard(
                             msg.id,
                             "Order tracking",
-                            <Box size={16} className="text-[#402970] shrink-0" />,
+                            <Package2 size={16} className="text-[#402970] shrink-0" />,
                             <TrackingCard tracking={msg.trackingResult} />
                           )
                         }

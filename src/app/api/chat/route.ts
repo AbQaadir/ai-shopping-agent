@@ -1433,6 +1433,8 @@ Respond ONLY with valid JSON matching this schema:
         let pastOrdersContext = "";
         let deliveryContext = "";
         let trackingContext = "";
+        // Captured enriched tracking result — saved into thoughtProcess for refresh persistence
+        let trackingResultForDB: import("@/lib/mcpClient").KaprukaTrackingResult | undefined;
         let serviceContext = "";
         let criteria: any = null;
 
@@ -1823,6 +1825,8 @@ Respond ONLY with valid JSON matching this schema:
               trackingContext = `\n\n[Tracking Result] Order ID: ${enrichedTracking.displayOrderRef || orderId}. Current Status: ${enrichedTracking.currentStatus}. Estimated Delivery: ${enrichedTracking.estimatedDelivery || "N/A"}. Use this in your response.`;
               steps.push({ step: "tracking_order", status: "completed", content: `Order ${orderId} status: ${enrichedTracking.currentStatus}`, durationMs: dur });
               send({ type: "thought", step: "tracking_order", status: "completed", content: "Order status retrieved successfully.", durationMs: dur });
+              // Capture for DB persistence so the card survives page refresh
+              trackingResultForDB = enrichedTracking;
               send({ type: "tracking_result", result: enrichedTracking });
             } else {
               send({ type: "thought", step: "tracking_order", status: "completed", content: "Could not retrieve order status.", durationMs: dur });
@@ -1883,6 +1887,8 @@ Respond ONLY with valid JSON matching this schema:
                   trackingContext = `\n\n[Tracking Result] Order ID: ${enrichedTracking.displayOrderRef || matchedOrder.id}. Current Status: ${enrichedTracking.currentStatus}. Estimated Delivery: ${enrichedTracking.estimatedDelivery || "N/A"}. Use this in your response.`;
                   steps.push({ step: "tracking_order", status: "completed", content: `Status: ${enrichedTracking.currentStatus}`, durationMs: dur });
                   send({ type: "thought", step: "tracking_order", status: "completed", content: `Order status: ${enrichedTracking.currentStatus}`, durationMs: dur });
+                  // Capture for DB persistence so the card survives page refresh
+                  trackingResultForDB = enrichedTracking;
                   send({ type: "tracking_result", result: enrichedTracking });
                 } else {
                   send({ type: "thought", step: "tracking_order", status: "completed", content: "Kapruka tracking unavailable right now.", durationMs: dur });
@@ -2158,6 +2164,8 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
               followUpQuestions,
               groundingSources: groundingSourcesList.length > 0 ? groundingSourcesList : undefined,
               isComparison: !!(selectedProductIds && selectedProductIds.length > 0),
+              // Persist trackingResult so the TrackingCard survives page refresh
+              trackingResult: trackingResultForDB ?? undefined,
             }),
             products: productGroups.length > 0
               ? JSON.stringify(productGroups)

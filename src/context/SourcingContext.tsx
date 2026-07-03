@@ -274,6 +274,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
           let orderFlowStockStatus: "in_stock" | "out_of_stock" | "limited" | undefined = undefined;
           let orderFlowStockQty: number | undefined = undefined;
           let orderFlowStep: OrderFlowStepData | undefined = undefined;
+          let trackingResult: TrackingResult | undefined = undefined;
           let isComparison = false;
           if (m.thoughtProcess) {
             try {
@@ -288,6 +289,8 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
                 orderFlowStockStatus = (parsedProcess as { orderFlowStockStatus?: "in_stock" | "out_of_stock" | "limited" }).orderFlowStockStatus;
                 orderFlowStockQty = (parsedProcess as { orderFlowStockQty?: number }).orderFlowStockQty;
                 orderFlowStep = (parsedProcess as { orderFlowStep?: OrderFlowStepData }).orderFlowStep;
+                // Restore tracking card from persisted DB data (survives page refresh)
+                trackingResult = (parsedProcess as { trackingResult?: TrackingResult }).trackingResult;
                 isComparison = !!parsedProcess.isComparison;
               } else if (Array.isArray(parsedProcess)) {
                 thinkingSteps = parsedProcess;
@@ -315,6 +318,7 @@ export function SourcingProvider({ children }: { children: React.ReactNode }) {
             orderFlowStockStatus,
             orderFlowStockQty,
             orderFlowStep,
+            trackingResult,
             followUpText: followUpSamples.length > 0 
               ? "Based on this session, you can continue with:" 
               : inlineProducts.length > 0 
