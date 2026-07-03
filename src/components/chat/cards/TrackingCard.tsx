@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { MapPin, ShoppingBag, MessageSquare, Receipt, Package2, CheckCircle2 } from "lucide-react";
+import React, { useState } from "react";
+import { MapPin, ShoppingBag, MessageSquare, Receipt, Package2, CheckCircle2, ChevronDown } from "lucide-react";
 import type { TrackingResult } from "@/types/sourcing";
 
 interface TrackingCardProps {
@@ -25,6 +25,7 @@ function getStatusConfig(raw: string) {
 }
 
 export default function TrackingCard({ tracking }: TrackingCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const status = getStatusConfig(tracking.currentStatus);
   // Show our internal order ref if available, else fall back to MCP orderId
   const displayRef = tracking.displayOrderRef || tracking.orderId;
@@ -108,26 +109,68 @@ export default function TrackingCard({ tracking }: TrackingCardProps) {
       {/* ── Progress Timeline from MCP ───────────────────────────────── */}
       {tracking.steps && tracking.steps.length > 0 && (
         <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <Package2 size={11} className="text-slate-400" />
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-              Live Progress
-            </span>
-          </div>
-          <div className="space-y-3 border-l-2 border-slate-100 pl-4 ml-1">
-            {tracking.steps.map((step, i) => (
-              <div key={i} className="relative">
-                <div className="absolute -left-[21px] w-3 h-3 rounded-full bg-white border-2 border-slate-300 top-0.5" />
-                <div className="text-[10px] font-bold text-slate-400">{step.timestamp}</div>
-                <div className="text-xs font-semibold text-slate-700">{step.description}</div>
-                {step.location && (
-                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
-                    <MapPin size={9} />
-                    {step.location}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center justify-between w-full mb-3 group cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5">
+              <Package2 size={11} className="text-slate-400 group-hover:text-[#402970] transition-colors" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide group-hover:text-[#402970] transition-colors">
+                Live Progress
+              </span>
+            </div>
+            {tracking.steps.length > 1 && (
+              <ChevronDown 
+                size={14} 
+                className={`text-slate-400 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} 
+              />
+            )}
+          </button>
+          <div className="border-l-2 border-slate-100 pl-4 ml-1">
+            {/* The collapsible container for older steps */}
+            {tracking.steps.length > 1 && (
+              <div
+                className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+                  isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                }`}
+              >
+                <div className="overflow-hidden">
+                  <div className="space-y-4 pb-4">
+                    {tracking.steps.slice(0, tracking.steps.length - 1).map((step, i) => (
+                      <div key={i} className="relative">
+                        <div className="absolute -left-[21px] w-3 h-3 rounded-full bg-white border-2 border-slate-200 top-0.5" />
+                        <div className="text-[10px] font-bold text-slate-400">{step.timestamp}</div>
+                        <div className="text-xs font-medium text-slate-600">{step.description}</div>
+                        {step.location && (
+                          <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
+                            <MapPin size={9} />
+                            {step.location}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
-            ))}
+            )}
+            
+            {/* Always visible latest step */}
+            {(() => {
+              const latestStep = tracking.steps[tracking.steps.length - 1];
+              return (
+                <div className="relative">
+                  <div className="absolute -left-[21px] w-3 h-3 rounded-full bg-white border-2 border-[#402970] top-0.5 ring-4 ring-[#402970]/10" />
+                  <div className="text-[10px] font-bold text-[#402970]">{latestStep.timestamp}</div>
+                  <div className="text-xs font-semibold text-slate-800">{latestStep.description}</div>
+                  {latestStep.location && (
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-0.5">
+                      <MapPin size={9} />
+                      {latestStep.location}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
