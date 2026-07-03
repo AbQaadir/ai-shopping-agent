@@ -1536,21 +1536,6 @@ Respond ONLY with valid JSON matching this schema:
             criteria = parseRequirements(message);
 
             if (intent === "order_history") {
-              if (!historyTimeline && !historyTarget) {
-                 const stepClarify = { step: "intent_routing", status: "completed", content: "Missing order history details, asking clarification.", durationMs: 0 };
-                 steps.push(stepClarify);
-                 send({ type: "thought", ...stepClarify });
-
-                 const msg = "Could you please tell me which item you'd like to check from your past orders, or roughly when you bought it? (e.g., 'the cake' or 'last week').";
-                 send({ type: "text", content: msg });
-
-                 await prisma.chatMessage.create({
-                    data: { sessionId: session.id, role: "assistant", content: msg },
-                 });
-                 controller.close();
-                 return;
-              }
-
               const step1 = { step: "intent_routing", status: "completed", content: "Identified as: Order History Lookup.", durationMs: 0 };
               steps.push(step1);
               send({ type: "thought", ...step1 });
@@ -1560,10 +1545,11 @@ Respond ONLY with valid JSON matching this schema:
                 const orderWhereClause = historyTimeline && !isNaN(new Date(historyTimeline).getTime())
                   ? { createdAt: { gte: new Date(historyTimeline) } }
                   : {};
+                const takeLimit = historyTimeline ? undefined : 5;
 
                 const userWithOrders = await prisma.user.findUnique({
                   where: { id: userId },
-                  include: { orders: { where: orderWhereClause, include: { items: true }, orderBy: { createdAt: "desc" } } },
+                  include: { orders: { where: orderWhereClause, include: { items: true }, orderBy: { createdAt: "desc" }, take: takeLimit } },
                 });
 
                 let orderProducts: KaprukaProduct[] = [];
