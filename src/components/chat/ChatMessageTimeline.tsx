@@ -1049,7 +1049,7 @@ export default function ChatTimeline({
                                   const isLast = rawIdx === parsedSections.length - 1;
                                   return (
                                     <div key={s.key} className="animate-fadeIn">
-                                      {s.type !== "general" && s.groupTitle && (
+                                      {s.type !== "general" && s.groupTitle && s.groupTitle.toLowerCase() !== "past orders" && (
                                         <h5 className="text-[13px] font-extrabold text-slate-800 mt-3 mb-1.5 select-none">
                                           {s.groupTitle} ({s.type})
                                         </h5>
