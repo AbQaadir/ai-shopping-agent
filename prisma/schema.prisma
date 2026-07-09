@@ -57,6 +57,7 @@ model ChatSession {
   user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   messages        ChatMessage[]
   checkoutSession CheckoutSession?
+  metadata        Json?            // ConversationGoal — updated after each turn (Phase 2)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }

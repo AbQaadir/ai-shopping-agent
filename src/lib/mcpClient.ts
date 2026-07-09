@@ -650,3 +650,65 @@ export async function listDeliveryCities(
     }
   );
 }
+
+// ── Phase 4: MCP Capability Cache ──────────────────────────────────────────
+
+export interface MCPToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+let _mcpCapabilities: MCPToolDefinition[] | null = null;
+
+/**
+ * Fetch and cache the available tools directly from the Kapruka MCP Server.
+ * Mirrors Claude Code's self-discovery behavior.
+ */
+export async function getMCPServerCapabilities(): Promise<MCPToolDefinition[]> {
+  if (_mcpCapabilities !== null) {
+    return _mcpCapabilities;
+  }
+
+  const mcpUrl = process.env.KAPRUKA_MCP_SERVER_URL;
+  if (!mcpUrl) {
+    console.warn("[MCP Cache] KAPRUKA_MCP_SERVER_URL not set, cannot discover capabilities.");
+    return [];
+  }
+
+  try {
+    const transport = new StreamableHTTPClientTransport(new URL(mcpUrl));
+    const client = new Client(
+      { name: "kapruka-ai-shopping-agent-discovery", version: "1.0.0" },
+      { capabilities: {} }
+    );
+    await client.connect(transport);
+    
+    const response = await client.listTools();
+    
+    // Close the transport
+    if ((transport as any).close) {
+      await (transport as any).close();
+    }
+
+    _mcpCapabilities = response.tools.map(t => ({
+      name: t.name,
+      description: t.description || "",
+      inputSchema: (t.inputSchema as Record<string, unknown>) || {},
+    }));
+
+    console.log(`[MCP Cache] Discovered ${_mcpCapabilities.length} tools on server.`);
+    return _mcpCapabilities;
+  } catch (err) {
+    console.error("[MCP Cache] Failed to discover capabilities:", err);
+    return [];
+  }
+}
+
+/**
+ * Force a refresh of the MCP tool capability cache.
+ */
+export async function refreshMCPCapabilities(): Promise<void> {
+  _mcpCapabilities = null;
+  await getMCPServerCapabilities();
+}

@@ -522,3 +522,97 @@ export async function pillar6_browseCategory(
     return await pillar1_searchProducts(categoryName, {});
   }
 }
+
+// ── Phase 4: Tool Registry ───────────────────────────────────────────────
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  pillar: 1 | 2 | 3 | 5 | 6;
+  fn: (...args: any[]) => Promise<unknown>;
+  mcpToolName?: string;     // links to Kapruka MCP server tool name
+  isAsync: boolean;
+  estimatedMs?: number;     // rough execution time estimate
+}
+
+export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
+  "search_products": {
+    name: "search_products",
+    description: "Search Kapruka product catalog by keyword with optional price filter",
+    pillar: 1,
+    fn: pillar1_searchProducts,
+    mcpToolName: "kapruka_search_products",
+    isAsync: true,
+    estimatedMs: 1200,
+  },
+  "get_product": {
+    name: "get_product",
+    description: "Get full product details by Kapruka product ID",
+    pillar: 1,
+    fn: pillar1_getProductDetails,
+    mcpToolName: "kapruka_get_product",
+    isAsync: true,
+    estimatedMs: 800,
+  },
+  "create_order": {
+    name: "create_order",
+    description: "Create a guest checkout order and get a payment URL",
+    pillar: 1,
+    fn: pillar1_createOrderLink,
+    mcpToolName: "kapruka_create_order",
+    isAsync: true,
+    estimatedMs: 2000,
+  },
+  "check_delivery": {
+    name: "check_delivery",
+    description: "Check delivery availability to a Sri Lankan city on a given date",
+    pillar: 2,
+    fn: pillar2_checkDelivery,
+    mcpToolName: "kapruka_check_delivery",
+    isAsync: true,
+    estimatedMs: 1000,
+  },
+  "track_order": {
+    name: "track_order",
+    description: "Get live tracking status and step timeline for an order",
+    pillar: 2,
+    fn: pillar2_trackOrder,
+    mcpToolName: "kapruka_track_order",
+    isAsync: true,
+    estimatedMs: 1500,
+  },
+  "find_city": {
+    name: "find_city",
+    description: "Search for valid Grasshoppers delivery cities by partial name",
+    pillar: 2,
+    fn: pillar2_findCity,
+    mcpToolName: "kapruka_list_delivery_cities",
+    isAsync: true,
+    estimatedMs: 800,
+  },
+  "search_sme_products": {
+    name: "search_sme_products",
+    description: "Search products with SME/local artisan prioritization",
+    pillar: 3,
+    fn: pillar3_searchSMEProducts,
+    mcpToolName: "kapruka_search_products",
+    isAsync: true,
+    estimatedMs: 1200,
+  },
+  "search_services": {
+    name: "search_services",
+    description: "Find verified Sri Lankan home service providers by category and city",
+    pillar: 5,
+    fn: pillar5_searchServiceProviders,
+    isAsync: false,
+    estimatedMs: 10,
+  },
+  "browse_category": {
+    name: "browse_category",
+    description: "Browse a Kapruka product category page and return products",
+    pillar: 6,
+    fn: pillar6_browseCategory,
+    isAsync: true,
+    estimatedMs: 2500,
+  },
+};
