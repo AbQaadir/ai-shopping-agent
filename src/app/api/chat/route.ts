@@ -82,7 +82,7 @@ export const POST = withLogging(async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { sessionId, message, userId, country, currency, selectedProductIds, editMessageId } = body;
+    const { sessionId, message, userId, country, currency, selectedProductIds, selectedProductsList, editMessageId } = body;
 
     if (!sessionId || !message) {
       return new Response(JSON.stringify({ error: "Missing sessionId or message" }), {
@@ -130,14 +130,28 @@ export const POST = withLogging(async function POST(req: NextRequest) {
     let fetchedSelectedProducts: KaprukaProduct[] = [];
     if (selectedProductIds && Array.isArray(selectedProductIds) && selectedProductIds.length > 0) {
       const detailsList = await Promise.all(
-        selectedProductIds.map((id) =>
-          pillar1_getProductDetails(id).catch((err) => {
+        selectedProductIds.map((id: any) =>
+          pillar1_getProductDetails(String(id)).catch((err) => {
             console.error(`Failed to fetch product details for ${id}:`, err);
             return null;
           })
         )
       );
       fetchedSelectedProducts = detailsList.filter((p): p is KaprukaProduct => p !== null);
+
+      if (fetchedSelectedProducts.length === 0 && selectedProductsList && Array.isArray(selectedProductsList)) {
+        console.warn(`[API] Fetching full product details failed. Falling back to inline products list.`);
+        fetchedSelectedProducts = selectedProductsList.map((p: any) => ({
+          id: String(p.id),
+          name: p.name || p.title || "Product",
+          price: p.price || 0,
+          originalPrice: p.originalPrice,
+          currency: p.currency || "LKR",
+          imageUrl: p.imageUrl,
+          category: p.category,
+          inStock: p.inStock ?? true
+        })) as KaprukaProduct[];
+      }
     }
 
     // 3. Save or edit user message

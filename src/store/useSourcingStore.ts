@@ -472,7 +472,8 @@ export const useSourcingStore = create<SourcingState>((set, get) => ({
           userId: activeUserId,
           country: get().country,
           currency: get().currency,
-          selectedProductIds,
+          selectedProductIds: selectedProductIds.map(String),
+          selectedProductsList: state.selectedProducts,
           editMessageId: isEdit ? editMessageId : undefined
         }),
         signal: abortController.signal
