@@ -13,7 +13,7 @@ import {
   ChevronRight,
   RefreshCw,
 } from "lucide-react";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import { cleanProductTitle } from "@/lib/product";
 import type { CartItem, InlineProduct } from "@/types/sourcing";
 
@@ -30,16 +30,17 @@ interface CartModalProps {
 }
 
 export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps) {
+  const cartItems = useSourcingStore(state => state.cartItems);
+  const activeHistoryId = useSourcingStore(state => state.activeHistoryId);
+  const setCartItems = useSourcingStore(state => state.setCartItems);
+  const setSelectedProducts = useSourcingStore(state => state.setSelectedProducts);
+
   const {
-    cartItems,
     handleUpdateCart,
-    handleDirectSend,
     activeUserId,
-    activeHistoryId,
     handleSelectHistory,
-    setCartItems,
-    setSelectedProducts,
-  } = useSourcing();
+    handleSendMessage,
+  } = useSourcingActions();
 
   const [globalGroups, setGlobalGroups] = useState<GroupedCartItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -129,7 +130,7 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
     }));
     setSelectedProducts(productsToCheckout);
     setTimeout(() => {
-      handleDirectSend("checkout cart");
+      handleSendMessage("checkout cart");
     }, 50);
   };
 
@@ -226,7 +227,7 @@ export default function CartModal({ isOpen, onClose, isGlobal }: CartModalProps)
     }));
     setSelectedProducts(productsToCheckout);
     setTimeout(() => {
-      handleDirectSend("checkout cart");
+      handleSendMessage("checkout cart");
     }, 50);
   };
 

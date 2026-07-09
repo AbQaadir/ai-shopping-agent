@@ -6,7 +6,7 @@ import LandingWorkspace from "@/components/landing/LandingWorkspace";
 import ChatWorkspace from "@/components/chat/ChatWorkspace";
 import CartModal from "@/components/chat/CartModal";
 import { Play } from "lucide-react";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import { useAuth } from "@/context/AuthContext";
 
 interface SourcingDashboardProps {
@@ -14,22 +14,22 @@ interface SourcingDashboardProps {
 }
 
 export default function SourcingDashboard({ initialSessionId }: SourcingDashboardProps) {
-  const {
-    isSidebarCollapsed,
-    setIsSidebarCollapsed,
-    isMobileSidebarOpen,
-    setIsMobileSidebarOpen,
-    isChatting,
-    setIsChatting,
-    activeHistoryId,
-    setActiveHistoryId,
-    activeQueryText,
-    isGenerating,
-    messages,
-    history,
-    isViewingCart,
-    setIsViewingCart,
+  const isSidebarCollapsed = useSourcingStore(state => state.isSidebarCollapsed);
+  const setIsSidebarCollapsed = useSourcingStore(state => state.setIsSidebarCollapsed);
+  const isMobileSidebarOpen = useSourcingStore(state => state.isMobileSidebarOpen);
+  const setIsMobileSidebarOpen = useSourcingStore(state => state.setIsMobileSidebarOpen);
+  const isChatting = useSourcingStore(state => state.isChatting);
+  const setIsChatting = useSourcingStore(state => state.setIsChatting);
+  const activeHistoryId = useSourcingStore(state => state.activeHistoryId);
+  const setActiveHistoryId = useSourcingStore(state => state.setActiveHistoryId);
+  const activeQueryText = useSourcingStore(state => state.activeQueryText);
+  const isGenerating = useSourcingStore(state => state.isGenerating);
+  const messages = useSourcingStore(state => state.messages);
+  const history = useSourcingStore(state => state.history);
+  const isViewingCart = useSourcingStore(state => state.isViewingCart);
+  const setIsViewingCart = useSourcingStore(state => state.setIsViewingCart);
 
+  const {
     fetchHistory,
     fetchSessionAndHydrate,
     handleResetLocal,
@@ -39,7 +39,7 @@ export default function SourcingDashboard({ initialSessionId }: SourcingDashboar
     handleSendMessage,
     handleBuyProduct,
     handleSuggestionClick,
-  } = useSourcing();
+  } = useSourcingActions();
   const { isSyncing } = useAuth();
 
 

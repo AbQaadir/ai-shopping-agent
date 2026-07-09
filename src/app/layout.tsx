@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
-import { SourcingProvider } from "@/context/SourcingContext";
+import { SourcingInitializer } from "@/store/SourcingInitializer";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -32,10 +32,10 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <AuthProvider>
-          <SourcingProvider>
+          <SourcingInitializer>
             {children}
             <AuthModal />
-          </SourcingProvider>
+          </SourcingInitializer>
         </AuthProvider>
       </body>
     </html>

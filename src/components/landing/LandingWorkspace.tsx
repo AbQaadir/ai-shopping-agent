@@ -1,6 +1,6 @@
 "use client";
 
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import { useAuth } from "@/context/AuthContext";
 import { Menu, Paperclip, Search, Send, ShoppingCart, User, Sparkles, SquarePen, Compass, CreditCard, Package, RefreshCw } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
@@ -12,7 +12,10 @@ interface LandingWorkspaceProps {
 
 
 export default function LandingWorkspace({ onSend, onSuggestionClick }: LandingWorkspaceProps) {
-  const { setIsMobileSidebarOpen, setIsViewingCart, handleReset } = useSourcing();
+  const setIsMobileSidebarOpen = useSourcingStore(state => state.setIsMobileSidebarOpen);
+  const setIsViewingCart = useSourcingStore(state => state.setIsViewingCart);
+  
+  const { handleReset } = useSourcingActions();
   const { user, openAuthModal } = useAuth();
   const [inputText, setInputText] = useState("");
   const [isFocused, setIsFocused] = useState(false);

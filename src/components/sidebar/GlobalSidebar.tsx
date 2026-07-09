@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import SidebarHistoryList from "./SidebarHistoryList";
 import LanguagePopover from "../header/LanguagePopover";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import { useAuth } from "@/context/AuthContext";
 import { HistoryItem } from "@/types/sourcing";
 import SettingsModal from "../profile/SettingsModal";
@@ -101,7 +101,8 @@ export default function GlobalSidebar({
     };
   }, [showLanguagePopover]);
 
-  const { currency, handleDeleteHistory } = useSourcing();
+  const currency = useSourcingStore(state => state.currency);
+  const { handleDeleteHistory } = useSourcingActions();
   const { user, openAuthModal } = useAuth();
 
   const isEffectiveCollapsed = isCollapsed && !isMobileOpen;

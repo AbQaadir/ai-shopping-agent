@@ -1,6 +1,6 @@
 "use client";
 
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import type { InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
 import { ArrowRight, Paperclip, Square, X, Search, Plus, Send } from "lucide-react";
@@ -33,7 +33,16 @@ export default function ChatInputArea({
 }: ChatInputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { handleAddToCart, handleBuyProduct, handleOrderCart, isSharedReadOnly, setSelectedProducts, cartItems } = useSourcing();
+  
+  const cartItems = useSourcingStore(state => state.cartItems);
+  const setSelectedProducts = useSourcingStore(state => state.setSelectedProducts);
+  
+  const { 
+    handleAddToCart, 
+    handleBuyProduct, 
+    handleOrderCart, 
+    isSharedReadOnly, 
+  } = useSourcingActions();
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);

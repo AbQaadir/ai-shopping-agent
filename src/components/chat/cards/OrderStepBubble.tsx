@@ -22,7 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import { cleanProductTitle } from "@/lib/product";
 import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
 import DeliveryDateBubble from "./DeliveryDateBubble";
@@ -36,7 +36,7 @@ interface OrderStepBubbleProps {
 
 // ── Quantity Ask Variant ───────────────────────────────────────────────────
 function QtyAskBubble({ step, onAction, isActive = true }: OrderStepBubbleProps) {
-  const { handleUpdateCart } = useSourcing();
+  const { handleUpdateCart } = useSourcingActions();
   const [qty, setQty] = useState(1);
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);

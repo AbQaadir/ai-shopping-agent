@@ -10,7 +10,7 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import ChatInputArea from "./ChatInputArea";
 import ChatMessageTimeline from "./ChatMessageTimeline";
 import ProductCatalogModal from "./ProductCatalogModal";
@@ -39,7 +39,16 @@ export default function ChatWorkspace({
   onStopGeneration,
   onBuyProduct
 }: ChatWorkspaceProps) {
-  const { selectedProducts, setSelectedProducts, setIsMobileSidebarOpen, cartItems, cartToast, clearCartToast, isSharedReadOnly, handleSendMessage, isAgeVerificationRequired, setIsAgeVerificationRequired } = useSourcing();
+  const selectedProducts = useSourcingStore(state => state.selectedProducts);
+  const setSelectedProducts = useSourcingStore(state => state.setSelectedProducts);
+  const setIsMobileSidebarOpen = useSourcingStore(state => state.setIsMobileSidebarOpen);
+  const cartItems = useSourcingStore(state => state.cartItems);
+  const cartToast = useSourcingStore(state => state.cartToast);
+  const clearCartToast = useSourcingStore(state => state.clearCartToast);
+  const isAgeVerificationRequired = useSourcingStore(state => state.isAgeVerificationRequired);
+  const setIsAgeVerificationRequired = useSourcingStore(state => state.setIsAgeVerificationRequired);
+
+  const { isSharedReadOnly, handleSendMessage } = useSourcingActions();
   const [inputText, setInputText] = useState("");
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);

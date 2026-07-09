@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { MapPin, User, Phone, ShoppingBag, Plus, Minus, Loader2, CheckCircle, ExternalLink } from "lucide-react";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import type { InlineProduct, CheckoutLink } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
 import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
@@ -14,7 +14,11 @@ interface CheckoutCardProps {
 
 
 export default function CheckoutCard({ product }: CheckoutCardProps) {
-  const { activeUserId, activeHistoryId, setMessages, userAddresses } = useSourcing();
+  const userAddresses = useSourcingStore(state => state.userAddresses);
+  const activeHistoryId = useSourcingStore(state => state.activeHistoryId);
+  const setMessages = useSourcingStore(state => state.setMessages);
+  
+  const { activeUserId } = useSourcingActions();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");

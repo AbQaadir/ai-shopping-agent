@@ -1,6 +1,6 @@
 "use client";
 
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import type { CheckoutLink, InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
 import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
@@ -43,7 +43,11 @@ type Step =
 type PaymentMethod = "cod" | "card";
 
 export default function OrderFlowCard({ product, stockStatus = "in_stock", stockQty }: OrderFlowCardProps) {
-  const { activeUserId, activeHistoryId, setMessages, userAddresses } = useSourcing();
+  const userAddresses = useSourcingStore(state => state.userAddresses);
+  const activeHistoryId = useSourcingStore(state => state.activeHistoryId);
+  const setMessages = useSourcingStore(state => state.setMessages);
+  
+  const { activeUserId } = useSourcingActions();
 
   const defaultAddr = userAddresses.find(a => a.isDefault) || userAddresses[0];
   const savedDefaults = defaultAddr ? {

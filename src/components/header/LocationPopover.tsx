@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore } from "@/store/useSourcingStore";
 
 interface LocationPopoverProps {
   onClose?: () => void;
@@ -18,7 +18,8 @@ const COUNTRIES = [
 ];
 
 export default function LocationPopover({ onClose, align = "bottom" }: LocationPopoverProps) {
-  const { country, setCountry } = useSourcing();
+  const country = useSourcingStore(state => state.country);
+  const setCountry = useSourcingStore(state => state.setCountry);
   const [selectedCountry, setSelectedCountry] = useState(country.toUpperCase());
 
   const handleSave = () => {

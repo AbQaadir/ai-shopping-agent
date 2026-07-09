@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore } from "@/store/useSourcingStore";
 
 interface LanguagePopoverProps {
   onClose?: () => void;
@@ -25,7 +25,8 @@ const currencies = [
 ];
 
 export default function LanguagePopover({ onClose, align = "bottom" }: LanguagePopoverProps) {
-  const { currency, setCurrency } = useSourcing();
+  const currency = useSourcingStore(state => state.currency);
+  const setCurrency = useSourcingStore(state => state.setCurrency);
   const [selectedCurrency, setSelectedCurrency] = useState(currency.toUpperCase());
   const [selectedLanguage, setSelectedLanguage] = useState("en");
   

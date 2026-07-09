@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { X, User, MapPin, Loader2, CheckCircle2, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore } from "@/store/useSourcingStore";
 import AddressManager from "./AddressManager";
 import type { UserAddress } from "@/types/sourcing";
 
@@ -16,7 +16,8 @@ type Tab = "profile" | "addresses";
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { user, signOut } = useAuth();
-  const { userAddresses, setUserAddresses } = useSourcing();
+  const userAddresses = useSourcingStore(state => state.userAddresses);
+  const setUserAddresses = useSourcingStore(state => state.setUserAddresses);
 
   const [isSavingAddresses, setIsSavingAddresses] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Globe, Menu, ShoppingCart, User, LogOut, Share2, Link as LinkIcon, CheckCircle2 } from "lucide-react";
 import LocationPopover from "./LocationPopover";
 import LanguagePopover from "./LanguagePopover";
-import { useSourcing } from "@/context/SourcingContext";
+import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
 import { useAuth } from "@/context/AuthContext";
 
 interface GlobalHeaderProps {
@@ -18,7 +18,12 @@ export default function GlobalHeader({ onNewSourcing, isCompact = false, onMenuT
   const [showLanguagePopover, setShowLanguagePopover] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
-  const { country, currency, isChatting, isSharedReadOnly } = useSourcing();
+  
+  const country = useSourcingStore(state => state.country);
+  const currency = useSourcingStore(state => state.currency);
+  const isChatting = useSourcingStore(state => state.activeHistoryId !== null);
+  
+  const { isSharedReadOnly } = useSourcingActions();
   const { user, signInWithGoogle, signOut } = useAuth();
 
   const handleShare = () => {
