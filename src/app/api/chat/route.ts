@@ -1349,7 +1349,7 @@ Respond ONLY with valid JSON matching this schema:
             } else if (updatedState.paymentMethod === "cod") {
               confirmationText = `Your order for ${itemsListStr} is confirmed! 🎉 Our courier will deliver and collect **Rs. ${totalLKR.toLocaleString()}** in cash on arrival.`;
             } else {
-              confirmationText = `Your order for ${itemsListStr} is confirmed! 🎉 Complete the payment via the secure link below to finalise your order.`;
+              confirmationText = `Your order for ${itemsListStr} is confirmed! 🎉`;
             }
 
             const cs = {

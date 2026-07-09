@@ -338,7 +338,7 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
         const confirmMsg = {
           id: `checkout-link-${Date.now()}`,
           sender: "ai" as const,
-          text: `Your order has been confirmed! 🎉 ${paymentMethod === "cod" ? "You have selected Cash on Delivery. Please have LKR ${(product.price || 0) * quantity} ready at the time of delivery." : "Your secure payment link is ready. Click below to complete your payment."}`,
+          text: `Your order has been confirmed! 🎉 ${paymentMethod === "cod" ? "You have selected Cash on Delivery. Please have LKR ${(product.price || 0) * quantity} ready at the time of delivery." : ""}`,
           timestamp: new Date(),
           checkoutLinks: [link] as CheckoutLink[],
         };
