@@ -45,8 +45,20 @@ import {
   type CheckoutState,
 } from "@/lib/checkoutContext";
 import { getCachedCategories, scrapeMultipleCategoryUrls } from "@/lib/tools";
+// ── Phase 0: Typed ThoughtProcess ────────────────────────────────────────
+import {
+  parseThoughtProcess,
+  serializeThoughtProcess,
+  buildOrderFlowThoughtProcess,
+  buildShopThoughtProcess,
+  type ThoughtProcess,
+  type ThoughtStep,
+} from "@/lib/core/thoughtProcess";
 
-// Normalize address data from DB to SavedAddress schema
+/** Serialize ThoughtProcess for Prisma Json column storage */
+function tpJson(tp: ThoughtProcess): string {
+  return JSON.stringify(serializeThoughtProcess(tp));
+}
 const mapToSavedAddress = (addr: any) => {
   if (!addr) return undefined;
   return {
@@ -180,16 +192,11 @@ export const POST = withLogging(async function POST(req: NextRequest) {
         orderBy: { createdAt: "desc" },
       });
 
-      let orderFlowStep: any = null;
+      // Phase 0: Use typed parseThoughtProcess instead of raw any-cast
+      let orderFlowStep: ThoughtProcess["orderFlowStep"] | null = null;
       if (lastAssistantMsg?.thoughtProcess) {
-        try {
-          const parsed = typeof lastAssistantMsg.thoughtProcess === "string"
-            ? JSON.parse(lastAssistantMsg.thoughtProcess)
-            : lastAssistantMsg.thoughtProcess;
-          orderFlowStep = (parsed as any)?.orderFlowStep;
-        } catch (e) {
-          console.error("Error parsing thoughtProcess for rollback:", e);
-        }
+        const parsed = parseThoughtProcess(lastAssistantMsg.thoughtProcess);
+        orderFlowStep = parsed?.orderFlowStep ?? null;
       }
 
       if (orderFlowStep && orderFlowStep.phase !== "confirmed" && orderFlowStep.phase !== "cancelled") {
@@ -209,20 +216,23 @@ export const POST = withLogging(async function POST(req: NextRequest) {
         });
 
         // Synchronize user cart in DB
+        // Phase 0: Wrapped in $transaction to prevent concurrent write race conditions
         const currentUserId = userId || "guest";
         try {
-          const userRecord = await prisma.user.findUnique({ where: { id: currentUserId } });
-          let cartObj: Record<string, any[]> = {};
-          if (userRecord?.cart) {
-            const parsed = typeof userRecord.cart === "string" ? JSON.parse(userRecord.cart) : userRecord.cart;
-            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-              cartObj = parsed as Record<string, any[]>;
+          await prisma.$transaction(async (tx) => {
+            const userRecord = await (tx.user as any).findUnique({ where: { id: currentUserId } });
+            let cartObj: Record<string, any[]> = {};
+            if (userRecord?.cart) {
+              const parsed = typeof userRecord.cart === "string" ? JSON.parse(userRecord.cart) : userRecord.cart;
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                cartObj = parsed as Record<string, any[]>;
+              }
             }
-          }
-          cartObj[sessionId] = orderFlowStep.cartItems || [];
-          await (prisma.user as any).update({
-            where: { id: currentUserId },
-            data: { cart: cartObj },
+            cartObj[sessionId] = (orderFlowStep as any)?.cartItems || [];
+            await (tx.user as any).update({
+              where: { id: currentUserId },
+              data: { cart: cartObj },
+            });
           });
         } catch (err) {
           console.warn("Failed to sync cart during rollback:", err);
@@ -534,27 +544,21 @@ User query to classify: "${message}"`;
         };
 
         // ── Helper: save assistant message with order step to DB ──────────
+        // Phase 0: Uses typed buildOrderFlowThoughtProcess instead of raw JSON.stringify
         const saveOrderMessage = async (
           text: string,
           orderFlowStepPayload: Record<string, unknown>
         ) => {
+          const tp = buildOrderFlowThoughtProcess(
+            String(orderFlowStepPayload.phase ?? "unknown"),
+            orderFlowStepPayload as unknown as ThoughtProcess["orderFlowStep"]
+          );
           await prisma.chatMessage.create({
             data: {
               sessionId,
               role: "assistant",
               content: text,
-              thoughtProcess: JSON.stringify({
-                steps: [
-                  {
-                    step: "order_agent",
-                    status: "completed",
-                    content: `Phase: ${orderFlowStepPayload.phase}`,
-                    durationMs: 0,
-                  },
-                ],
-                intent: "product",
-                orderFlowStep: orderFlowStepPayload,
-              }),
+              thoughtProcess: tpJson(tp),
             },
           });
         };
@@ -581,26 +585,30 @@ User query to classify: "${message}"`;
         };
 
         // ── Helper: save cart to DB ────────────────────────────────────────
+        // Phase 0: Wrapped in $transaction to prevent concurrent write race conditions
+        // on the User.cart JSON blob (read-modify-write must be atomic)
         const saveUserCart = async (cartItems: any[]) => {
           const currentUserId = session?.userId || userId || "guest";
           try {
-            const userWithCart = await (prisma.user as any).findUnique({
-              where: { id: currentUserId },
-            });
-            let cartObj: Record<string, any[]> = {};
-            if (userWithCart?.cart) {
-              const parsed =
-                typeof userWithCart.cart === "string"
-                  ? JSON.parse(userWithCart.cart as string)
-                  : userWithCart.cart;
-              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                cartObj = parsed;
+            await prisma.$transaction(async (tx) => {
+              const userWithCart = await (tx.user as any).findUnique({
+                where: { id: currentUserId },
+              });
+              let cartObj: Record<string, any[]> = {};
+              if (userWithCart?.cart) {
+                const parsed =
+                  typeof userWithCart.cart === "string"
+                    ? JSON.parse(userWithCart.cart as string)
+                    : userWithCart.cart;
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                  cartObj = parsed;
+                }
               }
-            }
-            cartObj[sessionId] = cartItems;
-            await (prisma.user as any).update({
-              where: { id: currentUserId },
-              data: { cart: cartObj },
+              cartObj[sessionId] = cartItems;
+              await (tx.user as any).update({
+                where: { id: currentUserId },
+                data: { cart: cartObj },
+              });
             });
           } catch (err) {
             console.error("[saveUserCart] failed:", err);
@@ -926,26 +934,27 @@ Respond ONLY with valid JSON matching this schema:
             }
 
             await streamWords(modification.responseText);
+            // Phase 0: Use typed helper instead of raw JSON.stringify
+            const cartModTp = buildOrderFlowThoughtProcess(
+              checkoutState ? "qty_ask" : "no_checkout",
+              checkoutState
+                ? {
+                    phase: (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") ? "qty_ask" : checkoutState.phase,
+                    cartItems: modification.updatedCart,
+                    savedAddress: checkoutState.savedAddress,
+                    confirmedQuantity: (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") ? undefined : checkoutState.confirmedQty,
+                    confirmedAddress: checkoutState.confirmedAddress,
+                    geocodedLocation: checkoutState.geocodedLocation,
+                    paymentMethod: checkoutState.paymentMethod,
+                  } as ThoughtProcess["orderFlowStep"]
+                : undefined
+            );
             await prisma.chatMessage.create({
               data: {
                 sessionId,
                 role: "assistant",
                 content: modification.responseText,
-                thoughtProcess: JSON.stringify({
-                  steps: [{ step: "cart_agent", status: "completed", content: `Cart modified: ${modification.type}`, durationMs: 0 }],
-                  intent: "product",
-                  orderFlowStep: checkoutState
-                    ? {
-                        phase: (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") ? "qty_ask" : checkoutState.phase,
-                        cartItems: modification.updatedCart,
-                        savedAddress: checkoutState.savedAddress,
-                        confirmedQuantity: (modification.type === "add" || modification.type === "remove" || modification.type === "update_qty") ? undefined : checkoutState.confirmedQty,
-                        confirmedAddress: checkoutState.confirmedAddress,
-                        geocodedLocation: checkoutState.geocodedLocation,
-                        paymentMethod: checkoutState.paymentMethod,
-                      }
-                    : undefined,
-                }),
+                thoughtProcess: tpJson(cartModTp),
               },
             });
             controller.close();
@@ -1409,15 +1418,17 @@ Respond ONLY with valid JSON matching this schema:
             await new Promise((r) => setTimeout(r, 40));
           }
 
+          // Phase 0: Use typed helper
+          const refusalTp = buildShopThoughtProcess({
+            intent: "qa",
+            steps: [{ step: "intent_routing", status: "completed", content: "Query filtered by guardrails.", durationMs: 0 }],
+          });
           await prisma.chatMessage.create({
             data: {
               sessionId: sessionId,
               role: "assistant",
               content: refusalText,
-              thoughtProcess: JSON.stringify({
-                steps: [{ step: "intent_routing", status: "completed", content: "Query filtered by guardrails.", durationMs: 0 }],
-                intent: "qa",
-              }),
+              thoughtProcess: tpJson(refusalTp),
             },
           });
 
@@ -2139,20 +2150,22 @@ Respond ONLY as JSON array: ["query1", "query2", "query3"]`;
 
 
         // ── Save AI response to DB ─────────────────────────────────────
+        // Phase 0: Use typed buildShopThoughtProcess helper
+        const shopTp = buildShopThoughtProcess({
+          intent,
+          steps: steps as ThoughtStep[],
+          followUpQuestions,
+          groundingSources: groundingSourcesList.length > 0
+            ? groundingSourcesList.map((s) => s.uri)
+            : undefined,
+          trackingResult: trackingResultForDB ?? undefined,
+        });
         await prisma.chatMessage.create({
           data: {
             sessionId: sessionId,
             role: "assistant",
             content: fullResponseText,
-            thoughtProcess: JSON.stringify({
-              steps,
-              intent,
-              followUpQuestions,
-              groundingSources: groundingSourcesList.length > 0 ? groundingSourcesList : undefined,
-              isComparison: !!(selectedProductIds && selectedProductIds.length > 0),
-              // Persist trackingResult so the TrackingCard survives page refresh
-              trackingResult: trackingResultForDB ?? undefined,
-            }),
+            thoughtProcess: tpJson(shopTp),
             products: productGroups.length > 0
               ? JSON.stringify(productGroups)
               : products.length > 0
