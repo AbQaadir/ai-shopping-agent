@@ -192,8 +192,12 @@ function extractFromNextData($: cheerio.CheerioAPI): ScrapedProduct[] | null {
  * @returns The numeric price, or `0` if parsing fails.
  */
 function parsePrice(raw: string): number {
-  const cleaned = raw.replace(/[^0-9.]/g, '');
-  const value = parseFloat(cleaned);
+  let cleaned = raw.replace(/rs\.?/i, '');
+  cleaned = cleaned.replace(/,/g, '');
+  const match = cleaned.match(/[0-9]+(\.[0-9]+)?/);
+  if (!match) return 0;
+  
+  const value = parseFloat(match[0]);
   return Number.isFinite(value) ? value : 0;
 }
 
