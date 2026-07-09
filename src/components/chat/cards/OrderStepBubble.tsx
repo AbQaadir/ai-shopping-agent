@@ -1517,17 +1517,6 @@ function ConfirmedBubble({ step, onAction, isActive = true }: OrderStepBubblePro
               </div>
             </div>
 
-            {step.paymentMethod === "card" && step.checkoutUrl && (
-              <a
-                href={step.checkoutUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-3 bg-[#402970] hover:bg-[#301e54] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-              >
-                Open Secure Payment Link <ExternalLink size={13} />
-              </a>
-            )}
-
             {step.paymentMethod === "cod" && (
               <div className="flex items-start gap-2.5 p-3.5 bg-amber-50/50 border border-amber-100 rounded-xl">
                 <Truck size={14} className="text-amber-600 shrink-0 mt-0.5" />
