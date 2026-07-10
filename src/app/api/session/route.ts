@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { withLogging } from "@/lib/logger";
+import { getVerifiedUser } from "@/lib/auth";
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 
 export const dynamic = "force-dynamic";
@@ -9,10 +11,20 @@ export const fetchCache = "force-no-store";
 
 export const GET = withLogging(async function GET(req: NextRequest) {
   try {
+    // ── Security ──────────────────────────────────────────────────────────
+    const ip = getClientIp(req);
+    const rl = rateLimit(`session:get:${ip}`, 60, 60_000); // 60 req/min per IP
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
+    const { userId: verifiedUserId, isGuest } = await getVerifiedUser();
+    // ── End Security ──────────────────────────────────────────────────────
+
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("sessionId") || searchParams.get("id");
-    const userId = searchParams.get("userId");
     const cartOnly = searchParams.get("cartOnly") === "true";
+
+    // Use verified userId — ignore any userId from query params for data access
+    const userId = verifiedUserId;
 
     if (cartOnly && userId) {
       const globalCart = searchParams.get("global") === "true";
@@ -20,7 +32,7 @@ export const GET = withLogging(async function GET(req: NextRequest) {
         where: { id: userId },
         select: { cart: true },
       });
-      if (!user && userId === "guest") {
+      if (!user && isGuest && userId === "guest") {
         user = await (prisma.user as any).create({
           data: { id: "guest", email: "guest@kapruka.com", name: "Guest User" },
           select: { cart: true },
@@ -42,7 +54,7 @@ export const GET = withLogging(async function GET(req: NextRequest) {
       let cartItems: any[] = [];
       if (globalCart) {
         const sessions = await prisma.chatSession.findMany({
-          where: userId === "guest" ? { userId: null } : { userId: userId },
+          where: isGuest ? { userId: null } : { userId: userId },
           select: { id: true, title: true },
         });
 
@@ -83,14 +95,19 @@ export const GET = withLogging(async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Session not found" }, { status: 404 });
       }
 
+      // Ownership check: only allow access to sessions owned by the verified user
+      if (session.userId && session.userId !== userId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
       return NextResponse.json(session);
     } else {
-      // Fetch sessions filtered by userId if provided, sorted by creation time descending
+      // Fetch sessions for the verified user only
       const limit = Number(searchParams.get("limit")) || 100;
       const offset = Number(searchParams.get("offset")) || 0;
 
       const sessions = await prisma.chatSession.findMany({
-        where: userId ? { userId: userId === "guest" ? null : userId } : undefined,
+        where: isGuest ? { userId: null } : { userId: userId },
         orderBy: { createdAt: "desc" },
         take: limit,
         skip: offset,
@@ -106,15 +123,24 @@ export const GET = withLogging(async function GET(req: NextRequest) {
 
 export const PATCH = withLogging(async function PATCH(req: NextRequest) {
   try {
+    // ── Security ──────────────────────────────────────────────────────────
+    const { userId: verifiedUserId, isGuest } = await getVerifiedUser();
+    const ip = getClientIp(req);
+    const rl = rateLimit(`session:patch:${isGuest ? `ip:${ip}` : `user:${verifiedUserId}`}`, 30, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+    // ── End Security ──────────────────────────────────────────────────────
+
     const body = await req.json().catch(() => ({}));
-    const { userId, sessionId, cart } = body;
+    const { sessionId, cart } = body;
+    // Use verified userId — ignore body.userId
+    const userId = verifiedUserId;
 
     if (!userId) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
     let userExists = await prisma.user.findUnique({ where: { id: userId } });
-    if (!userExists && userId !== "guest") {
+    if (!userExists && isGuest) {
       userExists = await prisma.user.create({
         data: { id: userId, email: `guest-${userId}@guest.local`, name: "Guest User" }
       });
@@ -160,11 +186,20 @@ export const PATCH = withLogging(async function PATCH(req: NextRequest) {
 
 export const POST = withLogging(async function POST(req: NextRequest) {
   try {
+    // ── Security ──────────────────────────────────────────────────────────
+    const { userId: verifiedUserId, isGuest } = await getVerifiedUser();
+    const ip = getClientIp(req);
+    const rl = rateLimit(`session:post:${isGuest ? `ip:${ip}` : `user:${verifiedUserId}`}`, 20, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+    // ── End Security ──────────────────────────────────────────────────────
+
     const body = await req.json().catch(() => ({}));
-    const { title, userId } = body;
+    const { title } = body;
+    // Use verified userId — ignore body.userId
+    const userId = verifiedUserId;
 
     // Ensure user exists (create a dummy guest user if needed)
-    if (userId && userId !== "guest") {
+    if (userId && !isGuest) {
       await prisma.user.upsert({
         where: { id: userId },
         update: {},
@@ -180,7 +215,7 @@ export const POST = withLogging(async function POST(req: NextRequest) {
       data: {
         title: title || "New Sourcing Task",
         status: "active",
-        userId: userId && userId !== "guest" ? userId : null,
+        userId: !isGuest ? userId : null,
       },
     });
 
@@ -193,12 +228,36 @@ export const POST = withLogging(async function POST(req: NextRequest) {
 
 export const DELETE = withLogging(async function DELETE(req: NextRequest) {
   try {
+    // ── Security ──────────────────────────────────────────────────────────
+    const { userId: verifiedUserId, isGuest } = await getVerifiedUser();
+    const ip = getClientIp(req);
+    const rl = rateLimit(`session:delete:${isGuest ? `ip:${ip}` : `user:${verifiedUserId}`}`, 20, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+    // ── End Security ──────────────────────────────────────────────────────
+
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("sessionId") || searchParams.get("id");
-    const userId = searchParams.get("userId");
+    // Use verified userId — ignore userId from query params
+    const userId = verifiedUserId;
 
     if (!sessionId) {
       return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+    }
+
+    // Ownership check: verify the session belongs to the requesting user before deletion
+    const sessionToDelete = await prisma.chatSession.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+
+    if (!sessionToDelete) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    // A session with a userId can only be deleted by that user.
+    // Null-userId sessions (guest sessions) can be deleted by guest requests.
+    if (sessionToDelete.userId && sessionToDelete.userId !== userId) {
+      return NextResponse.json({ error: "Forbidden: You do not own this session." }, { status: 403 });
     }
 
     // 1. Delete the chat session from PostgreSQL (cascades to ChatMessage & CheckoutSession)
@@ -239,4 +298,5 @@ export const DELETE = withLogging(async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 });
+
 

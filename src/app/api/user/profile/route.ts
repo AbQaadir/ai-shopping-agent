@@ -2,23 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { KAPRUKA_CITIES_SET } from "@/constants/cities";
 import { withLogging } from "@/lib/logger";
+import { getVerifiedUser } from "@/lib/auth";
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 
 /**
- * GET /api/user/profile?userId=X
- * Returns the user's profile: name, phone, addresses, profileComplete.
+ * GET /api/user/profile
+ * Returns the verified user's profile: name, phone, addresses, profileComplete.
+ * Authentication required.
  */
 export const GET = withLogging(async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
+  const ip = getClientIp(req);
+  const ipLimit = rateLimit(`profile:get:${ip}`, 30, 60_000);
+  if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
-  if (!userId) {
-    return NextResponse.json({ error: "userId is required" }, { status: 400 });
+  const { userId: verifiedUserId, isGuest } = await getVerifiedUser();
+
+  if (isGuest) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: verifiedUserId },
       select: {
         id: true,
         name: true,
@@ -42,17 +48,25 @@ export const GET = withLogging(async function GET(req: NextRequest) {
 
 /**
  * PATCH /api/user/profile
- * Updates the user's profile. Only updates provided fields.
- * Body: { userId, name?, phone?, addresses?, profileComplete? }
+ * Updates the verified user's profile. Only updates provided fields.
+ * Body: { name?, phone?, addresses?, profileComplete? }
+ * Authentication required.
  */
 export const PATCH = withLogging(async function PATCH(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { userId, name, phone, addresses, profileComplete } = body;
+    const ip = getClientIp(req);
+    const { userId: verifiedUserId, isGuest } = await getVerifiedUser();
 
-    if (!userId) {
-      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    if (isGuest) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     }
+
+    const userLimit = rateLimit(`profile:patch:user:${verifiedUserId}`, 10, 60_000);
+    if (!userLimit.allowed) return rateLimitResponse(userLimit.retryAfterSeconds);
+
+    const body = await req.json();
+    const { name, phone, addresses, profileComplete } = body;
+    // Note: userId is intentionally NOT read from body — we use verifiedUserId
 
     // Build update object with only provided fields
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,7 +90,7 @@ export const PATCH = withLogging(async function PATCH(req: NextRequest) {
     if (profileComplete !== undefined) updateData.profileComplete = profileComplete;
 
     const updatedUser = await prisma.user.update({
-      where: { id: userId },
+      where: { id: verifiedUserId },
       data: updateData,
       select: {
         id: true,
@@ -94,3 +108,6 @@ export const PATCH = withLogging(async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 });
+
+
+

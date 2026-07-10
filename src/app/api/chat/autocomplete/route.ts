@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { withLogging } from "@/lib/logger";
 import { config } from "@/lib/config";
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,6 +19,14 @@ const MAX_CACHE_SIZE = 1000;
 
 export const POST = withLogging(async function POST(req: NextRequest) {
   try {
+    // ── Security: IP Rate Limiting ─────────────────────────────────────────
+    // Autocomplete fires on every keystroke. Without limiting, a single user
+    // could generate hundreds of Gemini API calls per minute.
+    const ip = getClientIp(req);
+    const rl = rateLimit(`autocomplete:ip:${ip}`, 60, 60_000); // 60 req/min per IP
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+    // ── End Security ──────────────────────────────────────────────────────
+
     const { inputText } = await req.json().catch(() => ({}));
 
     if (!inputText || typeof inputText !== "string") {

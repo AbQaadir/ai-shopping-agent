@@ -479,7 +479,23 @@ export const useSourcingStore = create<SourcingState>((set, get) => ({
         signal: abortController.signal
       });
 
-      if (!res.ok) throw new Error("Failed to post message to chat api");
+      if (!res.ok) {
+        // Handle rate limit responses with a user-friendly message
+        if (res.status === 429) {
+          const errBody = await res.json().catch(() => ({}));
+          // If the guest message limit was hit, trigger the auth modal
+          if (errBody.code === "GUEST_LIMIT_EXCEEDED") {
+            openAuthModal("message_limit");
+            set({ isGenerating: false, isChatting: false });
+            return;
+          }
+          throw new Error(
+            errBody.error || "You're sending messages too fast. Please wait a moment and try again."
+          );
+        }
+        throw new Error("Failed to post message to chat api");
+      }
+
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();

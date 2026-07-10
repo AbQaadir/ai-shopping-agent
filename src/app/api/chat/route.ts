@@ -27,6 +27,13 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
+import { getVerifiedUser } from "@/lib/auth";
+import {
+  checkGuestMessageLimit,
+  getClientIp,
+  rateLimit,
+  rateLimitResponse,
+} from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -81,8 +88,48 @@ export const POST = withLogging(async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
 
   try {
+    // ── Security: Rate limiting & Authentication ───────────────────────────
+    // Step A: IP-level rate limit (cheap check before any expensive work)
+    const ip = getClientIp(req);
+    const ipLimit = rateLimit(`chat:ip:${ip}`, 60, 60_000); // 60 req/min per IP (handles bots/scrapers)
+    if (!ipLimit.allowed) {
+      return rateLimitResponse(ipLimit.retryAfterSeconds);
+    }
+
+    // Step B: Verify the Supabase JWT from the session cookie.
+    // getVerifiedUser() calls supabase.auth.getUser() which validates the JWT
+    // cryptographically with Supabase servers — NOT just reads the cookie.
+    // Returns { userId: "guest", isGuest: true } for unauthenticated requests.
+    const { userId: verifiedUserId, isGuest } = await getVerifiedUser();
+
+    // Step C: Per-identity rate limit (tighter for auth users, very tight for guests)
+    const userRateLimitKey = isGuest ? `chat:guest:${ip}` : `chat:user:${verifiedUserId}`;
+    const userLimit = rateLimit(userRateLimitKey, isGuest ? 30 : 60, 60_000);
+    if (!userLimit.allowed) {
+      return rateLimitResponse(userLimit.retryAfterSeconds);
+    }
+
+    // Step D: Server-side guest message limit (mirrors the 9-message client-side check
+    // in useSourcingStore.ts so it cannot be bypassed via raw API calls)
+    if (isGuest) {
+      const guestMsgCheck = checkGuestMessageLimit(ip);
+      if (!guestMsgCheck.allowed) {
+        return new Response(
+          JSON.stringify({
+            error: "Message limit reached. Please sign in to continue chatting.",
+            code: "GUEST_LIMIT_EXCEEDED",
+          }),
+          { status: 429, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+    // ── End Security Guards ────────────────────────────────────────────────
+
     const body = await req.json().catch(() => ({}));
-    const { sessionId, message, userId, country, currency, selectedProductIds, selectedProductsList, editMessageId } = body;
+    const { sessionId, message, country, currency, selectedProductIds, selectedProductsList, editMessageId } = body;
+    // Note: userId is now sourced from the verified Supabase session above,
+    // NOT from body. body.userId is intentionally ignored for security.
+    const userId = verifiedUserId;
 
     if (!sessionId || !message) {
       return new Response(JSON.stringify({ error: "Missing sessionId or message" }), {
@@ -94,7 +141,7 @@ export const POST = withLogging(async function POST(req: NextRequest) {
     // 1. Ensure chat session exists
     let session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
 
-    // Strict Ownership Check
+    // Strict Ownership Check — now uses verified userId, not body.userId
     if (session && session.userId && session.userId !== userId) {
       return new Response(JSON.stringify({ error: "Forbidden: You do not have permission to send messages to this shared chat." }), {
         status: 403,
