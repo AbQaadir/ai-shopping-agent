@@ -20,6 +20,11 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+export interface MCPContext {
+  onLog?: (msg: any) => void;
+  onProgress?: (prog: any) => void;
+}
+
 export interface MCPToolResult<T = unknown> {
   success: boolean;
   data?: T;
@@ -131,7 +136,8 @@ export interface KaprukaCategoryDeep {
  */
 async function callMCPTool(
   toolName: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  mcpContext?: MCPContext
 ): Promise<string> {
   const mcpUrl = process.env.KAPRUKA_MCP_URL;
   if (!mcpUrl) {
@@ -143,13 +149,26 @@ async function callMCPTool(
     { capabilities: {} }
   );
 
+  if (mcpContext?.onLog) {
+    client.fallbackNotificationHandler = async (notification) => {
+      if (notification.method === "notifications/message" && mcpContext.onLog) {
+        mcpContext.onLog(notification.params);
+      }
+    };
+  }
+
   const transport = new StreamableHTTPClientTransport(new URL(mcpUrl));
 
   // connect() performs initialize → initialized handshake automatically
   await client.connect(transport);
 
   try {
-    const result = await client.callTool({ name: toolName, arguments: args });
+    const options: any = {};
+    if (mcpContext?.onProgress) {
+      options.onprogress = (progress: any) => mcpContext.onProgress!(progress);
+    }
+
+    const result = await client.callTool({ name: toolName, arguments: args }, undefined, options);
 
     // Extract text content from the tool result
     const content = result.content;
@@ -193,7 +212,8 @@ function isRateLimit(err: unknown, text?: string): boolean {
 async function safeCallMCPTool<T>(
   toolName: string,
   args: Record<string, unknown>,
-  parser: (text: string) => T
+  parser: (text: string) => T,
+  mcpContext?: MCPContext
 ): Promise<MCPToolResult<T>> {
   const maxRetries = 3;
   let delay = 300; // ms
@@ -201,7 +221,7 @@ async function safeCallMCPTool<T>(
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     let text = "";
     try {
-      text = await callMCPTool(toolName, args);
+      text = await callMCPTool(toolName, args, mcpContext);
       
       // Check if the response text itself is a rate limit error message
       if (text.toLowerCase().includes("rate limit")) {
@@ -245,7 +265,8 @@ export async function searchProducts(
     inStockOnly?: boolean;
     page?: number;
     currency?: string;
-  } = {}
+  } = {},
+  mcpContext?: MCPContext
 ): Promise<MCPToolResult<KaprukaProduct[]>> {
   const params: Record<string, unknown> = {
     q: query,
@@ -306,13 +327,13 @@ export async function searchProducts(
       description: item.summary || undefined,
       url: item.url || undefined,
     }));
-  });
+  }, mcpContext);
 }
 
 /**
  * Pillar 1 — Get full details for a specific Kapruka product.
  */
-export async function getProduct(productId: string): Promise<MCPToolResult<KaprukaProduct>> {
+export async function getProduct(productId: string, mcpContext?: MCPContext): Promise<MCPToolResult<KaprukaProduct>> {
   return safeCallMCPTool(
     "kapruka_get_product",
     {
@@ -354,14 +375,15 @@ export async function getProduct(productId: string): Promise<MCPToolResult<Kapru
         attributes: raw.attributes,
         shipping: raw.shipping,
       };
-    }
+    },
+    mcpContext
   );
 }
 
 /**
  * Pillar 1 — List all top-level Kapruka categories.
  */
-export async function listCategories(): Promise<MCPToolResult<KaprukaCategory[]>> {
+export async function listCategories(mcpContext?: MCPContext): Promise<MCPToolResult<KaprukaCategory[]>> {
   return safeCallMCPTool(
     "kapruka_list_categories",
     {
@@ -379,7 +401,8 @@ export async function listCategories(): Promise<MCPToolResult<KaprukaCategory[]>
         name: c.name,
         url: c.url,
       }));
-    }
+    },
+    mcpContext
   );
 }
 
@@ -387,7 +410,7 @@ export async function listCategories(): Promise<MCPToolResult<KaprukaCategory[]>
  * Pillar 1 — List all Kapruka categories with subcategories (depth: 2).
  * Returns the full category tree needed by the Category Browse Agent.
  */
-export async function listCategoriesDeep(): Promise<MCPToolResult<KaprukaCategoryDeep[]>> {
+export async function listCategoriesDeep(mcpContext?: MCPContext): Promise<MCPToolResult<KaprukaCategoryDeep[]>> {
   return safeCallMCPTool(
     "kapruka_list_categories",
     {
@@ -419,7 +442,8 @@ export async function listCategoriesDeep(): Promise<MCPToolResult<KaprukaCategor
           url: s.url,
         })),
       }));
-    }
+    },
+    mcpContext
   );
 }
 
@@ -432,11 +456,11 @@ const CATEGORY_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
  * Returns the full depth-2 category tree, using a 10-minute in-memory cache
  * to avoid repeated MCP calls. Falls back to stale cache if a refresh fails.
  */
-export async function getCachedCategories(): Promise<KaprukaCategoryDeep[]> {
+export async function getCachedCategories(mcpContext?: MCPContext): Promise<KaprukaCategoryDeep[]> {
   if (_categoryCache && Date.now() - _categoryCache.fetchedAt < CATEGORY_CACHE_TTL_MS) {
     return _categoryCache.data;
   }
-  const result = await listCategoriesDeep();
+  const result = await listCategoriesDeep(mcpContext);
   if (result.success && result.data) {
     _categoryCache = { data: result.data, fetchedAt: Date.now() };
     return result.data;
@@ -461,7 +485,8 @@ export async function createOrder(
   quantityOrRecipient: number | { name: string; phone: string; address: string; city: string },
   recipientDetail?: { name: string; phone: string; address: string; city: string },
   deliveryDate?: string,   // YYYY-MM-DD — user-chosen; falls back to tomorrow if omitted
-  giftMessage?: string     // optional gift_message passed to kapruka_create_order
+  giftMessage?: string,    // optional gift_message passed to kapruka_create_order
+  mcpContext?: MCPContext
 ): Promise<MCPToolResult<KaprukaOrderResult>> {
   // Resolve delivery date: use user-chosen date or fall back to tomorrow
   const resolvedDate = deliveryDate ?? (() => {
@@ -525,7 +550,7 @@ export async function createOrder(
       expiresAt: raw.expires_at,
       totalLKR: raw.summary?.grand_total,
     };
-  });
+  }, mcpContext);
 }
 
 /**
@@ -534,7 +559,8 @@ export async function createOrder(
 export async function checkDelivery(
   city: string,
   date: string,          // YYYY-MM-DD
-  productId: string
+  productId: string,
+  mcpContext?: MCPContext
 ): Promise<MCPToolResult<KaprukaDeliveryResult>> {
   return safeCallMCPTool(
     "kapruka_check_delivery",
@@ -563,14 +589,15 @@ export async function checkDelivery(
         flatRateLKR: raw.rate,
         warning: raw.reason || raw.perishable_warning || undefined,
       };
-    }
+    },
+    mcpContext
   );
 }
 
 /**
  * Pillar 2 — Track a Kapruka order by ID.
  */
-export async function trackOrder(orderId: string): Promise<MCPToolResult<KaprukaTrackingResult>> {
+export async function trackOrder(orderId: string, mcpContext?: MCPContext): Promise<MCPToolResult<KaprukaTrackingResult>> {
   return safeCallMCPTool(
     "kapruka_track_order",
     {
@@ -618,7 +645,8 @@ export async function trackOrder(orderId: string): Promise<MCPToolResult<Kapruka
           location: step.location,
         })),
       };
-    }
+    },
+    mcpContext
   );
 }
 
@@ -626,7 +654,8 @@ export async function trackOrder(orderId: string): Promise<MCPToolResult<Kapruka
  * Pillar 2 — Search for valid Kapruka Grasshoppers delivery cities.
  */
 export async function listDeliveryCities(
-  query: string
+  query: string,
+  mcpContext?: MCPContext
 ): Promise<MCPToolResult<KaprukaCity[]>> {
   return safeCallMCPTool(
     "kapruka_list_delivery_cities",
@@ -647,6 +676,7 @@ export async function listDeliveryCities(
         alias: c.aliases?.join(", ") || undefined,
         province: c.province || undefined,
       }));
-    }
+    },
+    mcpContext
   );
 }

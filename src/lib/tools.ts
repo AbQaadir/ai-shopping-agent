@@ -21,6 +21,7 @@ import {
   trackOrder,
   listDeliveryCities,
   getCachedCategories,
+  MCPContext,
   KaprukaProduct,
   KaprukaOrderResult,
   KaprukaDeliveryResult,
@@ -52,7 +53,8 @@ export { getCachedCategories, scrapeMultipleCategoryUrls };
  */
 export async function pillar1_searchProducts(
   query: string,
-  options: { maxPriceLKR?: number; smeFirst?: boolean; currency?: string } = {}
+  options: { maxPriceLKR?: number; smeFirst?: boolean; currency?: string } = {},
+  mcpContext?: MCPContext
 ): Promise<KaprukaProduct[]> {
   const trimmedQuery = query.trim();
   if (!trimmedQuery) {
@@ -62,7 +64,7 @@ export async function pillar1_searchProducts(
     maxPrice: options.maxPriceLKR,
     inStockOnly: false,
     currency: options.currency,
-  });
+  }, mcpContext);
 
   if (!result.success || !result.data) {
     console.error("[Pillar1] searchProducts failed:", result.error);
@@ -93,9 +95,10 @@ export async function pillar1_searchProducts(
  * Fetch full product details by Kapruka product ID.
  */
 export async function pillar1_getProductDetails(
-  productId: string
+  productId: string,
+  mcpContext?: MCPContext
 ): Promise<KaprukaProduct | null> {
-  const result = await getProduct(productId);
+  const result = await getProduct(productId, mcpContext);
   if (!result.success || !result.data) {
     console.error("[Pillar1] getProduct failed:", result.error);
     return null;
@@ -112,9 +115,10 @@ export async function pillar1_createOrderLink(
   quantityOrRecipient: number | { name: string; phone: string; address: string; city: string },
   recipientDetail?: { name: string; phone: string; address: string; city: string },
   deliveryDate?: string,   // YYYY-MM-DD — passed through to kapruka_create_order
-  giftMessage?: string     // optional gift message — passed as gift_message to MCP
+  giftMessage?: string,    // optional gift message — passed as gift_message to MCP
+  mcpContext?: MCPContext
 ): Promise<KaprukaOrderResult | null> {
-  const result = await createOrder(productIdOrItems as any, quantityOrRecipient as any, recipientDetail as any, deliveryDate, giftMessage);
+  const result = await createOrder(productIdOrItems as any, quantityOrRecipient as any, recipientDetail as any, deliveryDate, giftMessage, mcpContext);
   if (!result.success || !result.data) {
     console.error("[Pillar1] createOrder failed:", result.error);
     return null;
@@ -130,9 +134,10 @@ export async function pillar1_createOrderLink(
 export async function pillar2_checkDelivery(
   city: string,
   date: string,
-  productId: string
+  productId: string,
+  mcpContext?: MCPContext
 ): Promise<KaprukaDeliveryResult | null> {
-  const result = await checkDelivery(city, date, productId);
+  const result = await checkDelivery(city, date, productId, mcpContext);
   if (!result.success || !result.data) {
     console.error("[Pillar2] checkDelivery failed:", result.error);
     return null;
@@ -144,9 +149,10 @@ export async function pillar2_checkDelivery(
  * Get live order tracking status and step timeline.
  */
 export async function pillar2_trackOrder(
-  orderId: string
+  orderId: string,
+  mcpContext?: MCPContext
 ): Promise<KaprukaTrackingResult | null> {
-  const result = await trackOrder(orderId);
+  const result = await trackOrder(orderId, mcpContext);
   if (!result.success || !result.data) {
     console.error("[Pillar2] trackOrder failed:", result.error);
     return null;
@@ -157,8 +163,8 @@ export async function pillar2_trackOrder(
 /**
  * Search for valid Grasshoppers delivery cities by partial name.
  */
-export async function pillar2_findCity(partialName: string): Promise<KaprukaCity[]> {
-  const result = await listDeliveryCities(partialName);
+export async function pillar2_findCity(partialName: string, mcpContext?: MCPContext): Promise<KaprukaCity[]> {
+  const result = await listDeliveryCities(partialName, mcpContext);
   if (!result.success || !result.data) {
     console.error("[Pillar2] listDeliveryCities failed:", result.error);
     return [];
@@ -174,9 +180,10 @@ export async function pillar2_findCity(partialName: string): Promise<KaprukaCity
  */
 export async function pillar3_searchSMEProducts(
   query: string,
-  options: { maxPriceLKR?: number; limit?: number; currency?: string } = {}
+  options: { maxPriceLKR?: number; limit?: number; currency?: string } = {},
+  mcpContext?: MCPContext
 ): Promise<KaprukaProduct[]> {
-  return pillar1_searchProducts(query, { smeFirst: true, maxPriceLKR: options.maxPriceLKR, currency: options.currency });
+  return pillar1_searchProducts(query, { smeFirst: true, maxPriceLKR: options.maxPriceLKR, currency: options.currency }, mcpContext);
 }
 
 
@@ -497,7 +504,8 @@ export function parseRequirements(message: string): SourcingCriteria {
 export async function pillar6_browseCategory(
   categoryUrl: string,
   categoryName: string,
-  options: { currency?: string, country?: string } = {}
+  options: { currency?: string, country?: string } = {},
+  mcpContext?: MCPContext
 ): Promise<KaprukaProduct[]> {
   try {
     const products = await scrapeProductsFromCategoryUrl(categoryUrl, { country: options.country });
@@ -516,9 +524,9 @@ export async function pillar6_browseCategory(
       }));
     }
     console.warn(`[Pillar6] Scrape returned 0 for "${categoryName}", falling back to MCP search`);
-    return await pillar1_searchProducts(categoryName, {});
+    return await pillar1_searchProducts(categoryName, {}, mcpContext);
   } catch (err) {
     console.error(`[Pillar6] Scrape failed for "${categoryName}":`, (err as Error).message);
-    return await pillar1_searchProducts(categoryName, {});
+    return await pillar1_searchProducts(categoryName, {}, mcpContext);
   }
 }

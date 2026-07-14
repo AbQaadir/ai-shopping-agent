@@ -553,6 +553,17 @@ User query to classify: "${message}"`;
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
         };
 
+        const createMcpContext = (stepName: string) => ({
+          onLog: (msg: any) => {
+            const text = typeof msg?.data === 'string' ? msg.data : (msg?.data?.message || JSON.stringify(msg?.data || msg));
+            send({ type: "thought", step: stepName, status: "running", content: text });
+          },
+          onProgress: (prog: any) => {
+            const pct = prog.total ? `${Math.round((prog.progress / prog.total) * 100)}%` : `${prog.progress}`;
+            send({ type: "thought", step: stepName, status: "running", content: `Processing... (${pct})` });
+          }
+        });
+
         if (isAgeRestricted) {
           send({ type: "age_verification_required" });
         }
@@ -1238,7 +1249,7 @@ Respond ONLY with valid JSON matching this schema:
 
             for (const pid of itemsToCheck) {
                 send({ type: "tool_call", name: "kapruka_check_delivery", args: { city: city, date: date, product_id: pid } });
-                const check = await pillar2_checkDelivery(city, date, pid);
+                const check = await pillar2_checkDelivery(city, date, pid, createMcpContext("checking_delivery"));
                 if (!check) {
                     canDeliverAll = false;
                     break;
@@ -1291,7 +1302,8 @@ Respond ONLY with valid JSON matching this schema:
                 updatedState.confirmedAddress as any,
                 undefined,
                 updatedState.deliveryDate,
-                updatedState.personalMessage
+                updatedState.personalMessage,
+                createMcpContext("creating_order")
               );
               if (orderResult && orderResult.checkoutUrl && orderResult.orderId) {
                 updatedState.checkoutUrl = orderResult.checkoutUrl;
@@ -1683,14 +1695,13 @@ Respond ONLY with valid JSON matching this schema:
                 const queryMaxPrice = termConfig.maxPrice ?? criteria.maxPrice;
 
                 send({ type: "tool_call", name: "kapruka_search_products", args: { query: baseTerm, max_price: queryMaxPrice } });
-                send({ type: "thought", step: "searching_kapruka", term: baseTerm, status: "running", content: `Searching Kapruka for "${baseTerm}"...` });
-
+                
                 const t1 = Date.now();
                 const variantSettled = await Promise.allSettled(
                   variants.map((v, vi) =>
                     new Promise<KaprukaProduct[]>((resolve, reject) => {
                       setTimeout(() => {
-                        pillar1_searchProducts(v, { maxPriceLKR: queryMaxPrice ?? undefined, smeFirst: false, currency: currency || "LKR" })
+                        pillar1_searchProducts(v, { maxPriceLKR: queryMaxPrice ?? undefined, smeFirst: false, currency: currency || "LKR" }, createMcpContext("searching_kapruka"))
                           .then(resolve).catch(reject);
                       }, vi * 120);
                     })
@@ -1789,11 +1800,10 @@ Respond ONLY with valid JSON matching this schema:
 
         // ── Pillar 3: SME/Partner Central ──────────────────────────────
         if (intent === "product") {
-          const smeQuery = /artisan|local.*brand|sri lankan.*made|handmade|sme|small.*business|partner central|local.*gift/.test(message.toLowerCase());
-          if (smeQuery) {
+          if (["local", "sme", "handicraft", "handloom", "batik"].some(w => intent === "category_browse" || message.toLowerCase().includes(w))) {
             send({ type: "thought", step: "sme_filter", status: "running", content: "Highlighting local Sri Lankan SME products..." });
             const t3 = Date.now();
-            const smeProducts = await pillar3_searchSMEProducts(message, { maxPriceLKR: criteria?.maxPrice, limit: 50, currency: currency || "USD" });
+            const smeProducts = await pillar3_searchSMEProducts(message, { maxPriceLKR: criteria?.maxPrice, limit: 50, currency: currency || "USD" }, createMcpContext("searching_sme_products"));
             const dur3 = Date.now() - t3;
             if (smeProducts.length > 0) {
               products = smeProducts;
@@ -1814,9 +1824,6 @@ Respond ONLY with valid JSON matching this schema:
           const isPerishable = /cake|flower|food|perishable|fresh/.test(message.toLowerCase());
 
           // ── Helper: enrich MCP tracking result with our DB order data ────
-          // The MCP always returns progress steps for the fallback order number.
-          // We overlay user-specific fields (product names, total, delivery date,
-          // gift message) from our DB so the TrackingCard shows real user data.
           const enrichTrackingResult = (
             rawTracking: Awaited<ReturnType<typeof pillar2_trackOrder>>,
             dbOrder: {
@@ -1843,17 +1850,13 @@ Respond ONLY with valid JSON matching this schema:
 
           if (orderId) {
             // ── Path A: User typed an explicit order ID ───────────────────
-            // We always use the fallback number for the MCP call (since our
-            // kaprukaRef is not a valid Kapruka order number). We then try to
-            // enrich the result with the user's most recent DB order.
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Tracking order: ${orderId}`, durationMs: 0 });
-            send({ type: "thought", step: "tracking_order", status: "running", content: `Fetching live status for order ${orderId}...` });
+            send({ type: "thought", step: "track_order", status: "running", content: `Fetching live status for order ${orderId}...` });
             send({ type: "tool_call", name: "kapruka_track_order", args: { order_number: KAPRUKA_FALLBACK_ORDER_NUMBER } });
             const t = Date.now();
-            const tracking = await pillar2_trackOrder(KAPRUKA_FALLBACK_ORDER_NUMBER);
+            const tracking = await pillar2_trackOrder(KAPRUKA_FALLBACK_ORDER_NUMBER, createMcpContext("tracking_order"));
             const dur = Date.now() - t;
             if (tracking) {
-              // Try to enrich with the user's most recent DB order (best effort)
               let enrichedTracking = tracking;
               if (userId && userId !== "guest") {
                 try {
@@ -1871,8 +1874,7 @@ Respond ONLY with valid JSON matching this schema:
               }
               trackingContext = `\n\n[Tracking Result] Order ID: ${enrichedTracking.displayOrderRef || orderId}. Current Status: ${enrichedTracking.currentStatus}. Estimated Delivery: ${enrichedTracking.estimatedDelivery || "N/A"}. Use this in your response.`;
               steps.push({ step: "tracking_order", status: "completed", content: `Order ${orderId} status: ${enrichedTracking.currentStatus}`, durationMs: dur });
-              send({ type: "thought", step: "tracking_order", status: "completed", content: "Order status retrieved successfully.", durationMs: dur });
-              // Capture for DB persistence so the card survives page refresh
+              send({ type: "thought", step: "track_order", status: "completed", content: "Retrieved tracking info", durationMs: 0 });
               trackingResultForDB = enrichedTracking;
               send({ type: "tracking_result", result: enrichedTracking });
             } else {
@@ -1881,9 +1883,6 @@ Respond ONLY with valid JSON matching this schema:
 
           } else if (!city && userId && userId !== "guest") {
             // ── Path B: Smart natural-language lookup (logged-in users only) ─
-            // e.g. "where is my last order?", "where is my roses order now?"
-            // Always use the fallback order number for MCP, then enrich the
-            // result with the matched order's actual DB data.
             send({ type: "thought", step: "intent_routing", status: "completed", content: "Looking up your orders...", durationMs: 0 });
             send({ type: "thought", step: "tracking_order", status: "running", content: "Searching your order history..." });
 
@@ -1898,11 +1897,9 @@ Respond ONLY with valid JSON matching this schema:
               let matchedOrder: typeof userOrders[0] | null = null;
               const lowerMsg = message.toLowerCase();
 
-              // "last", "recent", "latest", "newest" → most recent order
               if (/\b(last|recent|latest|newest|previous)\b/.test(lowerMsg)) {
                 matchedOrder = userOrders[0] || null;
               } else {
-                // Keyword match against product names in order items
                 const stopWords = /\b(where|is|my|order|orders|now|status|track|tracking|the|a|an|of|for|i|was|find|show|what|about|please|can|you)\b/g;
                 const keywords = lowerMsg
                   .replace(stopWords, " ")
@@ -1921,24 +1918,23 @@ Respond ONLY with valid JSON matching this schema:
               }
 
               if (matchedOrder) {
-                // Always use the fallback order number — kaprukaRef is not a
-                // real Kapruka order number and cannot be used for tracking.
                 send({ type: "thought", step: "tracking_order", status: "running", content: `Found your order. Fetching live status...` });
                 send({ type: "tool_call", name: "kapruka_track_order", args: { order_number: KAPRUKA_FALLBACK_ORDER_NUMBER } });
-                const tTrack = Date.now();
-                const rawTracking = await pillar2_trackOrder(KAPRUKA_FALLBACK_ORDER_NUMBER);
-                const dur = Date.now() - tTrack;
-                if (rawTracking) {
-                  // Enrich MCP result with the user's real order data from DB
-                  const enrichedTracking = enrichTrackingResult(rawTracking, matchedOrder) ?? rawTracking;
-                  trackingContext = `\n\n[Tracking Result] Order ID: ${enrichedTracking.displayOrderRef || matchedOrder.id}. Current Status: ${enrichedTracking.currentStatus}. Estimated Delivery: ${enrichedTracking.estimatedDelivery || "N/A"}. Use this in your response.`;
-                  steps.push({ step: "tracking_order", status: "completed", content: `Status: ${enrichedTracking.currentStatus}`, durationMs: dur });
-                  send({ type: "thought", step: "tracking_order", status: "completed", content: `Order status: ${enrichedTracking.currentStatus}`, durationMs: dur });
-                  // Capture for DB persistence so the card survives page refresh
-                  trackingResultForDB = enrichedTracking;
-                  send({ type: "tracking_result", result: enrichedTracking });
-                } else {
-                  send({ type: "thought", step: "tracking_order", status: "completed", content: "Kapruka tracking unavailable right now.", durationMs: dur });
+                
+                if (["tracking", "track", "status", "where is", "delivered"].some((w) => message.toLowerCase().includes(w))) {
+                  const tTrack = Date.now();
+                  const rawTracking = await pillar2_trackOrder(KAPRUKA_FALLBACK_ORDER_NUMBER, createMcpContext("tracking_order"));
+                  const dur = Date.now() - tTrack;
+                  if (rawTracking) {
+                    const enrichedTracking = enrichTrackingResult(rawTracking, matchedOrder) ?? rawTracking;
+                    trackingContext = `\n\n[Tracking Result] Order ID: ${enrichedTracking.displayOrderRef || matchedOrder.id}. Current Status: ${enrichedTracking.currentStatus}. Estimated Delivery: ${enrichedTracking.estimatedDelivery || "N/A"}. Use this in your response.`;
+                    steps.push({ step: "tracking_order", status: "completed", content: `Status: ${enrichedTracking.currentStatus}`, durationMs: dur });
+                    send({ type: "thought", step: "tracking_order", status: "completed", content: `Order status: ${enrichedTracking.currentStatus}`, durationMs: dur });
+                    trackingResultForDB = enrichedTracking;
+                    send({ type: "tracking_result", result: enrichedTracking });
+                  } else {
+                    send({ type: "thought", step: "tracking_order", status: "completed", content: "Kapruka tracking unavailable right now.", durationMs: dur });
+                  }
                 }
               } else {
                 send({ type: "thought", step: "tracking_order", status: "completed", content: "No matching orders found in your history.", durationMs: 0 });
@@ -1949,8 +1945,6 @@ Respond ONLY with valid JSON matching this schema:
             }
 
           } else if (!city && (!userId || userId === "guest")) {
-            // ── Path C: Guest user asked about their orders ────────────────
-            // Mirrors the existing order_history guest behaviour — ask to sign in.
             send({ type: "thought", step: "intent_routing", status: "completed", content: "Guest user — sign-in required for order tracking.", durationMs: 0 });
 
           } else if (city) {
@@ -1958,20 +1952,24 @@ Respond ONLY with valid JSON matching this schema:
             send({ type: "thought", step: "intent_routing", status: "completed", content: `Checking Grasshoppers delivery to ${city}`, durationMs: 0 });
             send({ type: "thought", step: "checking_delivery", status: "running", content: `Checking delivery availability to ${city} on ${date}${isPerishable ? " (perishable)" : ""}...` });
             send({ type: "tool_call", name: "kapruka_check_delivery", args: { city, date, product_id: "GENERAL" } });
-            const t = Date.now();
-            const delivery = await pillar2_checkDelivery(city, date, "GENERAL");
-            const dur = Date.now() - t;
-            if (delivery) {
-              deliveryContext = `\n\n[Delivery Check Result] City: ${delivery.city}. Available: ${delivery.canDeliver ? 'Yes' : 'No'}. Flat Rate: LKR ${delivery.flatRateLKR || "N/A"}. Date: ${delivery.deliveryDate || "N/A"}. Warning: ${delivery.warning || "None"}. Use this exact rate and availability in your response.`;
-              steps.push({ step: "checking_delivery", status: "completed", content: `Delivery to ${city}: ${delivery.canDeliver ? "Available" : "Not available"}. Rate: Rs. ${delivery.flatRateLKR?.toLocaleString() || "N/A"}`, durationMs: dur });
-              send({ type: "thought", step: "checking_delivery", status: "completed", content: `Delivery check complete for ${city}.`, durationMs: dur });
-              send({ type: "delivery_result", result: delivery });
-            } else {
-              steps.push({ step: "checking_delivery", status: "completed", content: `Checking nearest cities to ${city}...`, durationMs: dur });
-              send({ type: "thought", step: "checking_delivery", status: "completed", content: `No exact match for "${city}". Showing nearest covered cities.`, durationMs: dur });
-              send({ type: "tool_call", name: "kapruka_list_delivery_cities", args: { query: city } });
-              const cities = await pillar2_findCity(city);
-              send({ type: "city_suggestions", result: { cities, query: city } });
+            
+            if (city && date) {
+              const t = Date.now();
+              const delivery = await pillar2_checkDelivery(city, date, "GENERAL", createMcpContext("checking_delivery"));
+              const dur = Date.now() - t;
+              if (delivery) {
+                deliveryContext = `\n\n[Delivery Check Result] City: ${delivery.city}. Available: ${delivery.canDeliver ? 'Yes' : 'No'}. Flat Rate: LKR ${delivery.flatRateLKR || "N/A"}. Date: ${delivery.deliveryDate || "N/A"}. Warning: ${delivery.warning || "None"}. Use this exact rate and availability in your response.`;
+                steps.push({ step: "checking_delivery", status: "completed", content: `Delivery to ${city}: ${delivery.canDeliver ? "Available" : "Not available"}. Rate: Rs. ${delivery.flatRateLKR?.toLocaleString() || "N/A"}`, durationMs: dur });
+                send({ type: "thought", step: "checking_delivery", status: "completed", content: `Delivery check complete for ${city}.`, durationMs: dur });
+                send({ type: "delivery_result", result: delivery });
+              } else {
+                steps.push({ step: "checking_delivery", status: "completed", content: `Checking nearest cities to ${city}...`, durationMs: dur });
+                send({ type: "thought", step: "checking_delivery", status: "completed", content: `No exact match for "${city}". Showing nearest covered cities.`, durationMs: dur });
+                const cities = await pillar2_findCity(city, createMcpContext("finding_city"));
+                if (cities.length > 0) {
+                  send({ type: "city_suggestions", result: { cities, query: city } });
+                }
+              }
             }
           } else {
             send({ type: "thought", step: "intent_routing", status: "completed", content: "Need city name or order ID to proceed.", durationMs: 0 });
