@@ -556,11 +556,11 @@ User query to classify: "${message}"`;
         const createMcpContext = (stepName: string) => ({
           onLog: (msg: any) => {
             const text = typeof msg?.data === 'string' ? msg.data : (msg?.data?.message || JSON.stringify(msg?.data || msg));
-            send({ type: "thought", step: stepName, status: "running", content: text });
+            send({ type: "thought", step: stepName, status: "running", log: text });
           },
           onProgress: (prog: any) => {
             const pct = prog.total ? `${Math.round((prog.progress / prog.total) * 100)}%` : `${prog.progress}`;
-            send({ type: "thought", step: stepName, status: "running", content: `Processing... (${pct})` });
+            send({ type: "thought", step: stepName, status: "running", log: `Processing... (${pct})` });
           }
         });
 

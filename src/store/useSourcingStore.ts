@@ -537,15 +537,37 @@ export const useSourcingStore = create<SourcingState>((set, get) => ({
               if (packet.type === "thought") {
                 const stepKey = packet.term ? `${packet.step}__${packet.term}` : packet.step;
                 const existingIdx = accumulatedSteps.findIndex(s => s._key ? s._key === stepKey : s.step === packet.step && !s._key);
+                
+                let prevLogs: string[] = [];
+                if (existingIdx !== -1) {
+                  prevLogs = accumulatedSteps[existingIdx].logs || [];
+                }
+                
+                // If the packet has a specific log, append it. Otherwise, use existing.
+                // Wait, our backend sends `content: text` for logs.
+                // We can differentiate: if packet has `isLog: true`, we append to logs instead of overwriting content.
+                // Let's modify the backend to send `isLog: true` or `logText`.
+                // Actually, let's just append all running content changes to the logs array if they are not the initial message.
+                // Or better, let's update `createMcpContext` to send `log: text` instead of `content: text`.
+                
+                let updatedLogs = [...prevLogs];
+                if (packet.log) {
+                  updatedLogs.push(packet.log);
+                  // Keep only last 10 logs so it doesn't get too huge
+                  if (updatedLogs.length > 10) updatedLogs = updatedLogs.slice(-10);
+                }
+
                 const stepObj = {
                   _key: stepKey,
                   step: packet.step,
                   status: packet.status as "running" | "completed",
-                  content: packet.content,
+                  content: packet.content !== undefined ? packet.content : (existingIdx !== -1 ? accumulatedSteps[existingIdx].content : ""),
                   durationMs: packet.durationMs,
                   terms: packet.terms,
                   term: packet.term,
+                  logs: updatedLogs,
                 };
+                
                 if (existingIdx !== -1) accumulatedSteps[existingIdx] = stepObj;
                 else accumulatedSteps.push(stepObj);
 

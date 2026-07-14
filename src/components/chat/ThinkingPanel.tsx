@@ -12,6 +12,7 @@ interface ThinkingStep {
   terms?: string[];  // baseLlmTerms: one capsule per user-intent term
   term?: string;     // per-pipeline term (searching_kapruka, validating_relevance)
   _key?: string;     // internal dedup key (step__term)
+  logs?: string[];   // real-time MCP tool logs
 }
 
 interface ThinkingPanelProps {
@@ -180,6 +181,18 @@ export default function ThinkingPanel({
                   <p className="text-black text-[13px] font-medium leading-relaxed pr-2">
                     {step.content}
                   </p>
+
+                  {/* Terminal Log View for this step */}
+                  {step.logs && step.logs.length > 0 && (
+                    <div className="mt-2 bg-[#1e1e2e] border border-slate-700/50 rounded-lg p-2.5 text-[11px] font-mono text-emerald-400 max-h-[140px] overflow-y-auto shadow-inner flex flex-col gap-1 w-full max-w-2xl">
+                      {step.logs.map((log, i) => (
+                        <div key={i} className="leading-snug break-words">
+                          <span className="text-slate-500 mr-2">›</span>
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Individual parallel search term capsules (Mark 1) */}
                   {hasTerms ? (
