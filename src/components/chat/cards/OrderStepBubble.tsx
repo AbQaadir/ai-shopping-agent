@@ -1,6 +1,6 @@
 "use client";
 
-import type { OrderFlowStepData } from "@/types/sourcing";
+import type { OrderFlowStepData, CitySuggestion } from "@/types/sourcing";
 import {
   AlertCircle,
   CalendarDays,
@@ -433,7 +433,7 @@ function NewAddressFormBubble({ step, onAction, isActive = true }: OrderStepBubb
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -710,10 +710,10 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
   const submittedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerInstanceRef = useRef<any>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markerInstanceRef = useRef<google.maps.Marker | google.maps.marker.AdvancedMarkerElement | null>(null);
 
-  const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -798,8 +798,8 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
         // Run forward geocoding client-side using the browser context to bypass HTTP referrer restrictions
         const geocoder = new google.maps.Geocoder();
         try {
-          const results = await new Promise<any>((resolve, reject) => {
-            geocoder.geocode({ address: geo.formattedAddress + ", Sri Lanka" }, (res: any, status: any) => {
+          const results = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
+            geocoder.geocode({ address: geo.formattedAddress + ", Sri Lanka" }, (res: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
               if (status === "OK" && res && res.length > 0) {
                 resolve(res);
               } else {
@@ -810,8 +810,8 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 
           const loc = results[0].geometry.location;
           center = {
-            lat: typeof loc.lat === "function" ? loc.lat() : loc.lat,
-            lng: typeof loc.lng === "function" ? loc.lng() : loc.lng,
+            lat: loc.lat(),
+            lng: loc.lng(),
           };
           initialAddress = results[0].formatted_address;
           const comps = results[0].address_components || [];
@@ -866,9 +866,9 @@ function MapOpenBubble({ step, onAction, isActive = true }: OrderStepBubbleProps
 
         if (markerInstanceRef.current) {
           if (isAdvanced) {
-            markerInstanceRef.current.position = latLngObj;
+            (markerInstanceRef.current as any).position = latLngObj;
           } else {
-            markerInstanceRef.current.setPosition(latLngObj);
+            (markerInstanceRef.current as any).setPosition(latLngObj);
           }
         }
 

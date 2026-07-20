@@ -11,7 +11,8 @@ import type {
   OrderFlowStepData, 
   CartItem, 
   ProductGroup, 
-  UserAddress 
+  UserAddress,
+  ThinkingStep
 } from "@/types/sourcing";
 
 export interface SourcingState {
@@ -71,20 +72,20 @@ export interface SourcingState {
   handleSendMessage: (
     text: string, 
     activeUserId: string, 
-    user: any, 
-    openAuthModal: any,
+    user: unknown, 
+    openAuthModal: (reason: "message_limit" | "checkout" | "login") => void,
     editMessageId?: string
   ) => Promise<void>;
   handleSuggestionClick: (
     suggestion: string | undefined, 
     activeUserId: string, 
-    user: any, 
-    openAuthModal: any
+    user: unknown, 
+    openAuthModal: (reason: "message_limit" | "checkout" | "login") => void
   ) => void;
-  handleBuyProduct: (product: InlineProduct, activeUserId: string, user: any, openAuthModal: any) => void;
-  handleOrderCart: (products: InlineProduct[], activeUserId: string, user: any, openAuthModal: any) => void;
+  handleBuyProduct: (product: InlineProduct, activeUserId: string, user: unknown, openAuthModal: (reason: "message_limit" | "checkout" | "login") => void) => void;
+  handleOrderCart: (products: InlineProduct[], activeUserId: string, user: unknown, openAuthModal: (reason: "message_limit" | "checkout" | "login") => void) => void;
   handleUpdateCart: (newCart: CartItem[], activeUserId: string) => Promise<void>;
-  handleAddToCart: (products: InlineProduct[], activeUserId: string, user: any, openAuthModal: any) => Promise<void>;
+  handleAddToCart: (products: InlineProduct[], activeUserId: string, user: unknown, openAuthModal: (reason: "message_limit" | "checkout" | "login") => void) => Promise<void>;
 }
 
 let cartToastTimerRef: ReturnType<typeof setTimeout> | null = null;
@@ -208,9 +209,9 @@ export const useSourcingStore = create<SourcingState>((set, get) => ({
               console.error("Error parsing product data:", e);
             }
           }
-          let thinkingSteps: any[] = [];
+          let thinkingSteps: ThinkingStep[] = [];
           let followUpSamples: string[] = [];
-          let groundingSources: any[] = [];
+          let groundingSources: Message["groundingSources"] = [];
           let checkoutFormProduct: InlineProduct | undefined = undefined;
           let checkoutLinks: CheckoutLink[] | undefined = undefined;
           let orderFlowProduct: InlineProduct | undefined = undefined;
@@ -252,7 +253,7 @@ export const useSourcingStore = create<SourcingState>((set, get) => ({
             inlineProducts: inlineProducts.length > 0 ? inlineProducts : undefined,
             productGroups: productGroups.length > 0 ? productGroups : undefined,
             showViewProductsButton: inlineProducts.length > 0,
-            groundingSources: groundingSources.length > 0 ? groundingSources : undefined,
+            groundingSources: (groundingSources?.length ?? 0) > 0 ? groundingSources : undefined,
             checkoutFormProduct,
             checkoutLinks,
             orderFlowProduct,
@@ -509,7 +510,7 @@ export const useSourcingStore = create<SourcingState>((set, get) => ({
       let trackingResult: TrackingResult | undefined;
       let serviceListing: ServiceListing | undefined;
       let groundingSources: Array<{ title: string; uri: string }> = [];
-      let accumulatedSteps: Array<any> = [];
+      let accumulatedSteps: ThinkingStep[] = [];
       let checkoutFormProduct: InlineProduct | undefined = undefined;
       let orderFlowProduct: InlineProduct | undefined = undefined;
       let orderFlowStockStatus: "in_stock" | "out_of_stock" | "limited" | undefined = undefined;
@@ -1016,10 +1017,10 @@ export function useSourcingActions() {
     handleSelectHistory: (id: string) => store.handleSelectHistory(id, activeUserId, router),
     handleStopGeneration: () => store.handleStopGeneration(),
     handleSendMessage: (text: string, editMessageId?: string) => store.handleSendMessage(text, activeUserId, user, openAuthModal, editMessageId),
-    handleBuyProduct: (product: any) => store.handleBuyProduct(product, activeUserId, user, openAuthModal),
-    handleOrderCart: (products: any[]) => store.handleOrderCart(products, activeUserId, user, openAuthModal),
+    handleBuyProduct: (product: InlineProduct) => store.handleBuyProduct(product, activeUserId, user, openAuthModal),
+    handleOrderCart: (products: InlineProduct[]) => store.handleOrderCart(products, activeUserId, user, openAuthModal),
     handleSuggestionClick: (suggestion?: string) => store.handleSuggestionClick(suggestion, activeUserId, user, openAuthModal),
-    handleUpdateCart: (newCart: any[]) => store.handleUpdateCart(newCart, activeUserId),
-    handleAddToCart: (products: any[]) => store.handleAddToCart(products, activeUserId, user, openAuthModal),
+    handleUpdateCart: (newCart: CartItem[]) => store.handleUpdateCart(newCart, activeUserId),
+    handleAddToCart: (products: InlineProduct[]) => store.handleAddToCart(products, activeUserId, user, openAuthModal),
   };
 }

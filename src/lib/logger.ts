@@ -5,10 +5,10 @@ const API_LOGGING_ENABLED = process.env.API_LOGGING_ENABLED !== "false";
 /**
  * Higher-order function to wrap Next.js App Router API handlers with request/response logging.
  */
-export function withLogging<T extends any[]>(
-  handler: (req: any, ...args: T) => Promise<Response> | Response
+export function withLogging<TReq extends Request = NextRequest, TArgs extends unknown[] = []>(
+  handler: (req: TReq, ...args: TArgs) => Promise<Response> | Response
 ) {
-  return async (req: any, ...args: T): Promise<Response> => {
+  return async (req: TReq, ...args: TArgs): Promise<Response> => {
     if (!API_LOGGING_ENABLED) {
       return handler(req, ...args);
     }

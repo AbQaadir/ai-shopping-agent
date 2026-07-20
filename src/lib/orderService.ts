@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { pillar1_createOrderLink } from "@/lib/tools";
 import { KAPRUKA_CITIES_SET } from "@/constants/cities";
+import { UserAddress } from "@/types/sourcing";
 
 export interface OrderRequestParams {
   productId?: string;
@@ -165,11 +166,11 @@ export async function placeOrderInternally(params: OrderRequestParams) {
 
         // Sync address to user profile if it's a new delivery address
         const currentAddresses = userExists.addresses && Array.isArray(userExists.addresses)
-          ? (userExists.addresses as any[])
+          ? (userExists.addresses as unknown as UserAddress[])
           : [];
 
-        const alreadySaved = currentAddresses.some((addrObj: any) => {
-          const line = (addrObj.addressLine || addrObj.address || "").trim().toLowerCase();
+        const alreadySaved = currentAddresses.some((addrObj) => {
+          const line = (addrObj.addressLine || "").trim().toLowerCase();
           const c = (addrObj.city || "").trim().toLowerCase();
           return line === address.trim().toLowerCase() && c === city.trim().toLowerCase();
         });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db";
+import { CartItem, UserAddress } from "@/types/sourcing";
 
 import { withLogging } from "@/lib/logger";
 
@@ -40,39 +41,37 @@ export const POST = withLogging(async function POST(req: Request) {
       });
 
       if (guestUser) {
-        let guestCartObj: Record<string, any[]> = {};
+        let guestCartObj: Record<string, CartItem[]> = {};
         try {
-          guestCartObj = typeof guestUser.cart === "string" ? JSON.parse(guestUser.cart as string) : (guestUser.cart as Record<string, any[]>);
+          guestCartObj = typeof guestUser.cart === "string" ? JSON.parse(guestUser.cart as string) : (guestUser.cart as unknown as Record<string, CartItem[]>);
           if (Array.isArray(guestCartObj)) guestCartObj = {};
           if (!guestCartObj) guestCartObj = {};
         } catch {
           guestCartObj = {};
         }
 
-        let guestAddressesArr: any[] = [];
+        let guestAddressesArr: UserAddress[] = [];
         try {
-          guestAddressesArr = typeof guestUser.addresses === "string" ? JSON.parse(guestUser.addresses as string) : (guestUser.addresses as any[]);
+          guestAddressesArr = typeof guestUser.addresses === "string" ? JSON.parse(guestUser.addresses as string) : (guestUser.addresses as unknown as UserAddress[]);
           if (!Array.isArray(guestAddressesArr)) guestAddressesArr = [];
         } catch {
           guestAddressesArr = [];
         }
 
-        let authCartObj: Record<string, any[]> = {};
+        let authCartObj: Record<string, CartItem[]> = {};
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const dbUserCart = (dbUser as any).cart;
-          authCartObj = typeof dbUserCart === "string" ? JSON.parse(dbUserCart as string) : (dbUserCart as Record<string, any[]>);
+          const dbUserCart = dbUser.cart;
+          authCartObj = typeof dbUserCart === "string" ? JSON.parse(dbUserCart as string) : (dbUserCart as unknown as Record<string, CartItem[]>);
           if (Array.isArray(authCartObj)) authCartObj = {};
           if (!authCartObj) authCartObj = {};
         } catch {
           authCartObj = {};
         }
 
-        let authAddressesArr: any[] = [];
+        let authAddressesArr: UserAddress[] = [];
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const dbUserAddresses = (dbUser as any).addresses;
-          authAddressesArr = typeof dbUserAddresses === "string" ? JSON.parse(dbUserAddresses as string) : (dbUserAddresses as any[]);
+          const dbUserAddresses = dbUser.addresses;
+          authAddressesArr = typeof dbUserAddresses === "string" ? JSON.parse(dbUserAddresses as string) : (dbUserAddresses as unknown as UserAddress[]);
           if (!Array.isArray(authAddressesArr)) authAddressesArr = [];
         } catch {
           authAddressesArr = [];
@@ -95,12 +94,11 @@ export const POST = withLogging(async function POST(req: Request) {
         }
 
         // Update the authenticated user's cart and addresses
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (prisma.user as any).update({
+        await prisma.user.update({
           where: { id: user.id },
           data: {
-            cart: mergedCart,
-            addresses: mergedAddresses,
+            cart: JSON.parse(JSON.stringify(mergedCart)),
+            addresses: JSON.parse(JSON.stringify(mergedAddresses)),
           },
         });
       }

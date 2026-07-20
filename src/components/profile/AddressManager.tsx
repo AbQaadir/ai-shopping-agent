@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
 import { Home, Briefcase, Tag, MapPin, Star, Pencil, Trash2, CheckCircle2, ChevronRight, Loader2, Plus, X } from "lucide-react";
-import type { UserAddress } from "@/types/sourcing";
+import type { UserAddress, CitySuggestion } from "@/types/sourcing";
 import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
 
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -49,7 +49,7 @@ function AddressForm({ initial, onSave, onCancel, isSaving }: AddressFormProps) 
   const [mapShown, setMapShown] = useState(!!initial?.lat);
   const mapRef = useRef<google.maps.Map | null>(null);
 
-  const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 

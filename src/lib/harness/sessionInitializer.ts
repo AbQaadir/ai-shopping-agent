@@ -2,15 +2,17 @@ import { GoogleGenAI } from '@google/genai';
 import { prisma } from '@/lib/db';
 import { config } from '@/lib/config';
 import type { SessionContext, UserProfile } from '@/lib/harness/types';
+import type { Message, UserAddress } from '@/types/sourcing';
+import type { CheckoutState } from '@/lib/checkoutContext';
 
 const LOG_PREFIX = '[Harness:SessionInit]';
 
 export async function initOrLoad(params: {
   sessionId: string;
   userId: string | null;
-  chatHistory: any[];
-  checkoutState: any | null;
-  session: any;
+  chatHistory: Array<{ role?: string; content?: string; sender?: string; text?: string }>;
+  checkoutState: CheckoutState | null;
+  session: Record<string, unknown>;
   ai: GoogleGenAI | null;
 }): Promise<SessionContext | null> {
   if (!config.harness?.sessionInitEnabled) return null;
@@ -30,7 +32,7 @@ export async function initOrLoad(params: {
     }
 
     if (existingContext) {
-      const updatedAt = params.session.updatedAt ? new Date(params.session.updatedAt) : new Date();
+      const updatedAt = params.session.updatedAt ? new Date(params.session.updatedAt as string | number | Date) : new Date();
       const gapMs = Date.now() - updatedAt.getTime();
       const gapMinutes = Math.floor(gapMs / (1000 * 60));
 
@@ -44,7 +46,7 @@ export async function initOrLoad(params: {
 
     if (params.chatHistory.length <= 2) {
       if (params.ai) {
-        const firstUserMsg = params.chatHistory.find((m) => m.role === 'user')?.content || '';
+        const firstUserMsg = params.chatHistory.find((m) => m.role === 'user' || m.sender === 'user')?.content || params.chatHistory.find((m) => m.role === 'user' || m.sender === 'user')?.text || '';
         const newContext = await generateSessionContext({
           sessionId: params.sessionId,
           userId: params.userId,
@@ -82,7 +84,7 @@ export async function generateSessionContext(params: {
   sessionId: string;
   userId: string | null;
   firstMessage: string;
-  checkoutState: any | null;
+  checkoutState: CheckoutState | null;
   ai: GoogleGenAI;
 }): Promise<SessionContext> {
   const profile: UserProfile = {
@@ -99,10 +101,11 @@ export async function generateSessionContext(params: {
     });
     if (user) {
       if (user.addresses && Array.isArray(user.addresses)) {
-        profile.savedAddressCount = user.addresses.length;
-        const defaultAddr = (user.addresses as any[]).find((a) => a.isDefault) || user.addresses[0];
-        if (defaultAddr && (defaultAddr as any).city) {
-          profile.preferredCity = (defaultAddr as any).city;
+        const addrs = user.addresses as unknown as UserAddress[];
+        profile.savedAddressCount = addrs.length;
+        const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
+        if (defaultAddr && defaultAddr.city) {
+          profile.preferredCity = defaultAddr.city;
         }
       }
       profile.isRepeatCustomer = true;

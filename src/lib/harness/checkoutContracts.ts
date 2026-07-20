@@ -129,7 +129,7 @@ export async function validatePhaseResponse(params: {
       }
     });
 
-    const timeoutPromise = new Promise<any>((_, reject) =>
+    const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("LLM timeout")), 3000)
     );
 

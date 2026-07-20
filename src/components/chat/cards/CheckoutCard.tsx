@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MapPin, User, Phone, ShoppingBag, Plus, Minus, Loader2, CheckCircle, ExternalLink } from "lucide-react";
 import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
-import type { InlineProduct, CheckoutLink } from "@/types/sourcing";
+import type { InlineProduct, CheckoutLink, CitySuggestion } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
 import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
 
@@ -32,15 +32,15 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
   const [useGoogleMaps, setUseGoogleMaps] = useState(false);
 
   // Autocomplete state
-  const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Google Maps Instance References
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerInstanceRef = useRef<any>(null);
-  const geocoderInstanceRef = useRef<any>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markerInstanceRef = useRef<google.maps.Marker | google.maps.marker.AdvancedMarkerElement | null>(null);
+  const geocoderInstanceRef = useRef<google.maps.Geocoder | null>(null);
   const isAdvancedMarkerRef = useRef<boolean>(false);
 
   // Load Google Maps script or check local environment key
@@ -204,11 +204,11 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
         );
 
     if (markerInstanceRef.current) {
-      if (isAdvancedMarkerRef.current) {
-        markerInstanceRef.current.position = latLngObj;
-      } else {
-        markerInstanceRef.current.setPosition(latLngObj);
-      }
+        if (isAdvancedMarkerRef.current) {
+          (markerInstanceRef.current as any).position = latLngObj;
+        } else {
+          (markerInstanceRef.current as any).setPosition(latLngObj);
+        }
     }
 
     const geocoder = geocoderInstanceRef.current || new google.maps.Geocoder();
@@ -239,9 +239,9 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
         const newLatLng = { lat: defaultAddr.lat, lng: defaultAddr.lng };
         mapInstanceRef.current.panTo(newLatLng);
         if (isAdvancedMarkerRef.current) {
-          markerInstanceRef.current.position = newLatLng;
+          (markerInstanceRef.current as any).position = newLatLng;
         } else {
-          markerInstanceRef.current.setPosition(newLatLng);
+          (markerInstanceRef.current as any).setPosition(newLatLng);
         }
       } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -250,9 +250,9 @@ export default function CheckoutCard({ product }: CheckoutCardProps) {
             if (mapInstanceRef.current && markerInstanceRef.current) {
               mapInstanceRef.current.panTo(currentLatLng);
               if (isAdvancedMarkerRef.current) {
-                markerInstanceRef.current.position = currentLatLng;
+                (markerInstanceRef.current as any).position = currentLatLng;
               } else {
-                markerInstanceRef.current.setPosition(currentLatLng);
+                (markerInstanceRef.current as any).setPosition(currentLatLng);
               }
             }
           },

@@ -16,6 +16,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import type { CheckoutState } from "@/lib/checkoutContext";
+import type { InlineProduct } from "@/types/sourcing";
 
 export type RouterAction =
   | "shop"                        // No active checkout — route to product/delivery/service/qa
@@ -69,7 +70,7 @@ export async function routerAgent(
   ai: GoogleGenAI,
   fastModel: string,
   savedAddressLabels?: string[], // e.g. ["Home", "Work", "Parents Place"]
-  availableProducts?: any[]
+  availableProducts?: InlineProduct[]
 ): Promise<RouterDecision> {
   // ── Hardcoded shortcuts (obvious cases, no LLM needed) ─────────────────────
   // These are unambiguous UI-generated messages — always correct.
@@ -264,7 +265,8 @@ Respond ONLY as valid JSON:
           const lowerMsg = message.toLowerCase();
           const allItems = [...(checkoutState?.cartItems || []), ...(availableProducts || [])];
           for (const item of allItems) {
-            const nameWords = item.name.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+            const name = item.name || (item as any).title || "";
+            const nameWords = name.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
             if (nameWords.some((word: string) => lowerMsg.includes(word))) {
               isMatched = true;
               break;

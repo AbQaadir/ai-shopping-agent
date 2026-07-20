@@ -14,7 +14,7 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
-import type { CartItem } from "@/types/sourcing";
+import type { CartItem, InlineProduct } from "@/types/sourcing";
 
 export type CartModificationType = "remove" | "update_qty" | "add";
 
@@ -37,7 +37,7 @@ export interface CartModification {
 export async function cartModifierAgent(
   message: string,
   currentCart: CartItem[],
-  availableProducts: any[],
+  availableProducts: InlineProduct[],
   ai: GoogleGenAI,
   fastModel: string
 ): Promise<CartModification> {

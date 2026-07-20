@@ -31,6 +31,13 @@ export interface MCPToolResult<T = unknown> {
   error?: string;
 }
 
+export interface ProductVariant {
+  id: string;
+  name?: string;
+  priceLKR?: number;
+  attributes?: Record<string, string | number | boolean>;
+}
+
 /** Kapruka product as returned by kapruka_search_products / kapruka_get_product */
 export interface KaprukaProduct {
   id: string;
@@ -46,10 +53,13 @@ export interface KaprukaProduct {
   deliveryInfo?: string;
   url?: string;
   isSME?: boolean;         // Injected by Pillar 3 logic
-  variants?: any[];
-  attributes?: Record<string, any>;
-  shipping?: Record<string, any>;
+  variants?: ProductVariant[];
+  attributes?: Record<string, unknown>;
+  shipping?: Record<string, unknown>;
 }
+
+/** Detailed Kapruka product payload from kapruka_get_product_detail */
+export interface KaprukaProductDetail extends KaprukaProduct {}
 
 /** Kapruka order / checkout result from kapruka_create_order */
 export interface KaprukaOrderResult {
@@ -355,9 +365,9 @@ export async function getProduct(productId: string, mcpContext?: MCPContext): Pr
         category?: { id: string; name: string; slug: string };
         images?: string[];
         url?: string;
-        variants?: any[];
-        attributes?: Record<string, any>;
-        shipping?: Record<string, any>;
+        variants?: ProductVariant[];
+        attributes?: Record<string, unknown>;
+        shipping?: Record<string, unknown>;
       }
       const raw = parseJSON<RawProductDetail>(text);
       return {

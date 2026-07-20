@@ -12,6 +12,8 @@ export interface InlineProduct {
   url?: string;
   isSME?: boolean;
   currency?: string;
+  stockCount?: number;
+  isExplicitlySelected?: boolean;
   // legacy fields
   moq?: string;
   supplier?: string;
@@ -178,6 +180,23 @@ export interface ProductGroup {
   products: InlineProduct[];
 }
 
+export interface ThinkingStep {
+  step: string;
+  status: "running" | "completed";
+  content: string;
+  durationMs?: number;
+  terms?: string[]; // parallel search terms for capsule rendering (baseLlmTerms)
+  term?: string;    // single term for per-pipeline steps (searching_kapruka, validating_relevance)
+  _key?: string;
+  logs?: string[];
+}
+
+export interface CitySuggestion {
+  name: string;
+  alias?: string;
+  province?: string;
+}
+
 export interface Message {
   id: string;
   sender: "user" | "ai";
@@ -188,14 +207,7 @@ export interface Message {
   samples?: string[];
 
   // Thought process
-  thinkingSteps?: {
-    step: string;
-    status: "running" | "completed";
-    content: string;
-    durationMs?: number;
-    terms?: string[]; // parallel search terms for capsule rendering (baseLlmTerms)
-    term?: string;    // single term for per-pipeline steps (searching_kapruka, validating_relevance)
-  }[];
+  thinkingSteps?: ThinkingStep[];
   activeToolCall?: { name: string; args: unknown } | null;
   activeToolCalls?: Array<{ name: string; args: unknown }>; // accumulates parallel tool calls
 
@@ -208,7 +220,7 @@ export interface Message {
   // Pillar 2: delivery
   deliveryResult?: DeliveryResult;
   trackingResult?: TrackingResult;
-  citySuggestions?: Array<{ name: string; alias?: string; province?: string }>;
+  citySuggestions?: CitySuggestion[];
 
 
 

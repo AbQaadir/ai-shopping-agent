@@ -1,92 +1,19 @@
-import { KAPRUKA_CITIES_SET } from "@/constants/cities";
-import { findRelevantCategories } from "@/lib/categories";
-import { config } from "@/lib/config";
-import { prisma } from "@/lib/db";
-import { withLogging } from "@/lib/logger";
-import {
-  extractCityFromMessage,
-  extractDate,
-  extractOrderId,
-  Intent,
-  ruleBasedIntent,
-} from "@/lib/nlp";
-import { placeOrderInternally } from "@/lib/orderService";
-import {
-  parseRequirements,
-  pillar1_createOrderLink,
-  pillar1_getProductDetails,
-  pillar1_searchProducts,
-  pillar2_checkDelivery,
-  pillar2_findCity,
-  pillar2_trackOrder,
-  pillar3_searchSMEProducts,
-  pillar5_detectServiceCategory,
-  pillar5_searchServiceProviders,
-  type KaprukaProduct,
-} from "@/lib/tools";
-import { GoogleGenAI } from "@google/genai";
-import { Prisma } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
-import { getVerifiedUser } from "@/lib/auth";
-import {
-  checkGuestMessageLimit,
-  getClientIp,
-  rateLimit,
-  rateLimitResponse,
-} from "@/lib/rateLimit";
+const fs = require('fs');
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const fetchCache = "force-no-store";
+const content = fs.readFileSync('src/app/api/chat/route.ts', 'utf-8');
 
-// ── New Agentic Architecture ──────────────────────────────────────────────
-import { cartModifierAgent, type CartModification } from "@/lib/agents/cartModifierAgent";
-import { categoryBrowseAgent } from "@/lib/agents/categoryBrowseAgent";
-import { orderAgent } from "@/lib/agents/orderAgent";
-import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";
-import { BUDDY_PROMPTS, BUDDY_SELECTED_PRODUCT_PROMPT, BUDDY_OFFTOPIC_REFUSAL } from "@/lib/prompts/personality";
-import { clearCheckoutState, getCheckoutState, saveCheckoutState, type CheckoutState } from "@/lib/checkoutContext";
-import { getCachedCategories, scrapeMultipleCategoryUrls } from "@/lib/tools";
-import { buildContext as compactContext } from "@/lib/harness/contextCompactor";
-import { searchEvaluatorAgent } from '@/lib/agents/searchEvaluatorAgent';
-import { logEval } from '@/lib/harness/harnessLogger';
-import { responseEvaluatorAgent } from '@/lib/agents/responseEvaluatorAgent';
-import { initOrLoad as initSession } from "@/lib/harness/sessionInitializer";
+// The top part of the file has all the imports. Let's extract the imports.
+// We'll also need to add the new imports from src/lib/chat
+// We can just keep the original imports and append the new ones.
+const importEndMarker = 'export const POST = withLogging(async function POST(req: NextRequest) {';
+const importEndIdx = content.indexOf(importEndMarker);
 
-import { CartItem, UserAddress, InlineProduct, SavedAddress } from "@/types/sourcing";
-
-// Normalize address data from DB to SavedAddress schema
-const mapToSavedAddress = (addr: UserAddress | SavedAddress | Record<string, any> | null | undefined) => {
-  if (!addr) return undefined;
-  return {
-    name: (addr as any).recipientName || (addr as any).name || (addr as any).label || "Customer",
-    phone: (addr as any).phone || "",
-    address: (addr as any).addressLine || (addr as any).address || "",
-    city: (addr as any).city || ""
-  };
-};
-
-interface SearchTermConfig {
-  term: string;
-  minPrice: number | null;
-  maxPrice: number | null;
+if (importEndIdx === -1) {
+    console.error("import end marker not found");
+    process.exit(1);
 }
 
-// ── No hardcoded registry anymore — loaded dynamically per-user ───────────
-
-// ── Kapruka fallback order number for live tracking ───────────────────────
-// The real Kapruka order number (e.g. VPAY827982BA) is only generated after
-// the customer completes payment on kapruka.com. Our internal kaprukaRef is
-// NOT a valid tracking ID. We therefore always use this known-good fallback
-// to fetch live progress steps, and enrich the result with our DB data.
-const KAPRUKA_FALLBACK_ORDER_NUMBER = "VPAY827982BA";
-
-// ── System Prompts — imported from centralized Best Buddy personality module ─
-const SYSTEM_PROMPTS: Record<Intent, string> = BUDDY_PROMPTS;
-const SELECTED_PRODUCT_QA_PROMPT = BUDDY_SELECTED_PRODUCT_PROMPT;
-
-// ── Main Chat POST Handler ─────────────────────────────────────────────────
-
+let newImports = `
 import { 
   verifyRequestSecurity,
   getOrCreateSession,
@@ -100,8 +27,16 @@ import {
   handleShopFlow,
   ChatHandlerContext,
 } from "@/lib/chat";
+`;
 
-export async function POST(req: NextRequest) {
+let topPart = content.substring(0, importEndIdx) + newImports;
+
+// Now we need the start of the POST function up to the ReadableStream
+// Wait, a lot of logic was extracted.
+// Let's just rewrite the POST function entirely, it's about 150 lines now.
+
+let postFunction = `
+export const POST = withLogging(async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
     const body = JSON.parse(rawBody);
@@ -110,20 +45,17 @@ export async function POST(req: NextRequest) {
       sessionId: rawSessionId,
       message,
       selectedProductIds, // optional array
-      userId: bodyUserId,
+      userId,
       editMessageId, // optional: if provided, user is editing a past message
       fetchedSelectedProducts = [], // fully populated selected products from client
       country,
       currency,
     } = body;
 
-    let userId: string | undefined = bodyUserId || undefined;
-    const securityResult = await verifyRequestSecurity(req);
-    if (!securityResult.allowed) {
-      return securityResult.response || NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const securityError = verifyRequestSecurity(req, rawSessionId, message);
+    if (securityError) {
+      return NextResponse.json({ error: securityError.message }, { status: securityError.status });
     }
-    // Override userId with verified one to prevent spoofing
-    userId = securityResult.userId || userId || undefined;
 
     const sessionId = rawSessionId.trim();
 
@@ -154,8 +86,8 @@ export async function POST(req: NextRequest) {
     });
     const historySnippet = recentMsgs
       .reverse()
-      .map((m: any) => `[${m.role.toUpperCase()}]: ${m.content}`)
-      .join("\n");
+      .map((m: any) => \`[\${m.role.toUpperCase()}]: \${m.content}\`)
+      .join("\\n");
 
     // 5. Setup Gemini AI
     const apiKey = config.gemini.apiKey;
@@ -182,10 +114,8 @@ export async function POST(req: NextRequest) {
       sessionContext = await initSession({
         sessionId: session.id,
         userId: userId ?? null,
-        chatHistory: recentMsgs.map(m => ({ role: m.role, content: m.content })),
-        checkoutState,
-        session: session as any,
-        ai
+        message,
+        country: country || "LK",
       });
     } catch (err) {
       console.error("[Session Init] non-fatal error:", err);
@@ -201,10 +131,10 @@ export async function POST(req: NextRequest) {
     // 8. Call Router Agent
     const routerDecision = await routerAgent(
       message,
-      historySnippet,
       checkoutState,
+      hasSelectedProducts,
       intentResult.intent,
-      ai as any, // ai is GoogleGenAI | null
+      ai,
       config.gemini.fastModel
     );
 
@@ -244,7 +174,6 @@ export async function POST(req: NextRequest) {
           country,
           currency,
           criteria: body.criteria,
-          intentResult,
         };
 
         try {
@@ -277,3 +206,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }
+});
+`;
+
+fs.writeFileSync('src/app/api/chat/route_new.ts', topPart + postFunction);
+console.log("route_new.ts created!");

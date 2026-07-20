@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { withLogging } from "@/lib/logger";
 import { getVerifiedUser } from "@/lib/auth";
 import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { CartItem } from "@/types/sourcing";
 
 
 export const dynamic = "force-dynamic";
@@ -33,16 +34,16 @@ export const GET = withLogging(async function GET(req: NextRequest) {
         select: { cart: true },
       });
       if (!user && isGuest && userId === "guest") {
-        user = await (prisma.user as any).create({
+        user = await prisma.user.create({
           data: { id: "guest", email: "guest@kapruka.com", name: "Guest User" },
           select: { cart: true },
         });
       }
       
-      let cartObj: Record<string, any[]> = {};
+      let cartObj: Record<string, CartItem[]> = {};
       if (user?.cart) {
         try {
-          cartObj = typeof user.cart === "string" ? JSON.parse(user.cart as string) : (user.cart as Record<string, any[]>);
+          cartObj = typeof user.cart === "string" ? JSON.parse(user.cart as string) : (user.cart as unknown as Record<string, CartItem[]>);
           if (Array.isArray(cartObj)) {
             cartObj = {};
           }
@@ -51,7 +52,7 @@ export const GET = withLogging(async function GET(req: NextRequest) {
         }
       }
 
-      let cartItems: any[] = [];
+      let cartItems: CartItem[] = [];
       if (globalCart) {
         const sessions = await prisma.chatSession.findMany({
           where: isGuest ? { userId: null } : { userId: userId },
@@ -146,10 +147,10 @@ export const PATCH = withLogging(async function PATCH(req: NextRequest) {
       });
     }
 
-    let cartObj: Record<string, any[]> = {};
+    let cartObj: Record<string, CartItem[]> = {};
     if (userExists?.cart) {
       try {
-        cartObj = typeof userExists.cart === "string" ? JSON.parse(userExists.cart as string) : (userExists.cart as Record<string, any[]>);
+        cartObj = typeof userExists.cart === "string" ? JSON.parse(userExists.cart as string) : (userExists.cart as unknown as Record<string, CartItem[]>);
         if (Array.isArray(cartObj)) {
           cartObj = {};
         }
@@ -273,9 +274,9 @@ export const DELETE = withLogging(async function DELETE(req: NextRequest) {
       });
 
       if (user?.cart) {
-        let cartObj: Record<string, any[]> = {};
+        let cartObj: Record<string, CartItem[]> = {};
         try {
-          cartObj = typeof user.cart === "string" ? JSON.parse(user.cart as string) : (user.cart as Record<string, any[]>);
+          cartObj = typeof user.cart === "string" ? JSON.parse(user.cart as string) : (user.cart as unknown as Record<string, CartItem[]>);
         } catch {
           cartObj = {};
         }

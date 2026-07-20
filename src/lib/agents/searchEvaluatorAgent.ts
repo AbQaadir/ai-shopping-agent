@@ -1,12 +1,13 @@
 import { GoogleGenAI } from '@google/genai';
 import { SearchEvaluation, SearchCriteriaScores } from '@/lib/harness/types';
+import type { InlineProduct } from '@/types/sourcing';
 
 const LOG_PREFIX = '[Harness:SearchEval]';
 
 export async function searchEvaluatorAgent(params: {
   originalQuery: string;
   searchTermsUsed: string[];
-  results: any[];
+  results: InlineProduct[];
   historySnippet: string;
   priceConstraints: { min: number | null; max: number | null };
   ai: GoogleGenAI;

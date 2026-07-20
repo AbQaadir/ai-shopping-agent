@@ -1,7 +1,7 @@
 "use client";
 
 import { useSourcingStore, useSourcingActions } from "@/store/useSourcingStore";
-import type { CheckoutLink, InlineProduct } from "@/types/sourcing";
+import type { CheckoutLink, InlineProduct, CitySuggestion } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
 import { KAPRUKA_CITIES, KAPRUKA_CITIES_SET } from "@/constants/cities";
 import {
@@ -83,11 +83,11 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
   // Google Maps
   const [useGoogleMaps, setUseGoogleMaps] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerInstanceRef = useRef<any>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markerInstanceRef = useRef<google.maps.Marker | google.maps.marker.AdvancedMarkerElement | null>(null);
 
   // City autocomplete
-  const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -176,9 +176,9 @@ export default function OrderFlowCard({ product, stockStatus = "in_stock", stock
 
         if (markerInstanceRef.current) {
           if (isAdvancedMarker) {
-            markerInstanceRef.current.position = latLngObj;
+            (markerInstanceRef.current as any).position = latLngObj;
           } else {
-            markerInstanceRef.current.setPosition(latLngObj);
+            (markerInstanceRef.current as any).setPosition(latLngObj);
           }
         }
         geocoder.geocode({ location: latLngObj }, (results: any, status: any) => {
