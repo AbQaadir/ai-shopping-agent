@@ -26,5 +26,12 @@ export const config = {
   brightData: {
     apiKey: getEnv("BRIGHTDATA_API_KEY", false),
     zone: getEnv("BRIGHTDATA_ZONE", false),
+  },
+  harness: {
+    searchEvalEnabled: getEnv('HARNESS_SEARCH_EVAL_ENABLED', false, 'true') !== 'false',
+    responseEvalEnabled: getEnv('HARNESS_RESPONSE_EVAL_ENABLED', false, 'true') !== 'false',
+    contractValidationEnabled: getEnv('HARNESS_CONTRACT_VALIDATION_ENABLED', false, 'true') !== 'false',
+    sessionInitEnabled: getEnv('HARNESS_SESSION_INIT_ENABLED', false, 'true') !== 'false',
+    evalScoreThreshold: parseFloat(getEnv('HARNESS_EVAL_SCORE_THRESHOLD', false, '6.0')),
   }
 };

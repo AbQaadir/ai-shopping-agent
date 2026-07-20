@@ -15,6 +15,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { CheckoutState } from "@/lib/checkoutContext";
 import type { CartItem } from "@/types/sourcing";
+import { validatePhaseResponse, getContract } from '@/lib/harness/checkoutContracts';
 
 export interface OrderAgentOutput {
   /** The phase to move to after this turn. */
@@ -72,7 +73,13 @@ export async function orderAgent(
   message: string,
   checkoutState: CheckoutState,
   ai: GoogleGenAI,
-  reasoningModel: string
+  reasoningModel: string,
+  options?: {
+    enableContractValidation?: boolean;
+    historySnippet?: string;
+    sessionId?: string;
+    messageId?: string;
+  }
 ): Promise<OrderAgentOutput> {
   const { phase, cartItems, product, confirmedQty, confirmedAddress, savedAddress, paymentMethod, deliveryDate, personalMessage } = checkoutState;
 
@@ -86,6 +93,45 @@ export async function orderAgent(
       requiresOrderPlace: false,
       requiresDeliveryCheck: false,
     };
+  }
+
+  // Bypass messages that are UI-generated and always valid
+  const isBypass =
+    message.startsWith("New address confirmed:") ||
+    message.startsWith("Delivery date confirmed:") ||
+    message.startsWith("Use address:") ||
+    message.trim().toLowerCase() === "continue checkout" ||
+    message.toLowerCase() === "i'll pay cash on delivery" ||
+    message.toLowerCase() === "i'll pay by card";
+
+  if (options?.enableContractValidation === true && !isBypass) {
+    const contractResult = await validatePhaseResponse({
+      phase,
+      userMessage: message,
+      historySnippet: options?.historySnippet || "",
+      checkoutState,
+      ai,
+      fastModel: "gemini-2.5-flash",
+    });
+
+    if (!contractResult.satisfied) {
+      const maxRetries = getContract(phase)?.maxRetries ?? 2;
+      const currentRetries = checkoutState.phaseRetryCount ?? 0;
+
+      if (currentRetries < maxRetries) {
+        return {
+          nextPhase: "stay",
+          stay: true,
+          extractedData: {},
+          responseText: contractResult.retryMessage ?? getPhaseRepeatText(phase, savedAddress, cartItems),
+          requiresGeocode: false,
+          requiresOrderPlace: false,
+          requiresDeliveryCheck: false,
+        };
+      } else {
+        console.warn(`[Harness:Contract] Retry exhausted for phase ${phase}. Failing open.`);
+      }
+    }
   }
 
   const firstName = savedAddress?.name?.split(" ")[0] ?? "";

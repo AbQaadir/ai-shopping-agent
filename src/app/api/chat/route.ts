@@ -45,13 +45,13 @@ import { categoryBrowseAgent } from "@/lib/agents/categoryBrowseAgent";
 import { orderAgent } from "@/lib/agents/orderAgent";
 import { routerAgent, type RouterDecision } from "@/lib/agents/routerAgent";
 import { BUDDY_PROMPTS, BUDDY_SELECTED_PRODUCT_PROMPT, BUDDY_OFFTOPIC_REFUSAL } from "@/lib/prompts/personality";
-import {
-  clearCheckoutState,
-  getCheckoutState,
-  saveCheckoutState,
-  type CheckoutState,
-} from "@/lib/checkoutContext";
+import { clearCheckoutState, getCheckoutState, saveCheckoutState, type CheckoutState } from "@/lib/checkoutContext";
 import { getCachedCategories, scrapeMultipleCategoryUrls } from "@/lib/tools";
+import { buildContext as compactContext } from "@/lib/harness/contextCompactor";
+import { searchEvaluatorAgent } from '@/lib/agents/searchEvaluatorAgent';
+import { logEval } from '@/lib/harness/harnessLogger';
+import { responseEvaluatorAgent } from '@/lib/agents/responseEvaluatorAgent';
+import { initOrLoad as initSession } from "@/lib/harness/sessionInitializer";
 
 // Normalize address data from DB to SavedAddress schema
 const mapToSavedAddress = (addr: any) => {
@@ -310,11 +310,25 @@ export const POST = withLogging(async function POST(req: NextRequest) {
       orderBy: { createdAt: "asc" },
     });
 
-    const historySnippet = chatHistory
-      .slice(0, -1) // exclude current user message
-      .slice(-6)
-      .map((m) => `${m.role.toUpperCase()}: ${m.content.substring(0, 150)}`)
-      .join("\n");
+
+    // ── Harness: Context Compactor ──────────────────────────────────────────
+    // Replaces the raw slice-and-join with smart tiered compaction:
+    //   <10 messages  → raw snippets (zero latency)
+    //   10-24 messages → LLM bullet summary (cached to DB)
+    //   ≥25 messages  → full compaction: summary + last 3 messages
+    const { historySnippet } = await compactContext({
+      sessionId: session.id,
+      chatHistory: chatHistory.map((m) => ({
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+      })),
+      session: {
+        compactedHistory: (session as any).compactedHistory ?? null,
+        compactedAt: (session as any).compactedAt ?? null,
+      },
+    });
+    // ── End Harness: Context Compactor ─────────────────────────────────────
 
     // 5. Setup Gemini AI
     const apiKey = config.gemini.apiKey;
@@ -471,6 +485,26 @@ User query to classify: "${message}"`;
     // 7. Load checkout state and saved address
     let checkoutState = await getCheckoutState(sessionId);
 
+    // ── Harness: Session Initializer ────────────────────────────────────────
+    // Generates or loads the structured SessionContext for this session.
+    // On first message: generates context via LLM and saves to DB.
+    // On resume (>30min gap): attaches a warm welcome-back message.
+    // Always fails-open — never throws or blocks the main pipeline.
+    let sessionContext: any = null;
+    try {
+      sessionContext = await initSession({
+        sessionId: session.id,
+        userId: userId ?? null,
+        chatHistory,
+        checkoutState,
+        session,
+        ai,
+      });
+    } catch (initErr) {
+      console.error('[Harness:SessionInit] Silently failed:', (initErr as Error).message);
+    }
+    // ── End Harness: Session Initializer ────────────────────────────────────
+
     let allUserAddresses: any[] = [];
     if (userId && userId !== "guest") {
       try {
@@ -566,6 +600,10 @@ User query to classify: "${message}"`;
 
         if (isAgeRestricted) {
           send({ type: "age_verification_required" });
+        }
+
+        if (sessionContext?.resumeMessage) {
+          send({ type: 'thought', step: 'session_resume', status: 'completed', content: sessionContext.resumeMessage });
         }
 
         // ── Helper: stream text word by word ──────────────────────────────
@@ -1793,6 +1831,76 @@ Respond ONLY with valid JSON matching this schema:
               send({ type: "tool_result", toolName: "kapruka_search_products", result: { products } });
               send({ type: "product_groups", groups: productGroups });
 
+              // ── Harness: Search Evaluator ─────────────────────────────────
+              // Evaluates result quality and can trigger a refined search if
+              // the results don't adequately match the user's query.
+              const harnessEnabled = process.env.HARNESS_SEARCH_EVAL_ENABLED !== 'false';
+              if (ai && harnessEnabled && products.length > 0 && !hasSelectedProducts) {
+                send({ type: "thought", step: "search_evaluator", status: "running", content: "Evaluating result quality..." });
+                const evalStart = Date.now();
+                let regenAttempts = 0;
+                const MAX_REGEN = 2;
+
+                let evalResult = await searchEvaluatorAgent({
+                  originalQuery: message,
+                  searchTermsUsed: baseLlmTerms.map((t: any) => t.term),
+                  results: products,
+                  historySnippet,
+                  priceConstraints: { min: null, max: criteria?.maxPrice ?? null },
+                  ai,
+                  fastModel: config.gemini.fastModel,
+                });
+
+                while (evalResult.shouldRegenerate && regenAttempts < MAX_REGEN) {
+                  regenAttempts++;
+                  const refinedTerm = evalResult.suggestedQueryRefinements[0] || message;
+                  send({ type: "thought", step: "search_evaluator", status: "running", content: `Refining search with term: "${refinedTerm}"...` });
+
+                  try {
+                    const refinedResults = await pillar1_searchProducts(
+                      refinedTerm,
+                      { maxPriceLKR: criteria?.maxPrice ?? undefined, smeFirst: false, currency: currency || 'LKR' },
+                      createMcpContext('searching_kapruka')
+                    );
+                    if (refinedResults.length > 0) {
+                      products = [...refinedResults, ...products].filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i).slice(0, 20);
+                      productGroups = [{ title: refinedTerm.replace(/\b\w/g, (c: string) => c.toUpperCase()), products }];
+                      send({ type: "product_groups", groups: productGroups });
+                    }
+                    evalResult = await searchEvaluatorAgent({
+                      originalQuery: message,
+                      searchTermsUsed: [refinedTerm],
+                      results: products,
+                      historySnippet,
+                      priceConstraints: { min: null, max: criteria?.maxPrice ?? null },
+                      ai,
+                      fastModel: config.gemini.fastModel,
+                    });
+                  } catch (regenErr) {
+                    console.error('[Harness:SearchEval] Regen search failed:', (regenErr as Error).message);
+                    break;
+                  }
+                }
+
+                const evalLatency = Date.now() - evalStart;
+                send({ type: "thought", step: "search_evaluator", status: "completed", content: `Quality score: ${evalResult.overallScore.toFixed(1)}/10 — ${products.length} results ready${regenAttempts > 0 ? ` (refined ${regenAttempts}x)` : ''}.` });
+
+                // Log to HarnessEvalLog (fire-and-forget)
+                const savedMsgForEval = await prisma.chatMessage.findFirst({ where: { sessionId: session.id, role: 'user' }, orderBy: { createdAt: 'desc' } });
+                logEval({
+                  sessionId: session.id,
+                  messageId: savedMsgForEval?.id ?? 'unknown',
+                  evaluatorType: 'search_evaluator',
+                  score: evalResult.overallScore,
+                  passed: !evalResult.shouldRegenerate,
+                  feedback: evalResult.feedback,
+                  regenerated: regenAttempts > 0,
+                  latencyMs: evalLatency,
+                  context: { originalQuery: message, regenAttempts, resultCount: products.length },
+                }).catch(() => {});
+              }
+              // ── End Harness: Search Evaluator ──────────────────────────────
+
               (criteria as typeof criteria & { _notFoundTerms?: string[] })._notFoundTerms = notFoundOriginalTerms;
             }
           }
@@ -2143,6 +2251,47 @@ The user has temporarily paused checkout to ask: "${message}".
               fullResponseText += sourcesText;
               send({ type: "text", content: sourcesText });
             }
+
+            // ── Harness: Response Evaluator (post-stream) ──────────────────
+            const responseEvalEnabled = process.env.HARNESS_RESPONSE_EVAL_ENABLED !== 'false';
+            if (ai && responseEvalEnabled && fullResponseText && (intent === 'qa' || intent === 'delivery')) {
+              try {
+                const evalStart = Date.now();
+                const responseEval = await responseEvaluatorAgent({
+                  draftResponse: fullResponseText,
+                  userQuery: message,
+                  intent: intent as 'qa' | 'delivery',
+                  historySnippet,
+                  ai,
+                  fastModel: config.gemini.fastModel,
+                });
+                const evalLatency = Date.now() - evalStart;
+                console.log(`[Harness:ResponseEval] score=${responseEval.overallScore.toFixed(1)} action=${responseEval.action} latency=${evalLatency}ms`);
+
+                if (responseEval.action === 'append_note' && responseEval.correctionNote) {
+                  const noteText = '\n\n> ' + responseEval.correctionNote;
+                  fullResponseText += noteText;
+                  send({ type: 'text', content: noteText });
+                }
+
+                // Log evaluation
+                const savedMsg = await prisma.chatMessage.findFirst({ where: { sessionId: session.id, role: 'user' }, orderBy: { createdAt: 'desc' } });
+                logEval({
+                  sessionId: session.id,
+                  messageId: savedMsg?.id ?? 'unknown',
+                  evaluatorType: 'response_evaluator',
+                  score: responseEval.overallScore,
+                  passed: responseEval.action === 'stream_as_is',
+                  feedback: responseEval.feedback,
+                  regenerated: false,
+                  latencyMs: evalLatency,
+                  context: { intent, action: responseEval.action },
+                }).catch(() => {});
+              } catch (evalErr) {
+                console.error('[Harness:ResponseEval] Evaluation failed:', (evalErr as Error).message);
+              }
+            }
+            // ── End Harness: Response Evaluator ────────────────────────────
           } catch (err) {
             const errMsg = (err as Error).message;
             console.error("[LLM] Gemini stream error:", errMsg);

@@ -42,6 +42,7 @@ export interface CheckoutState {
   deliveryFeeLKR?: number;         // flat rate delivery fee returned by kapruka_check_delivery
   checkoutUrl?: string;            // pre-generated kapruka checkout URL
   orderId?: string;                // kapruka order ref
+  phaseRetryCount?: number;        // harness contract retry tracking
 }
 
 /** Load the active checkout state for a chat session. Returns null if none. */
@@ -69,6 +70,7 @@ export async function getCheckoutState(chatSessionId: string): Promise<CheckoutS
       deliveryFeeLKR: row.deliveryFeeLKR ?? undefined,
       checkoutUrl: confirmedAddressData?.checkoutUrl,
       orderId: confirmedAddressData?.orderId,
+      phaseRetryCount: row.phaseRetryCount ?? 0,
     };
   } catch (err) {
     console.error("[CheckoutContext] getCheckoutState failed:", err);
@@ -102,6 +104,7 @@ export async function saveCheckoutState(
         deliveryDate: state.deliveryDate ?? null,
         personalMessage: state.personalMessage ?? null,
         deliveryFeeLKR: state.deliveryFeeLKR ?? null,
+        phaseRetryCount: state.phaseRetryCount ?? 0,
       },
       create: {
         chatSessionId,
@@ -116,6 +119,7 @@ export async function saveCheckoutState(
         deliveryDate: state.deliveryDate ?? null,
         personalMessage: state.personalMessage ?? null,
         deliveryFeeLKR: state.deliveryFeeLKR ?? null,
+        phaseRetryCount: state.phaseRetryCount ?? 0,
       },
     });
   } catch (err) {
