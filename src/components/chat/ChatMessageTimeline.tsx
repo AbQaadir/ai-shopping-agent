@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink, LayoutGrid, List, ChevronDown, Copy, Pencil, Package2 } from "lucide-react";
+import { Clock, Check, ThumbsUp, ThumbsDown, Flag, X, Box, ExternalLink, LayoutGrid, List, ChevronDown, Copy, Pencil, Package2, RefreshCw } from "lucide-react";
 import type { Message, InlineProduct } from "@/types/sourcing";
 import { cleanProductTitle } from "@/lib/product";
 
@@ -203,6 +203,7 @@ interface ChatTimelineProps {
   onToggleSelectProduct?: (product: InlineProduct) => void;
   onBuyProduct?: (product: InlineProduct) => void;
   onEditMessage?: (messageId: string, text: string) => void;
+  onRegenerate?: () => void;
 }
 
 function formatTime(date: Date) {
@@ -494,6 +495,24 @@ function renderMessageTextBlock(
 
     const isLastLine = showCursor && lineIdx === lastNonEmptyIdx;
 
+    // Blockquote (> text)
+    const blockquoteMatch = line.match(/^\s*>\s+(.*)/);
+    if (blockquoteMatch) {
+      const quoteContent = blockquoteMatch[1];
+      processedElements.push(
+        <blockquote
+          key={lineIdx}
+          className="border-l-4 border-[#402970]/30 bg-[#402970]/5 pl-3 py-2 my-2 rounded-r-lg text-slate-700 italic text-sm"
+        >
+          {renderFormattedText(quoteContent)}
+          {isLastAIResponse && isLastLine && (
+            <span className="inline-block w-1.5 h-3.5 bg-[#402970] ml-1.5 animate-pulse rounded-full align-middle" />
+          )}
+        </blockquote>
+      );
+      continue;
+    }
+
     // Headers (###, ##, #, etc.)
     const headerMatch = line.match(/^(\s*)(#{1,6})\s+(.*)/);
     if (headerMatch) {
@@ -617,6 +636,7 @@ export default function ChatTimeline({
   onToggleSelectProduct,
   onBuyProduct,
   onEditMessage,
+  onRegenerate,
 }: ChatTimelineProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1185,8 +1205,22 @@ export default function ChatTimeline({
                       </div>
                     )}
 
-                    {/* Reaction bar */}
+                    {/* Action bar: Regenerate + Reactions */}
                     <div className="flex items-center gap-1.5 text-slate-400 select-none pt-1">
+                      {/* Regenerate button - only on the last AI message when not generating */}
+                      {idx === messages.length - 1 && !isGenerating && !msg.orderFlowStep && onRegenerate && (
+                        <button
+                          onClick={() => onRegenerate()}
+                          className="p-1.5 hover:bg-slate-50 hover:text-[#402970] rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
+                          title="Regenerate response"
+                        >
+                          <RefreshCw size={13} className="text-slate-400 hover:text-[#402970] transition-colors" />
+                          <span className="text-slate-500 hover:text-[#402970] transition-colors">Regenerate</span>
+                        </button>
+                      )}
+                      {idx === messages.length - 1 && !isGenerating && !msg.orderFlowStep && onRegenerate && (
+                        <div className="h-3 w-[1px] bg-slate-200"></div>
+                      )}
                       <button className="p-1.5 hover:bg-slate-50 hover:text-[#402970] rounded-lg transition-colors cursor-pointer" title="Good response">
                         <ThumbsUp size={14} className="text-slate-400 hover:text-[#402970] transition-colors" />
                       </button>

@@ -1,4 +1,4 @@
-export type Intent = "product" | "delivery" | "service" | "qa" | "category_browse" | "order_history";
+export type Intent = "product" | "delivery" | "service" | "qa" | "category_browse" | "order_history" | "general";
 
 
 

@@ -377,6 +377,7 @@ Analyze the user query in the context of the recent conversation history, and pe
    - "service": User needs a home service (repair, cleaning, pest control, plumber, electrician, AC repair, carpentry).
    - "qa": General platform questions (returns, policies, general account help) or general knowledge/informational queries that require web search grounding. Note: Do NOT classify any checkout responses, payment method selections for an active order, or checkout confirmations (e.g. cash on delivery) as "qa".
    - "order_history": The user wants to check their order history (e.g., "what did I buy last week?", "what are the products that I ordered previously?").
+   - "general": General conversation, questions about non-shopping topics (coding, writing, homework, general knowledge, casual chat, brainstorming, explanations) that are NOT related to Kapruka shopping, products, delivery, or services. Use this for any query that doesn't fit the other intents — the agent can still help with general questions like a normal chatbot.
 
 3. Extract focused product search terms and price filters ("searchTerms") as a JSON array of objects matching this schema:
    {
@@ -431,7 +432,7 @@ User query to classify: "${message}"`;
         }
 
         const parsed = JSON.parse(responseText);
-        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa", "order_history"].includes(parsed.intent)) {
+        if (parsed?.intent && ["product", "category_browse", "delivery", "service", "qa", "order_history", "general"].includes(parsed.intent)) {
           intent = parsed.intent as Intent;
         }
         if (typeof parsed?.isRelated === "boolean") {
@@ -606,12 +607,13 @@ User query to classify: "${message}"`;
           send({ type: 'thought', step: 'session_resume', status: 'completed', content: sessionContext.resumeMessage });
         }
 
-        // ── Helper: stream text word by word ──────────────────────────────
+        // ── Helper: stream text word by word (fast, natural pacing) ──────
+        // Reduced from 22ms to 8ms for snappier, more natural streaming
         const streamWords = async (text: string) => {
           const words = text.split(" ");
           for (let i = 0; i < words.length; i++) {
             send({ type: "text", content: words[i] + (i === words.length - 1 ? "" : " ") });
-            await new Promise((r) => setTimeout(r, 22));
+            await new Promise((r) => setTimeout(r, 8));
           }
         };
 
@@ -1510,30 +1512,12 @@ Respond ONLY with valid JSON matching this schema:
         // ── Action: shop (+ checkout_pause) ───────────────────────────────
         // Everything below is the UNCHANGED product search / delivery / services / QA flow.
 
+        // ── Off-topic queries are now routed to general conversation ──
+        // Instead of refusing, we treat unrelated queries as "general" intent
+        // and let the LLM respond like a normal chatbot (with Google Search grounding).
         if (!isRelated) {
-          send({ type: "thought", step: "intent_routing", status: "completed", content: "Checking query appropriateness...", durationMs: 0 });
-
-          const refusalText = BUDDY_OFFTOPIC_REFUSAL;
-          const words = refusalText.split(" ");
-          for (let i = 0; i < words.length; i++) {
-            send({ type: "text", content: words[i] + (i === words.length - 1 ? "" : " ") });
-            await new Promise((r) => setTimeout(r, 40));
-          }
-
-          await prisma.chatMessage.create({
-            data: {
-              sessionId: sessionId,
-              role: "assistant",
-              content: refusalText,
-              thoughtProcess: JSON.stringify({
-                steps: [{ step: "intent_routing", status: "completed", content: "Query filtered by guardrails.", durationMs: 0 }],
-                intent: "qa",
-              }),
-            },
-          });
-
-          controller.close();
-          return;
+          intent = "general";
+          send({ type: "thought", step: "intent_routing", status: "completed", content: "Routed to general conversation mode.", durationMs: 0 });
         }
 
         const steps: Array<{ step: string; status: string; content: string; durationMs: number }> = [];
@@ -2202,7 +2186,7 @@ The user has temporarily paused checkout to ask: "${message}".
             const streamConfig: any = {
               systemInstruction: hasSelectedProducts ? SELECTED_PRODUCT_QA_PROMPT : SYSTEM_PROMPTS[intent],
             };
-            if (intent === "qa") {
+            if (intent === "qa" || intent === "general") {
               streamConfig.tools = [{ googleSearch: {} }];
             }
 
@@ -2423,6 +2407,11 @@ const STATIC_FOLLOW_UPS: Record<Intent, string[]> = {
     "What did I buy last month?",
     "Track my past orders",
   ],
+  general: [
+    "Tell me more about that",
+    "Can you help me with something else?",
+    "Show me some products on Kapruka",
+  ],
 };
 
 // ── Static response fallback (if no Gemini API key) ───────────────────────
@@ -2446,6 +2435,10 @@ function generateFallback(intent: Intent, message: string, products: KaprukaProd
       return products.length > 0
         ? `I found ${products.length} past purchases. Click on any product to view details or add it to your cart.`
         : "I couldn't find any past orders matching that description.";
+    case "general":
+      return "I'm here to help! Feel free to ask me anything — whether it's about shopping, general questions, or just a chat.";
+    default:
+      return "I'm here to help! What would you like to know?";
   }
 }
 

@@ -87,6 +87,16 @@ export default function ChatWorkspace({
     setInputText("");
   };
 
+  // Regenerate the last AI response by re-sending the last user message
+  const handleRegenerate = () => {
+    // Find the last user message
+    const lastUserMsg = [...messages].reverse().find(m => m.sender === "user");
+    if (lastUserMsg && !isGenerating) {
+      // Re-send the last user message (this will delete the old AI response and generate a new one)
+      handleSendMessage(lastUserMsg.text, lastUserMsg.id);
+    }
+  };
+
   const handleToggleSelectProduct = (product: InlineProduct) => {
     if (isSharedReadOnly) return;
     setSelectedProducts((prev) => {
@@ -194,6 +204,7 @@ export default function ChatWorkspace({
             onToggleSelectProduct={handleToggleSelectProduct}
             onBuyProduct={onBuyProduct}
             onEditMessage={(msgId, newText) => handleSendMessage(newText, msgId)}
+            onRegenerate={handleRegenerate}
           />
         </div>
 
